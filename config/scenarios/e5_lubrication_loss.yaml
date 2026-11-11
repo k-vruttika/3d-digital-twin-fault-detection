@@ -1,0 +1,15 @@
+# Experiment E5: the held-out fault type. Only lubrication_loss is injected.
+name: e5_lubrication_loss
+seed: 4242
+duration_s: 3600
+load_ranges: [low, medium, high]
+faults:
+  random:
+    rate_per_machine_per_hour: 0.5
+    types: [lubrication_loss]
+    include_held_out: true
+    earliest_onset_s: 120
+# Job-to-job spindle speed changes on the CNC (SET_SPEED through the command path).
+# 7500 RPM keeps the CNC cycle time (6 s x 8000/7500 = 6.4 s) below the 6.5 s arrival interval.
+speed_changes:
+  - { machine: CNC-01, interval_s: [300, 900], speed_rpm: [7500, 10000] }

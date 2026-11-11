@@ -1,0 +1,20 @@
+# Robustness: the default machine faults plus random sensor faults (stuck, drift, dropout).
+# Sensor faults change observed values only; state labels remain ground truth.
+name: sensor_faults
+seed: 4343
+duration_s: 3600
+load_ranges: [low, medium, high]
+faults:
+  random:
+    rate_per_machine_per_hour: 0.5
+    types: [bearing_wear, overheating, spindle_imbalance, belt_jam]
+    earliest_onset_s: 120
+sensor_faults:
+  random:
+    rate_per_machine_per_hour: 1.0
+    types: [stuck, drift, dropout]
+    earliest_onset_s: 60
+# Job-to-job spindle speed changes on the CNC (SET_SPEED through the command path).
+# 7500 RPM keeps the CNC cycle time (6 s x 8000/7500 = 6.4 s) below the 6.5 s arrival interval.
+speed_changes:
+  - { machine: CNC-01, interval_s: [300, 900], speed_rpm: [7500, 10000] }

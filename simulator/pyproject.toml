@@ -3,7 +3,11 @@ name = "twin-sim"
 version = "0.1.0"
 description = "LineTwin production line simulator and publishers"
 requires-python = ">=3.11,<3.12"
-dependencies = ["twin-common"]
+dependencies = [
+    "numpy>=2.4.6",
+    "pyarrow>=26.0.1",
+    "twin-common",
+]
 
 [tool.uv.sources]
 twin-common = { workspace = true }

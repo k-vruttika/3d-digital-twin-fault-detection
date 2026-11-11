@@ -32,6 +32,10 @@ jobs:
         run: make lint
       - name: Test
         run: make test
+      - name: Minimal-mode data path (simulator files, no DB/broker/ML)
+        run: |
+          uv run python -m twin_sim generate --quick --out data/sim_quick/ --export csv,jsonl
+          LINETWIN_MINIMAL_DATA_DIR=data/sim_quick uv run pytest tests/test_phase1_integration.py
       - name: Frontend build
         run: npm --prefix frontend run build
 
@@ -58,3 +62,9 @@ jobs:
         run: .\scripts\dev.ps1 lint
       - name: Test
         run: .\scripts\dev.ps1 test
+      - name: Minimal-mode data path (simulator files, no DB/broker/ML)
+        run: |
+          .\scripts\dev.ps1 sim-quick
+          $env:LINETWIN_MINIMAL_DATA_DIR = 'data/sim_quick'
+          uv run pytest tests/test_phase1_integration.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -1,5 +1,133 @@
 # LineTwin progress
 
+## Phase 1: Simulator (done, 2026-11-11)
+
+### What was built
+
+- **`twin_sim` package:**
+  - `physics.py`: first-order thermal model (exact integration), load-dependent vibration, current and speed.
+  - `faults` (in `physics.py` and `line.py`): bearing_wear, overheating, spindle_imbalance (CNC only), belt_jam, and the held-out lubrication_loss.
+  - `thresholds.py`: per-run perturbed thresholds with hysteresis.
+  - `feasibility.py`: reachability and minimum-lead-time validator.
+  - `line.py`: `LineSimulator` with discrete parts, buffers, STARVED/BLOCKED with root cause, commands, auto-recovery, sensor faults, `step` / `snapshot` / `restore` / `fast_forward`.
+  - `scenario.py`: `RunPlan`.
+  - `recorder.py` and `labels.py`: Arrow table, time-to-fault with a censored flag.
+  - `batch.py`: multiprocessing, Parquet/CSV/JSONL, `manifest.json`.
+  - `runner.py`: asyncio `RealtimeRunner`.
+  - `plots.py`: example plots.
+  - `__main__.py`: CLI with `generate`, `run` and `plot-examples`.
+  - `testing.py`: pytest fixtures.
+- **Config:**
+  - `config/simulator.yaml`: every physics, fault, threshold, noise and label parameter. Loading it runs the feasibility validator.
+  - `config/scenarios/`: `default`, `quick`, `e5_lubrication_loss`, `sensor_faults`, `cnc_stop`.
+- **Docs:** [simulator.md](simulator.md) covers the equations, parameter tables, threshold sources (ISO 10816 zones, IEC 60034-1 insulation classes, IEC 60947-4-1 overload), how lubrication_loss differs, the feasibility numbers, label definitions and measured performance. Design decisions are in [ADR 0003](adr/0003-simulator-design.md).
+- **Tooling:**
+  - `sim`, `sim-quick` and `sim-plots` targets in `Makefile` and `dev.ps1`.
+  - CI step "minimal-mode data path" in both jobs: `generate --quick --export csv,jsonl`, then `tests/test_phase1_integration.py` on the output.
+
+### How to run
+
+```powershell
+.\scripts\dev.ps1 sim         # 200 runs x 3600 s, seed 42 -> data/sim/ (Parquet + manifest.json)
+.\scripts\dev.ps1 sim-quick   # 5 x 1800 s fault-dense runs + CSV/JSONL -> data/sim_quick/
+.\scripts\dev.ps1 sim-plots   # experiments/results/sim_examples/*.png
+uv run python -m twin_sim run --speed 10 --duration 120    # live Readings as JSON lines on stdout
+uv run python -m twin_sim generate --help
+```
+
+Measured: the full 200-run dataset (2.88 M rows, 132 MB) generated in 9.8 s with 17 workers. One worker does 10 runs in 2.7 s, which puts the full dataset at about 1 min on a single core.
+
+### Tests
+
+pytest now runs 221 tests: 76 in `simulator/tests` and 3 in `tests/test_phase1_integration.py`.
+
+- **Determinism:** same seed gives an identical table, a different seed or run gives a different one, and output is identical with 1 or 2 workers.
+- **Physics:**
+  - higher load gives higher steady-state temperature and current (pure functions and a full simulation)
+  - exact thermal integration
+  - degradation is monotone in progress
+  - the cooling-loss cap holds
+- **Faults:**
+  - healthy line never warns at the worst case
+  - every gradual fault reaches FAULT at the best case within its progression time (several seeds)
+  - every gradual fault has lead time ≥ 300 s, WARNING before FAULT and a rising primary precursor at the worst case (several seeds)
+  - jam drops speed and spikes current
+  - sensor faults change observations but not states
+  - held-out fault excluded by default
+  - imbalance occurs only on the CNC
+- **Feasibility validator:** rejects the old overheating model, too-fast progression and a too-low healthy margin. Readable `ConfigError`s.
+- **Propagation:**
+  - stopping CNC-01 makes CNV-01 BLOCKED and INSP-01/CNV-02 STARVED, all with root cause CNC-01, then recovers
+  - fault propagation follows the root-cause chain
+  - SOURCE starvation
+- **Commands:** every type, rejections, idempotency, maintenance resets wear, RESET keeps wear, auto-recovery.
+- **Snapshot:** snapshot → JSON → restore is bit-identical (including mid-jam and mid-fault). fast_forward equals repeated steps.
+- **Labels:** `time_to_fault` unit tests. On generated data, ttf counts down by 1 s to onset, censored rows have no fault ahead, and non-censored rows do.
+- **Runner:** order, seq and timestamps, pacing by speed, async callback, commands, stop.
+- **Batch and CLI:** files, schema, manifest, JSONL parses as `Reading`, `--quick`, config errors.
+- **Integration:** JSONL replays into `Reading`s time-ordered per machine. CSV agrees with Parquet. Importing the simulator pulls in no DB, broker or ML module.
+
+### Known limitations
+
+- `dev` and `minimal` are still stubs; they need the backend file adapter and the frontend (Phase 2+). The CI minimal-mode step checks only the file-based data path for now.
+- Parquet stores observed values only. With sensor faults on, the true values are not in the dataset; they are available in `StepFrame` (`true_vib/temp/current`).
+- Ambient temperature is constant per run, and speed has process noise but no separate measurement noise.
+- With the default scenario, few spindle_imbalance faults reach FAULT (17 of 35 planned in the 200-run dataset), because only CNC-01 is eligible. Late or low-load gradual faults are often censored, and onsets that hit an already-faulted machine are skipped (60 of 383). All of this is recorded in the manifest.
+- `make` is still not installed locally. Only `dev.ps1` was run here, and the new CI steps have not run on GitHub yet.
+- I checked the example plots visually (bearing_wear, lubrication_loss, line coupling). Please review all seven PNGs.
+
+### Enhancement: CNC spindle speed changes between jobs (2026-11-12)
+
+- **New scenario option, `speed_changes`.** Every U(300, 900) s it issues a SET_SPEED for CNC-01 to U(7500, 10000) RPM, through the same command path as the auto-recovery operator.
+  - It is in `default`, and in `quick`, `sensor_faults` and `e5_lubrication_loss`, which mirror the default operating conditions. It is not in `cnc_stop`.
+  - The setpoints come from a separate seeded stream (`speed_plan`), so fault plans are unchanged: the regenerated 200-run dataset has the same planned faults as before.
+- **Validated speed range.** A new per-kind `speed_operating_rpm` in `simulator.yaml` (CNC 7500–10000). The validator runs the healthy, reachability and lead-time checks at both ends of the range.
+  - No parameter change was needed.
+  - The tightest case is bearing wear at 10000 RPM, with a worst-case lead time of 315 s.
+  - spindle_imbalance needs 380 s at 10000 RPM.
+- **Scenario checks.** `check_scenario_compat` now takes the `LineConfig`. It rejects speeds outside the validated range, and speeds whose CNC cycle time would not stay below the arrival interval (7500 RPM gives 6.4 s, against 6.5 s arrivals).
+- **New plot:** `imbalance_vs_bearing_speed_steps.png`. Vibration divided by the speed ratio is smooth for bearing wear and steps with speed for imbalance.
+- **Tests (213 in total):**
+  - healthy run at both CNC speed ends
+  - reachability and lead time at both speed ends
+  - validator rejects a 12000 RPM range
+  - scenario speed and cycle-time rules
+  - speed changes planned, applied, and independent of the fault plan
+  - imbalance ∝ speed² vs bearing ∝ speed
+- **Regenerated:** `sim-quick`, the plots and `data/sim`. The 200 runs took 16.2 s this time (9.8 s before), within normal run-to-run variation on this machine.
+
+### Enhancement: single-station mode (2026-11-12)
+
+- **`config/line_single.yaml`:** CNV-01 only, no buffers. This is the "conveyor or CNC station" from the original synopsis. The simulator needed no code change: the source feeds the machine directly and parts leave to the sink.
+- **`config/scenarios/quick_single.yaml`:** `quick` without the CNC-only parts. Full-line scenarios reference CNC-01 and are refused on the single line with a clear message (`... not on line 'line1_single'`).
+- **CLI:** `--line` on `generate` and `run`, defaulting to `config/line.yaml`. It replaces the earlier global `--line-config` option, which had never been documented. `plot-examples` always uses the full line.
+- **Targets:** `sim-quick-single` in the Makefile and dev.ps1 writes to `data/sim_quick_single/`. Ran it: 5 runs, 9000 rows, 1.6 s.
+- **Tests:** 8 new in `simulator/tests/test_sim_single_line.py`:
+  - healthy station shows only RUNNING with null buffers
+  - gradual fault lead time and root cause
+  - SOURCE starvation, STOP
+  - snapshot round trip
+  - full-line scenario rejected
+  - batch output
+  - CLI `generate`/`run` with `--line`
+- **Docs:** [simulator.md](simulator.md) has a new §5 "Single-station mode"; the later sections are renumbered.
+
+### Deviations from the plan / CLAUDE.md
+
+- **Minimum progression time:** `D_min` is 720 s instead of 600 s, so the worst-case bearing-wear lead time stays ≥ 300 s.
+- **New current thresholds** (1.15 / 1.30 × rated). They are needed so lubrication_loss can trip on overcurrent.
+- **Model details changed from the original plan:**
+  - bearing-wear friction is 0.2·w (was 0.3·w), to keep current flat;
+  - bearing vibration scales with the speed ratio;
+  - lubrication_loss has no deterministic vibration term, only stick-slip bursts.
+- **New files outside the CLAUDE.md layout:**
+  - `config/simulator.yaml`
+  - `twin_sim/feasibility.py`
+  - `twin_sim/testing.py`, a fixture plugin registered by a new root `conftest.py`, because `conftest.py` names must be unique repo-wide (ADR 0001)
+- **`twin_common.logging.configure_logging`** has a new optional `stream` argument, so the `run` CLI can keep stdout for Readings.
+- **Dependencies:** `numpy` and `pyarrow` were added to `twin-sim`, and `matplotlib` to the root dev group (approved). A mypy override ignores missing pyarrow type information.
+- **Targets:** `sim-quick` and `sim-plots` were added on top of `sim`.
+
 ## Phase 0: Foundation (done, 2026-11-11)
 
 ### What was built

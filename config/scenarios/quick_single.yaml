@@ -1,0 +1,11 @@
+# Short, fault-dense runs for the single-station line (config/line_single.yaml).
+# Same as quick.yaml without the CNC-only parts (spindle speed changes, spindle_imbalance).
+name: quick_single
+seed: 42
+duration_s: 1800
+load_ranges: [low, medium, high]
+faults:
+  random:
+    rate_per_machine_per_hour: 2.0
+    types: [bearing_wear, overheating, belt_jam]
+    earliest_onset_s: 60

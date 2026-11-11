@@ -1,0 +1,8 @@
+# Line coupling demo: an operator stops CNC-01 for 10 minutes. No machine faults.
+name: cnc_stop
+seed: 7
+duration_s: 1800
+load_ranges: [medium]
+commands:
+  - { at_s: 600, machine: CNC-01, type: STOP }
+  - { at_s: 1200, machine: CNC-01, type: START }

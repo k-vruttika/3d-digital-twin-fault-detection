@@ -1,0 +1,35 @@
+# Single-station mode (original synopsis: "a 3D conveyor or CNC station"):
+# one infeed conveyor, no buffers. The source feeds CNV-01 directly and finished parts
+# leave to an unbounded sink. Validated by twin_common.config.LineConfig.
+# Use with: python -m twin_sim generate --line config/line_single.yaml
+#           --scenario config/scenarios/quick_single.yaml   (.\scripts\dev.ps1 sim-quick-single)
+
+line_id: line1_single
+
+# Same sensor catalog as config/line.yaml.
+sensors:
+  speed:   { unit: RPM,  min: 0.0,   max: 15000.0 }
+  temp:    { unit: degC, min: -20.0, max: 150.0 }
+  vib:     { unit: mm/s, min: 0.0,   max: 50.0 }
+  load:    { unit: "%",  min: 0.0,   max: 120.0 }
+  current: { unit: A,    min: 0.0,   max: 100.0 }
+
+machines:
+  - id: CNV-01
+    kind: CONVEYOR
+    name: Infeed conveyor
+    sensors: [speed, temp, vib, load, current]
+    parts: [belt, motor, bearing]
+    sensor_parts:
+      speed: belt
+      load: belt
+      temp: motor
+      current: motor
+      vib: bearing
+
+buffers: []
+
+load_ranges:
+  low:    { min: 30.0, max: 50.0 }
+  medium: { min: 50.0, max: 75.0 }
+  high:   { min: 75.0, max: 95.0 }

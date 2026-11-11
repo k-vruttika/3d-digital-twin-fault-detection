@@ -1,0 +1,152 @@
+# LineTwin simulator physics, fault and threshold parameters.
+# Validated by twin_sim.config.SimConfig. Equations and sources: docs/simulator.md.
+# Loading this file also runs the fault-feasibility validator (reachability + minimum lead time).
+
+# Per machine kind. Units: speed RPM, heat W, heat capacity J/K, cooling W/K, current A, vib mm/s RMS.
+kinds:
+  CONVEYOR:
+    speed_set_rpm: 1450.0
+    speed_max_rpm: 1750.0
+    slip_at_full_load: 0.03
+    overload_speed_drop: 0.5        # fractional speed loss per unit load above 100 %
+    speed_noise_frac: 0.003
+    heat_capacity_j_per_k: 6000.0
+    cooling_w_per_k: 25.0
+    heat_noload_w: 100.0            # q0
+    heat_load_w: 750.0              # qL, copper loss at 100 % load (scales with load^2)
+    heat_friction_w: 600.0          # qf, at friction index 1
+    current_noload_a: 1.5           # I0
+    current_load_a: 6.0             # IL at 100 % load
+    current_friction_a: 2.5         # If at friction index 1
+    vib_base_mm_s: 0.45             # v0
+    vib_load_coef: 0.3              # betaL
+    cycle_time_s: 4.0
+    thresholds:
+      vib_warning: 1.8              # ISO 10816-1 class I, zone B/C boundary
+      vib_fault: 4.5                # ISO 10816-1 class I, zone C/D boundary
+      temp_warning: 80.0
+      temp_fault: 95.0
+      current_warning_x: 1.15       # x rated current (I0 + IL)
+      current_fault_x: 1.30
+  CNC:
+    speed_set_rpm: 8000.0
+    speed_max_rpm: 12000.0
+    speed_operating_rpm: [7500.0, 10000.0]   # job-to-job setpoints (validated at both ends)
+    slip_at_full_load: 0.015
+    overload_speed_drop: 0.5
+    speed_noise_frac: 0.002
+    heat_capacity_j_per_k: 15000.0
+    cooling_w_per_k: 50.0
+    heat_noload_w: 250.0
+    heat_load_w: 1300.0
+    heat_friction_w: 1500.0
+    current_noload_a: 4.0
+    current_load_a: 18.0
+    current_friction_a: 6.0
+    vib_base_mm_s: 1.2
+    vib_load_coef: 0.3
+    cycle_time_s: 6.0
+    thresholds:
+      vib_warning: 4.5              # ISO 10816-3 group 2 flexible, zone B/C boundary
+      vib_fault: 7.1                # ISO 10816-3 group 2 flexible, zone C/D boundary
+      temp_warning: 70.0
+      temp_fault: 85.0
+      current_warning_x: 1.15
+      current_fault_x: 1.30
+  INSPECTION:
+    speed_set_rpm: 600.0
+    speed_max_rpm: 900.0
+    slip_at_full_load: 0.02
+    overload_speed_drop: 0.5
+    speed_noise_frac: 0.003
+    heat_capacity_j_per_k: 4000.0
+    cooling_w_per_k: 20.0
+    heat_noload_w: 60.0
+    heat_load_w: 500.0
+    heat_friction_w: 400.0
+    current_noload_a: 1.0
+    current_load_a: 3.5
+    current_friction_a: 1.5
+    vib_base_mm_s: 0.40
+    vib_load_coef: 0.3
+    cycle_time_s: 5.0
+    thresholds:
+      vib_warning: 1.8
+      vib_fault: 4.5
+      temp_warning: 75.0
+      temp_fault: 90.0
+      current_warning_x: 1.15
+      current_fault_x: 1.30
+
+# Measurement noise (observation layer, separate RNG stream from the physics).
+measurement:
+  temp_sigma_c: 0.2
+  vib_mult: 0.03
+  vib_add_mm_s: 0.03
+  current_mult: 0.01
+  current_add_a: 0.05
+  load_sigma_pct: 0.5
+
+faults:
+  progression_s: [720.0, 1500.0]    # D: time for progress w to go 0 -> 1 at g = 1
+  progress_noise_sigma: 0.1         # lognormal, mean-corrected
+  load_ref_pct: 62.5
+  load_factor_clip: [0.5, 1.5]      # g(L) = clip((L / load_ref)^m, lo, hi)
+  bearing_wear:
+    kinds: [CONVEYOR, CNC, INSPECTION]
+    load_exponent: 1.5
+    vib_amp_x_fault: 1.6            # Vb relative to the kind's base vib_fault
+    gamma: 3.0
+    friction_coef: 0.2
+  overheating:
+    kinds: [CONVEYOR, CNC, INSPECTION]
+    load_exponent: 0.0
+    cooling_loss_rate: 0.6          # c = min(rate * w, max)
+    cooling_loss_max: 0.6
+    fault_heat_dt_k: 100.0          # fault heat = dT * cooling_w_per_k * w
+  spindle_imbalance:
+    kinds: [CNC]
+    load_exponent: 0.0
+    vib_amp_x_fault: 1.5            # Vi relative to the kind's base vib_fault
+  lubrication_loss:
+    kinds: [CONVEYOR, CNC, INSPECTION]
+    held_out: true                  # excluded from random sampling unless include_held_out
+    load_exponent: 0.0
+    friction_exponent: 3.0          # f_l = w^3
+    current_x_rated: 1.5            # I_lub
+    speed_sag: 0.04                 # speed x (1 - sag * w^2)
+    speed_jitter_gain: 3.0          # speed noise x (1 + gain * w)
+    burst_prob_gain: 0.3            # stick-slip burst probability per second = gain * w
+    burst_amp_x_fault: 0.3          # burst amplitude = U(lo, hi) * x * vib_fault
+    burst_amp_range: [0.5, 1.5]
+  belt_jam:
+    kinds: [CONVEYOR, INSPECTION]
+    speed_tau_s: 0.5
+    stall_current_x_rated: 3.0
+    trip_after_s: 2.0
+
+operation:
+  hysteresis_frac: 0.05             # leave WARNING once all signals are 5 % below threshold
+  starved_after_s: 15.0
+  blocked_after_s: 15.0
+  idle_load_pct: 10.0
+  load_lag_tau_s: 3.0
+  max_load_pct: 120.0
+  maintenance_duration_s: 600.0
+  max_substep_s: 1.0
+  initial_buffer_level: 2          # parts in each buffer at t = 0 (avoids start-up STARVED)
+
+sensor_faults:
+  duration_s: [120.0, 900.0]
+  drift_rate_frac_per_hour: 0.1     # of the sensor's catalog range (line.yaml)
+  sensors: [temp, vib, current]     # sensors eligible for stuck/drift
+
+labels:
+  ttf_cap_s: 1800.0
+
+validation:
+  min_lead_s: 300.0
+  reach_max_progress: 0.95
+  best_case: { load_pct: 30.0, ambient_c: 18.0 }
+  worst_case: { load_pct: 95.0, ambient_c: 28.0 }
+  threshold_perturbation_pct: 10.0  # validator assumes thresholds at +/- this
