@@ -130,3 +130,4 @@ ML target mapping: RUNNING/IDLE/STARVED/BLOCKED/MAINTENANCE → NORMAL (machine 
 5. **Never fabricate experiment numbers, citations, or dataset contents.** Results only come from running code. If something can't be run here (e.g. a dataset is missing), say so and leave a clearly marked TODO.
 6. Do not download datasets automatically; loaders expect files in `data/external/<name>/` and fail with a helpful message.
 7. Never break minimal mode (section 1).
+8. Never add "Co-Authored-By", "Generated with Claude", or any other AI attribution to commit messages, suggested commit messages, PR descriptions, code comments, or docs.
