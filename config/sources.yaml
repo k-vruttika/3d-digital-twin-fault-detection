@@ -1,0 +1,25 @@
+# Data source selection. Validated by twin_common.config.SourcesConfig.
+# The default is `file` so minimal mode runs with no broker, database or ML.
+active: file
+
+file:
+  path: data/sim/sample_line1.csv   # produced by the simulator (Phase 1)
+  format: csv
+  replay_speed: 1.0                 # 1.0 = real time
+  loop: true
+
+mock:
+  base_url: http://127.0.0.1:8100
+  ws_path: /ws
+
+mqtt:
+  host: 127.0.0.1
+  port: 1883
+  topic_prefix: plant/line1
+  client_id: linetwin-backend
+  qos: 1
+  keepalive_s: 30
+
+opcua:
+  endpoint: opc.tcp://127.0.0.1:4840/linetwin/
+  namespace: urn:linetwin:sim

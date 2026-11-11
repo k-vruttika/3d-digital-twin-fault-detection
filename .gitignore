@@ -1,0 +1,45 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/coverage/
+*.tsbuildinfo
+
+# Data and ML artefacts (never committed)
+data/*
+!data/.gitkeep
+mlruns/
+mlartifacts/
+*.onnx
+*.pt
+
+# Generated experiment results: produced by scripts, kept out of git except the folder
+experiments/results/*
+!experiments/results/.gitkeep
+
+# Local services / env
+.env
+.env.*
+*.log
+mosquitto.db
+config/*.local.yaml
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+Thumbs.db
+Desktop.ini
+.DS_Store

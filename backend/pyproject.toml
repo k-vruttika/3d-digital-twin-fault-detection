@@ -1,0 +1,16 @@
+[project]
+name = "twin-backend"
+version = "0.1.0"
+description = "LineTwin backend: adapters, ingest, event store, twin engine, inference, API"
+requires-python = ">=3.11,<3.12"
+dependencies = ["twin-common"]
+
+[tool.uv.sources]
+twin-common = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["twin_backend"]

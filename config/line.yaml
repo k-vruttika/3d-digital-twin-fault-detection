@@ -1,0 +1,78 @@
+# LineTwin production line layout.
+# Material flow: CNV-01 (infeed conveyor) -> CNC-01 -> INSP-01 (inspection) -> CNV-02 (outfeed)
+# Validated by twin_common.config.LineConfig.
+
+line_id: line1
+
+# Sensor catalog. Keys must be Reading sensor fields. min/max are the physically
+# plausible bounds the ingest validator uses (Phase 2); values outside are SUSPECT.
+sensors:
+  speed:   { unit: RPM,  min: 0.0,   max: 15000.0 }
+  temp:    { unit: degC, min: -20.0, max: 150.0 }
+  vib:     { unit: mm/s, min: 0.0,   max: 50.0 }
+  load:    { unit: "%",  min: 0.0,   max: 120.0 }
+  current: { unit: A,    min: 0.0,   max: 100.0 }
+
+# Machines in material-flow order. sensor_parts maps every sensor to the 3D part it
+# is highlighted on (explanations, alarms).
+machines:
+  - id: CNV-01
+    kind: CONVEYOR
+    name: Infeed conveyor
+    sensors: [speed, temp, vib, load, current]
+    parts: [belt, motor, bearing]
+    sensor_parts:
+      speed: belt
+      load: belt
+      temp: motor
+      current: motor
+      vib: bearing
+
+  - id: CNC-01
+    kind: CNC
+    name: CNC machining station
+    sensors: [speed, temp, vib, load, current]
+    parts: [spindle, spindle_motor, spindle_bearing]
+    sensor_parts:
+      speed: spindle
+      load: spindle
+      temp: spindle_motor
+      current: spindle_motor
+      vib: spindle_bearing
+
+  - id: INSP-01
+    kind: INSPECTION
+    name: Inspection station
+    sensors: [speed, temp, vib, load, current]
+    parts: [indexer, motor, bearing]
+    sensor_parts:
+      speed: indexer
+      load: indexer
+      temp: motor
+      current: motor
+      vib: bearing
+
+  - id: CNV-02
+    kind: CONVEYOR
+    name: Outfeed conveyor
+    sensors: [speed, temp, vib, load, current]
+    parts: [belt, motor, bearing]
+    sensor_parts:
+      speed: belt
+      load: belt
+      temp: motor
+      current: motor
+      vib: bearing
+
+# Buffers between machines; capacity = max parts held.
+buffers:
+  - { id: B1, from: CNV-01, to: CNC-01,  capacity: 10 }
+  - { id: B2, from: CNC-01, to: INSP-01, capacity: 8 }
+  - { id: B3, from: INSP-01, to: CNV-02, capacity: 10 }
+
+# Operating-condition bands (load %), used for condition-shift experiments.
+# Must be contiguous: low.max == medium.min, medium.max == high.min.
+load_ranges:
+  low:    { min: 30.0, max: 50.0 }
+  medium: { min: 50.0, max: 75.0 }
+  high:   { min: 75.0, max: 95.0 }

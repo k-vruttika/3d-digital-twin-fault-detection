@@ -1,0 +1,76 @@
+[project]
+name = "linetwin"
+version = "0.1.0"
+description = "LineTwin: multi-source 3D digital twin with reliable early fault warning"
+readme = "CLAUDE.md"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "twin-common",
+    "twin-sim",
+    "twin-backend",
+    "twin-ml",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["common", "simulator", "backend", "ml"]
+
+[tool.uv.sources]
+twin-common = { workspace = true }
+twin-sim = { workspace = true }
+twin-backend = { workspace = true }
+twin-ml = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "pre-commit>=4.0",
+    "types-PyYAML>=6.0",
+]
+
+# ---------------------------------------------------------------- ruff
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["frontend", "data", "experiments/results"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF", "PT", "C4"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["twin_common", "twin_sim", "twin_backend", "twin_ml"]
+
+# ---------------------------------------------------------------- mypy
+[tool.mypy]
+python_version = "3.11"
+plugins = ["pydantic.mypy"]
+# Each workspace member dir is a package root. Test dirs have no __init__.py and test file
+# names are unique across the repo, so all `tests` dirs form one namespace package.
+files = ["common", "simulator", "backend", "ml", "tests"]
+mypy_path = ["common", "simulator", "backend", "ml"]
+explicit_package_bases = true
+strict = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+# ML code is research-heavy; relaxed until the ML phases tighten it.
+module = ["twin_ml", "twin_ml.*"]
+strict = false
+disallow_untyped_defs = false
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+testpaths = ["common/tests", "simulator/tests", "backend/tests", "ml/tests", "tests"]
+addopts = ["--import-mode=importlib", "-ra", "--strict-markers"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
