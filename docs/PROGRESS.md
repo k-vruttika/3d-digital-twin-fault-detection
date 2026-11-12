@@ -2,6 +2,25 @@
 
 ## Phase 2: Adapters and ingestion (done, 2026-11-12)
 
+### Fix: MQTT publisher buffer race (after CI on ubuntu-latest)
+
+- **Symptom:** `test_commands_over_mqtt` failed with `IndexError: pop from an empty deque` in `MqttPublisher._flush`.
+- **Cause:** on `stop()`, `_serve` flushed the buffer while the publish task was still waiting for a PUBACK, so two coroutines drained the same deque. Besides the crash, this sent readings twice and dropped others. Separately, the `deque(maxlen=...)` could evict the reading that was being sent, and then the wrong reading was removed.
+- **Fix:**
+  - The publish loop is now the only drainer, guarded by an `asyncio.Lock`. On `stop()` it drains what is left and returns; `_serve` waits for that instead of flushing itself.
+  - The reading being sent is taken out of the buffer first and put back at the front if the publish fails or is cancelled. Delivery stays at least once (dedup removes duplicates), in order.
+  - The buffer bound now drops the oldest buffered reading, never the one in flight.
+  - The retained state is marked as published only after the broker accepted it.
+- **Other senders checked:**
+  - MqttAdapter has no buffer, only pending ack futures.
+  - The mock server's WebSocket feed and the adapter queues are single-reader `asyncio.Queue`s.
+  - OPC UA events are triggered sequentially by the runner.
+- **Test:** `simulator/tests/test_sim_mqtt_publisher.py` uses a fake client with a slow PUBACK, so the interleaving is deterministic. On the old code it reproduces the exact CI error (duplicate seq 1, lost seq 8, `IndexError` at the same line) and the eviction bug. After the fix it passes, along with a test that a failed publish is resent first on the next connection.
+- **Verified:**
+  - `uv run poe lint` passes.
+  - `uv run poe test` with services up and `LINETWIN_REQUIRE_SERVICES=1`: 419 passed.
+  - The MQTT unit and integration tests passed 10 runs in a row; the race tests passed 20 runs in a row.
+
 ### What was built
 
 - **Shared code (`twin_common`):**

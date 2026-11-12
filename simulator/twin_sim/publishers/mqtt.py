@@ -64,7 +64,11 @@ class MqttPublisher:
     def __init__(self, session: SimSession, opts: MqttPublisherOptions) -> None:
         self.session = session
         self.opts = opts
-        self._buffer: deque[Reading] = deque(maxlen=opts.buffer_size)
+        # Readings not yet accepted by the broker. Only the publish loop removes items (one
+        # drainer, guarded by _drain_lock); the reading being sent is taken out first, so the
+        # bound below can never evict it, and a failed send puts it back at the front.
+        self._buffer: deque[Reading] = deque()
+        self._drain_lock = asyncio.Lock()
         self._wakeup = asyncio.Event()
         self._last_state: dict[str, MachineState] = {}
         self._stop = asyncio.Event()
@@ -75,7 +79,8 @@ class MqttPublisher:
         session.add_listener(self._on_reading)
 
     def _on_reading(self, reading: Reading) -> None:
-        if len(self._buffer) == self._buffer.maxlen:
+        while len(self._buffer) >= self.opts.buffer_size:
+            self._buffer.popleft()  # broker unreachable for too long: drop the oldest
             self.dropped += 1
         self._buffer.append(reading)
         self._wakeup.set()
@@ -113,20 +118,21 @@ class MqttPublisher:
                     await asyncio.wait_for(self._stop.wait(), timeout=delay)
 
     async def _serve(self, client: aiomqtt.Client) -> None:
+        """Run the publish loop (sole owner of the buffer) and the command loop.
+
+        Returns once the publish loop has drained the buffer after ``stop()``; raises
+        MqttError (-> reconnect) if either loop loses the connection.
+        """
         pub = asyncio.create_task(self._publish_loop(client))
         cmds = asyncio.create_task(self._command_loop(client))
-        stop = asyncio.create_task(self._stop.wait())
         try:
-            done, _ = await asyncio.wait({pub, cmds, stop}, return_when=asyncio.FIRST_COMPLETED)
-            if stop in done:
-                await self._flush(client)
+            done, _ = await asyncio.wait({pub, cmds}, return_when=asyncio.FIRST_COMPLETED)
             for task in done:
-                if task is not stop:
-                    task.result()  # re-raise MqttError -> reconnect
+                task.result()  # re-raise MqttError -> reconnect
         finally:
-            for task in (pub, cmds, stop):
+            for task in (pub, cmds):
                 task.cancel()
-            for task in (pub, cmds, stop):
+            for task in (pub, cmds):
                 with contextlib.suppress(asyncio.CancelledError, aiomqtt.MqttError):
                     await task
 
@@ -139,7 +145,6 @@ class MqttPublisher:
             properties=publish_properties(datetime.now(UTC)),
         )
         if self._last_state.get(reading.machine_id) is not reading.state:
-            self._last_state[reading.machine_id] = reading.state
             state = {
                 "machineId": reading.machine_id,
                 "state": reading.state.value,
@@ -152,18 +157,34 @@ class MqttPublisher:
                 qos=self.opts.qos,
                 retain=True,
             )
+            # Only after the broker accepted it, so a failed send is retried with the reading.
+            self._last_state[reading.machine_id] = reading.state
         self.published += 1
 
-    async def _flush(self, client: aiomqtt.Client) -> None:
-        while self._buffer:
-            await self._publish_one(client, self._buffer[0])
-            self._buffer.popleft()
+    async def _drain(self, client: aiomqtt.Client) -> None:
+        """Send buffered readings oldest first, one at a time.
+
+        The lock guarantees a single drainer. A reading counts as sent only once the broker
+        accepted it; if the publish fails or is cancelled, it goes back to the front of the
+        buffer, so the next connection resends it first (at least once, order kept).
+        """
+        async with self._drain_lock:
+            while self._buffer:
+                reading = self._buffer.popleft()
+                try:
+                    await self._publish_one(client, reading)
+                except BaseException:
+                    self._buffer.appendleft(reading)
+                    raise
 
     async def _publish_loop(self, client: aiomqtt.Client) -> None:
+        """Sole owner of the buffer: drains it, sleeps until new readings arrive, and on
+        ``stop()`` drains what is left and returns."""
         while True:
-            # Only drop a reading from the buffer once the broker has accepted it.
-            await self._flush(client)
             self._wakeup.clear()
+            await self._drain(client)
+            if self._stop.is_set():
+                return
             if not self._buffer:
                 await self._wakeup.wait()
 
