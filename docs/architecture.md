@@ -62,6 +62,30 @@ flowchart LR
 - **Commands:** `SourceManager.send_command` forwards a command to the active adapter if that adapter has the `commands` capability. Commands and acks are also published on the `commands` topic.
 - **Event loop:** all async entry points run on `twin_common.aio.run`, which uses a selector loop on Windows ([ADR 0008](adr/0008-windows-selector-event-loop.md)).
 
+## Storage and event sourcing (Phase 3)
+
+Implemented in `backend/twin_backend/storage/` and `engine/line_state.py`. The decisions are in [ADR 0009](adr/0009-event-store-and-migrations.md) (store, TimescaleDB features, migrations) and [ADR 0010](adr/0010-event-time-replay-and-snapshots.md) (event-time axis, line-state fold, snapshots, reconstruct).
+
+```mermaid
+flowchart LR
+    BUS(["Event bus"]) -- "readings, states, predictions,<br/>commands, alerts" --> W["StorageWriter<br/>own bounded queues, batches,<br/>retries, dropped-writes metric"]
+    Q["Quarantine tee"] --> W
+    W --> ES[("EventStore<br/>SQLite (minimal mode) |<br/>TimescaleDB hypertables")]
+    ES --> AGG["History<br/>1 s raw | 1 min | 10 min<br/>(continuous aggregates)"]
+    ES --> SNAP["Snapshotter<br/>every interval_s of event time"]
+    SNAP --> ES
+    ES --> REC["reconstruct(t)<br/>snapshot + event replay"]
+    ES --> EXP["Export CSV / JSONL<br/>(replayable by the file adapter)"]
+    BUS --> LIVE["LiveStateTracker<br/>(same fold as reconstruct)"]
+```
+
+- **Backend selection:** `config/storage.yaml`, `backend: sqlite` (the default, needs no service) or `timescale`. `twin_backend.runtime.build_runtime()` loads `line.yaml`, `sources.yaml` and `storage.yaml` and wires the bus, storage and `SourceManager`. With storage present, live ingestion persists automatically.
+- **Never blocking:** the writer reads from its own bus subscriptions. When it falls behind, the oldest rows are dropped and counted (`linetwin_storage_dropped_writes_total`). Ingestion never waits for the database.
+- **One time axis:** every stored event carries its event time `ts`. Staleness state changes are stamped on the same axis (scaled by the replay speed). `ingested_at` (wall clock) is metadata only.
+- **Time travel:** `reconstruct(t)` folds snapshot + events with the same order-independent reducer the live tracker uses, so it equals the live state for the same data. LATE readings are stored but never applied.
+- **Metrics:** the storage metrics share the ingest metrics registry (served at `/metrics` from Phase 4).
+- **Measured write throughput:** see `experiments/results/storage_bench.md` (`uv run poe storage-bench`).
+
 ## Command path
 
 ```mermaid
@@ -79,19 +103,20 @@ flowchart LR
 
 ## Minimal mode
 
-The minimal path is `File export` or `Mock server` → adapter → ingest → bus → twin engine → WS gateway → frontend, with the SQLite (or no) event store and no broker, TimescaleDB, Docker or ML. It must keep working in every phase (CLAUDE.md section 1).
+The minimal path is `File export` or `Mock server` → adapter → ingest → bus → twin engine → WS gateway → frontend, with the SQLite event store (`config/storage.yaml` ships with `backend: sqlite`) and no broker, TimescaleDB, Docker or ML. It must keep working in every phase (CLAUDE.md section 1).
 
 ## Shared contracts
 
 All wire formats are defined once in `common/twin_common/contracts.py`:
 
 - `Reading` (schemaVersion 2; sensor values nullable, `null` = missing)
-- `StateChange` (bus topic `states`)
+- `StateChange` (bus topic `states`; `ts` on the event-time axis)
 - `Prediction`
 - `Attribution`
 - `Command`
 - `CommandAck`
+- `Alert` (bus topic `alerts`; stored from Phase 3, produced from the inference phases)
 
 JSON is camelCase and Python attributes are snake_case. Timestamps must be timezone-aware and are normalized to UTC. Unknown fields are rejected.
 
-Line layout and data sources come from `config/line.yaml` and `config/sources.yaml`, which are validated by `twin_common.config`.
+Line layout, data sources and storage come from `config/line.yaml`, `config/sources.yaml` and `config/storage.yaml`, which are validated by `twin_common.config`.

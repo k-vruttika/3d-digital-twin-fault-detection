@@ -25,9 +25,28 @@ mlartifacts/
 *.onnx
 *.pt
 
-# Generated experiment results: produced by scripts, kept out of git except the folder
-experiments/results/*
-!experiments/results/.gitkeep
+# Generated experiment results: produced by scripts and committed (CLAUDE.md section 7).
+# Reports (*.md), JSON summaries and plots (*.png, *.svg) are tracked. Large or regenerable
+# artefacts are not. Git cannot filter by size: tests/test_results_policy.py fails if a tracked or
+# untracked-but-not-ignored file here exceeds the size limit.
+experiments/results/**/*.parquet
+experiments/results/**/*.feather
+experiments/results/**/*.arrow
+experiments/results/**/*.npy
+experiments/results/**/*.npz
+experiments/results/**/*.pkl
+experiments/results/**/*.joblib
+experiments/results/**/*.ckpt
+experiments/results/**/*.pt
+experiments/results/**/*.pth
+experiments/results/**/*.onnx
+experiments/results/**/*.h5
+experiments/results/**/*.sqlite
+experiments/results/**/*.db
+experiments/results/**/*.csv.gz
+experiments/results/**/*.zip
+experiments/results/**/mlruns/
+experiments/results/**/raw/
 
 # Local services / env
 .env

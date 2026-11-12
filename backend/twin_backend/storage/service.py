@@ -141,10 +141,12 @@ def build_store(cfg: StorageConfig, *, root: Path, settings: TwinSettings | None
             path if path.is_absolute() else root / path,
             busy_timeout_s=cfg.sqlite.busy_timeout_s,
         )
-    raise ConfigError(
-        f"storage backend '{cfg.backend}' is not available yet (TimescaleDB arrives in "
-        "Phase 3 part B); use backend: sqlite"
-    )
+    if cfg.timescale is None:  # enforced by StorageConfig; kept for the type checker
+        raise ConfigError("storage backend 'timescale' needs a 'timescale:' section")
+    from twin_backend.storage.timescale import TimescaleEventStore
+
+    settings = settings if settings is not None else TwinSettings()
+    return TimescaleEventStore(settings.pg_dsn, cfg.timescale)
 
 
 def build_storage(

@@ -135,6 +135,10 @@ cmd = "python -m twin_backend.storage info"
 help = "Export a time range, e.g. `uv run poe db-export --format csv --out data/export/run.csv --from 2026-01-01T00:00:00Z`"
 cmd = "python -m twin_backend.storage export"
 
+[tool.poe.tasks.storage-bench]
+help = "Write-throughput benchmark of both event stores -> experiments/results/storage_bench.md (timescale needs `up`)"
+cmd = "python -m twin_backend.storage.bench"
+
 [tool.poe.tasks.build-frontend]
 help = "Production build of the frontend"
 cmd = "npm --prefix frontend run build"

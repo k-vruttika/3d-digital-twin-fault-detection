@@ -1,5 +1,140 @@
 # LineTwin progress
 
+## Phase 3: Storage and event sourcing (done, 2026-11-12)
+
+Delivered in two parts: part A (SQLite, writer, snapshots, replay, export, wiring) and part B (TimescaleDB, test-database isolation, benchmark, docs).
+
+### What was built
+
+- **Contracts and Phase 2 changes:**
+  - New `Alert` contract and `AlertSeverity` enum.
+  - `SourceAdapter.time_scale`: the replay speed for the file adapter, 1.0 for live sources. `SourceManager` passes it to the pipeline.
+  - **Staleness `StateChange.ts` is now event time:** the last reading ts + wall silence × time scale. A recovery gets the resuming reading's ts. See the ADR 0007 amendment and [ADR 0010](adr/0010-event-time-replay-and-snapshots.md).
+  - **Bus** (ADR 0006 amendment): `subscribe(topic, maxsize=...)`; publish-time stamps (`get_stamped()`), stored as `ingested_at`; `qsize()`.
+- **Line state** (`engine/line_state.py`): `LineState` and an order-independent fold (`apply_event`) that never applies LATE readings, plus `LiveStateTracker`. The live state and `reconstruct` use the same fold.
+- **Storage** (`storage/`, [ADR 0009](adr/0009-event-store-and-migrations.md)):
+  - `EventStore` interface with seven event streams plus snapshots. Inserts are idempotent; every row keeps event-time `ts` and wall-clock `ingested_at`.
+  - **SQLite** (`sqlite.py`): standard library only, one worker thread, WAL, integer-microsecond timestamps. Downsampling is done in SQL.
+  - **TimescaleDB** (`timescale.py`, asyncpg, imported only when selected):
+    - hypertables for all event tables;
+    - continuous aggregates `readings_1m` and hierarchical `readings_10m` (sum, count, min, max, `n_late`, `n_suspect`), with real-time aggregation;
+    - refresh policies whose windows cover `max_late_arrival_s`; optional compression and retention policies; chunk intervals from config;
+    - inserts via COPY into a staging table, then `ON CONFLICT DO NOTHING`;
+    - readings older than the policy window (replays, backfills) are queued in the table `aggregate_refresh_queue`, written in the same transaction as the readings, and refreshed before the next 1 min / 10 min history query that covers them, in any process and across restarts (ADR 0010 amendment).
+  - **Migrations:** versioned plain SQL (`migrations/{sqlite,timescale}/NNNN_name.sql`, runner `migrator.py`) with CRLF-insensitive checksums and a no-transaction marker for continuous aggregates.
+  - **`StorageWriter`:** own bounded bus queues (drop-oldest), batches, retries, metrics (`linetwin_storage_dropped_writes_total{stream,reason}`, written, duplicates, batch latency, queue depth). Quarantine records reach it through a tee sink.
+  - **`Snapshotter`:** epoch-aligned snapshots every `interval_s` of event time, up to the watermark minus `settle_s`. Each snapshot is computed by `reconstruct`. Snapshots are deleted when older non-LATE data arrives later.
+  - **`replay.py`:** `reconstruct(t)` (snapshot + replay) and `iter_states(t0, t1, step)`.
+  - **`export.py`** and the CLI `python -m twin_backend.storage migrate | info | export`: canonical Reading CSV/JSONL that the file adapter replays; `--all` also writes the other streams.
+  - **`service.py`:** `StorageService` and `build_storage` / `build_store`.
+- **Wiring:**
+  - `SourceManager(..., storage=...)` starts storage before the adapter, stores quarantined messages, and on stop publishes what the reorder buffer holds, then drains the writer.
+  - `twin_backend.runtime.build_runtime()` loads `line.yaml`, `sources.yaml` and `storage.yaml` and checks `settle_s ≥ lateness_window_s + flush_interval_s`.
+- **Config:** new `config/storage.yaml` (`backend: sqlite` by default) and `StorageConfig`. Cross-field rules: refresh `start_offset_s ≥ max_late_arrival_s + end_offset_s`; retention longer than every refresh window. New `TwinSettings.storage_config_path`.
+- **Tests:**
+  - **Test database:** session fixture `timescale_test_db` creates `linetwin_test_<hex>`, migrates it and drops it with `WITH (FORCE)`.
+  - **Both backends:** `STORE_BACKENDS` runs every store-level test on SQLite and on TimescaleDB (`services` marker).
+- **Benchmark:** `storage/bench.py` (`uv run poe storage-bench`) → `experiments/results/storage_bench.md` (committed).
+- **Results in git:** `.gitignore` now tracks reports, summaries and plots under `experiments/results/` and ignores large or regenerable artefacts. `tests/test_results_policy.py` enforces the types and a 5 MB limit (CLAUDE.md §7).
+- **poe tasks:** `db-migrate`, `db-info`, `db-export`, `storage-bench`. `minimal-data-check` now also runs `tests/test_phase3_minimal.py`.
+- **Docs:**
+  - ADRs 0009 and 0010, and amendments to 0006 and 0007.
+  - architecture.md: a storage section.
+  - api.md: Alert, the store CLI and export format, and how to configure the file adapter (default mapping) to replay an export.
+  - setup.md: the test database and how to switch to TimescaleDB.
+  - CLAUDE.md §5 (layout) and §6 (StateChange, Alert).
+
+### How to run
+
+```text
+uv run poe minimal-data-check             # file -> ingest -> bus -> SQLite, no services
+uv run poe db-info                        # what the configured store holds (SQLite by default)
+uv run poe db-export --format csv --out data/export/run.csv --from 2026-01-01T00:00:00Z
+uv run poe up; uv run poe storage-bench   # both backends -> experiments/results/storage_bench.md
+```
+
+- **Replay an export:** set `file.path`/`format` to the export and `file.mapping: {}` in `sources.yaml`. The shipped mapping is for the simulator CSV; see [api.md](api.md#replaying-an-export).
+- **TimescaleDB as the live store:** set `backend: timescale` in `config/storage.yaml`.
+- **Backend entry point:** `build_runtime()` is what the Phase 4 `minimal` / `dev` entry points will use. Until then storage is used from code and tests.
+
+### Tests
+
+pytest runs 557 tests. The most important new ones:
+
+- **reconstruct equals live** (`tests/test_phase3_integration.py`, both backends):
+  - A seeded 120 s full-line run, edited to contain a 16 s CNC-01 outage (STALE, OFFLINE, then recovery) and one reading that arrives late (LATE), goes through the file adapter, ingest and the writer.
+  - `reconstruct(t)` equals the live state recorded at 25 random settled times, both from raw replay and from snapshots. CNC-01 shows OFFLINE during the outage, and the LATE reading is never applied.
+- **Export → replay → store** (CSV and JSONL, both backends): identical readings, including nulls, SUSPECT and LATE.
+- **Round trips** (both backends): partial readings and every quality flag round-trip exactly, as does every other stream (including quarantine payloads with NUL bytes). Re-inserts are idempotent.
+- **Backpressure** (`backend/tests/test_storage_writer.py`):
+  - With the store blocked for the whole run, 2000 messages still go through the pipeline, and other subscribers get all of them.
+  - Afterwards written + dropped = published, the survivors are the newest rows, and drops are counted.
+  - Also covered: retry then success; drop after all retries; bounded quarantine queue; stop drains.
+- **Downsampling** (both backends): 1 s / 1 min / 10 min match a numpy reference (`nanmean`, `nanmin`, `nanmax`, non-null counts) on 1500 s of seeded data with jitter, about 20 % nulls, a 100 s stretch with a single sensor, a 700 s gap, and LATE/SUSPECT rows. Also tested: unaligned ranges and the machine filter.
+- **TimescaleDB specifics** (`backend/tests/test_storage_timescale.py`):
+  - **Late arrival:** a LATE reading inserted into an already materialized 1-min bucket is absent until the refresh policy job runs (`CALL run_job`), then present in both the 1 min and 10 min aggregates. Mean, max, counts and `n_late` are checked against numpy.
+  - **Backfill below the watermark** is refreshed on read, and the queue is empty afterwards.
+  - **Across restarts and processes:** one store instance writes 20 minutes of old sim-time data in three batches and closes. A new instance finds three queued refreshes, returns all 20 one-minute buckets (60 readings each, temperature mean checked against numpy) and both 10-minute buckets, then has an empty queue. A control row written without a queue entry stays invisible.
+  - **Recent data is not queued**, because the policies cover it.
+  - **Policies follow config:** hypertables, real-time aggregates, refresh offsets and schedule, chunk interval; compression and retention policies added and removed with the flags; unchanged settings are not re-applied.
+  - **Isolation:** the test database is not the configured one.
+- **Snapshots** (both backends): aligned times; snapshot equals replay; deletion when older data arrives later, but not for LATE readings; `iter_states`; the service persists bus events across a restart.
+- **Units:** reducer rules and order independence (20 shuffles); event-time staleness at speeds 1, 10 and 0.5; bus per-subscription bounds and publish stamps; migration runner (checksums, CRLF, tampering, re-runs); `StorageConfig` validation; export format; CLI (subprocess); benchmark script.
+- **Minimal mode** (`tests/test_phase3_minimal.py`): in a fresh interpreter, `build_runtime` with the shipped configs persists the sim-quick CSV and JSONL to SQLite, and `reconstruct` works. No broker, database driver beyond `sqlite3`, HTTP or ML module is loaded.
+
+### Verified here (Windows 11, Docker services up)
+
+| Check | Result |
+|---|---|
+| `uv run poe lint` | passes |
+| `LINETWIN_REQUIRE_SERVICES=1 uv run poe test` | 557 passed, 0 skipped (vitest: no test files yet) |
+| `uv run poe minimal-data-check` | 7 passed |
+| Test/bench databases left after the run | none (`linetwin`, `postgres`, templates only) |
+| Storage tests with TimescaleDB unreachable (`LINETWIN_PG_PORT=1`) | 21 passed, 22 skipped with the start hint; with `LINETWIN_REQUIRE_SERVICES=1` they error |
+| TimescaleDB-specific tests | passed 3 runs in a row |
+| Documented export-replay YAML (api.md) | replays CSV and JSONL exports identically, 0 quarantined |
+| `uv run poe storage-bench` | ran; numbers below |
+
+### Measured write throughput
+
+From `experiments/results/storage_bench.md`, generated by the script on this machine: 18 logical CPUs, SQLite 3.50.4, PostgreSQL 16.15 / TimescaleDB 2.31.0 in Docker Desktop, shipped writer settings, 10 s per rate.
+
+| Backend | Sustained through StorageWriter (kept up, no drops) | Direct insert, batch 1000 | Direct insert, batch 5000 |
+|---|---:|---:|---:|
+| SQLite | 9,969 rows/s | 63,732 rows/s | 68,431 rows/s |
+| TimescaleDB | 4,992 rows/s | 13,895 rows/s | 17,126 rows/s |
+
+- **Rates tested:** 1k, 2k, 5k, 10k, 20k and 40k rows/s. The next rate above each sustained value (20k for SQLite, 10k for TimescaleDB) fell behind, so the real limits lie somewhere between those steps.
+- **COPY vs executemany:** TimescaleDB with plain `executemany` at batch 1000 reached 5,373 rows/s; the COPY path the store uses reached 13,895 rows/s.
+- **For scale:** the simulated line produces 4 readings/s.
+
+### Known limitations
+
+- **Aggregates can be briefly stale:** a late reading inside the policy window reaches the 1 min / 10 min aggregates only on the next refresh-policy run (≤ `schedule_s`, 60 s / 300 s). Raw data and `reconstruct` are always current.
+- **Network adapters assume `time_scale = 1`:** a simulator publisher run with `--speed ≠ 1` behind MQTT, OPC UA or mock gets approximate staleness timestamps.
+- **Backlog after STALE:** readings that arrive in order but delayed after a STALE mark show STALE until a reading newer than the STALE ts arrives. This is the same live and in replay.
+- **reconstruct is unpaged:** it loads all events since the snapshot into memory. That is fine with snapshots every 60 s; with snapshots off, very long ranges would need paging.
+- **NUL characters:** a NUL in a plain text column (e.g. quarantine `detail`) is stored as U+FFFD on TimescaleDB. JSON payloads keep it.
+- **Retention:** with retention enabled, `reconstruct` before the retention horizon is incomplete.
+- **Benchmark caveats:**
+  - Producer and writer share one Python process and event loop, so at overload (40k rows/s offered) the producer starves the writer and almost nothing is written. That is a property of the benchmark setup, not of the store.
+  - TimescaleDB ran in Docker Desktop on Windows, which adds network overhead.
+- **CI not run:** the Ubuntu CI job with services has not run on GitHub yet (there is no remote).
+
+### Deviations from the plan / CLAUDE.md
+
+- **New contract** `Alert` (§6 updated). §6 also lists `StateChange`, whose `ts` is now event time (ADR 0010).
+- **Insert API:** `EventStore.insert(stream, rows)` is one generic method instead of one insert method per table.
+- **Runner module name:** `storage/migrator.py` (not `migrations.py`), to avoid clashing with the `migrations/` SQL folder.
+- **1 s history** is computed as 1 s buckets (equal to raw data at 1 Hz).
+- **Shutdown:** `SourceManager.stop()` with storage publishes what the reorder buffer holds before draining the writer.
+- **Refresh policy start:** a new policy first runs one schedule interval after it is created (`initial_start`). Running it at once collided with explicit refreshes in tests.
+- **jobs view:** TimescaleDB 2.31 reports the continuous aggregate's view name in `timescaledb_information.jobs`; the job lookup accepts that or the materialization table name.
+- **Benchmark method:** a paced rate ladder instead of a flat-out producer, which starved the writer of CPU and measured that instead of the store. "Sustained" means no drops and a bounded backlog at the end of the window.
+- **Not mentioned in the plan:** new files `twin_backend/runtime.py`, `storage/rows.py`, `storage/metrics.py` and `storage/bench.py`.
+- **Persistent refresh queue (correction before commit):** pending aggregate refreshes for old data used to be kept in process memory. They now live in `aggregate_refresh_queue` (migration 0003), so they work across processes and restarts.
+- **Results are committed (correction before commit):** `experiments/results/` is no longer ignored as a whole. Reports, JSON summaries, plots and small CSVs are tracked; large or regenerable artefacts are ignored. `tests/test_results_policy.py` enforces the allowed types and a 5 MB per-file limit. `storage_bench.md` and the `sim_examples` plots are now in git. CLAUDE.md §7 states the rule.
+
 ## Phase 2: Adapters and ingestion (done, 2026-11-12)
 
 ### Fix: MQTT publisher buffer race (after CI on ubuntu-latest)

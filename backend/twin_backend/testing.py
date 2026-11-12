@@ -331,8 +331,10 @@ class StreamCollector:
 
 
 # ---------------------------------------------------------------- Phase 3: storage fixtures
-# Backends every store-level test runs on. Part B adds "timescale" (services marker).
-STORE_BACKENDS: list[Any] = ["sqlite"]
+# Backends every store-level test runs on. TimescaleDB tests carry the ``services`` marker and
+# skip (or fail with LINETWIN_REQUIRE_SERVICES=1) when the database is not reachable.
+STORE_BACKENDS: list[Any] = ["sqlite", pytest.param("timescale", marks=pytest.mark.services)]
+TEST_DB_PREFIX = "linetwin_test_"
 
 
 def storage_config(**overrides: Any) -> Any:
@@ -343,30 +345,134 @@ def storage_config(**overrides: Any) -> Any:
     return cfg.model_copy(update=overrides)
 
 
-async def open_store(backend: str, tmp: Path) -> Any:
+def test_timescale_config() -> Any:
+    """The shipped TimescaleDB settings, with refresh jobs scheduled hourly so no background
+    refresh runs in the middle of a test (tests run the jobs explicitly)."""
+    ts = storage_config().timescale
+    aggs = ts.aggregates
+    return ts.model_copy(
+        update={
+            "aggregates": aggs.model_copy(
+                update={
+                    "m1": aggs.m1.model_copy(update={"schedule_s": 3600.0}),
+                    "m10": aggs.m10.model_copy(update={"schedule_s": 3600.0}),
+                }
+            )
+        }
+    )
+
+
+test_timescale_config.__test__ = False  # type: ignore[attr-defined]  # not a test
+
+
+def run_in_thread(coro: Any) -> Any:
+    """Run a coroutine to completion on a fresh event loop in a worker thread (usable from
+    sync fixtures, whatever loop pytest-asyncio has running)."""
+    result: dict[str, Any] = {}
+
+    def target() -> None:
+        try:
+            result["value"] = asyncio.run(coro)
+        except BaseException as exc:  # re-raised in the caller
+            result["error"] = exc
+
+    thread = threading.Thread(target=target)
+    thread.start()
+    thread.join()
+    if "error" in result:
+        raise result["error"]
+    return result.get("value")
+
+
+async def _create_test_db(admin_dsn: str, name: str, test_dsn: str) -> None:
+    from twin_backend.storage.timescale import TimescaleEventStore, create_database
+
+    await create_database(admin_dsn, name)
+    store = TimescaleEventStore(test_dsn, test_timescale_config())
+    await store.connect()
+    try:
+        await store.migrate()
+    finally:
+        await store.close()
+
+
+async def _drop_test_db(admin_dsn: str, name: str) -> None:
+    from twin_backend.storage.timescale import drop_database
+
+    await drop_database(admin_dsn, name)
+
+
+@pytest.fixture(scope="session")
+def timescale_test_db(timescale_db: PgService) -> Any:
+    """A throw-away TimescaleDB database for this test session.
+
+    ``linetwin_test_<random hex>`` is created next to the configured database (never the
+    configured database itself), migrated, and dropped with ``WITH (FORCE)`` at session end, so
+    tests never touch real data.
+    """
+    import secrets
+
+    settings = TwinSettings(_env_file=REPO_ROOT / ".env")
+    name = f"{TEST_DB_PREFIX}{secrets.token_hex(6)}"
+    if name == settings.pg_db:  # impossible by construction; never risk the real database
+        pytest.fail("refusing to use the configured database for tests", pytrace=False)
+    test_settings = settings.model_copy(update={"pg_db": name})
+    run_in_thread(_create_test_db(settings.pg_dsn, name, test_settings.pg_dsn))
+    try:
+        yield PgService(test_settings.pg_dsn, f"{settings.pg_host}:{settings.pg_port}/{name}")
+    finally:
+        run_in_thread(_drop_test_db(settings.pg_dsn, name))
+
+
+async def open_store(backend: str, tmp: Path, *, dsn: str | None = None) -> Any:
     """A connected, migrated, empty event store of ``backend``."""
     if backend == "sqlite":
         from twin_backend.storage.sqlite import SqliteEventStore
 
-        store = SqliteEventStore(tmp / "events.sqlite")
+        store: Any = SqliteEventStore(tmp / "events.sqlite")
         await store.connect()
         await store.migrate()
+        return store
+    if backend == "timescale":
+        if dsn is None:
+            raise ValueError("the timescale store needs the test database DSN")
+        from twin_backend.storage.timescale import TimescaleEventStore
+
+        store = TimescaleEventStore(dsn, test_timescale_config())
+        await store.connect()
+        await store.migrate()
+        await store.delete_all()
         return store
     raise ValueError(f"unknown store backend {backend!r}")
 
 
 @pytest.fixture(params=STORE_BACKENDS)
-async def event_store(request: pytest.FixtureRequest, tmp_path: Path) -> Any:
+def store_backend(request: pytest.FixtureRequest) -> str:
+    """Backend name, once per backend in ``STORE_BACKENDS``."""
+    backend: str = request.param
+    return backend
+
+
+@pytest.fixture
+def store_factory(store_backend: str, request: pytest.FixtureRequest) -> Any:
+    """``await store_factory(tmp_dir)`` opens an empty store of the current backend.
+
+    TimescaleDB stores share the session's test database and are emptied on open, so open the
+    next one only after you are done reading the previous one.
+    """
+    dsn = request.getfixturevalue("timescale_test_db").dsn if store_backend == "timescale" else None
+
+    async def factory(tmp: Path) -> Any:
+        return await open_store(store_backend, tmp, dsn=dsn)
+
+    return factory
+
+
+@pytest.fixture
+async def event_store(store_factory: Any, tmp_path: Path) -> Any:
     """An empty event store, once per backend in ``STORE_BACKENDS``."""
-    store = await open_store(request.param, tmp_path)
+    store = await store_factory(tmp_path)
     try:
         yield store
     finally:
         await store.close()
-
-
-@pytest.fixture(params=STORE_BACKENDS)
-def store_backend(request: pytest.FixtureRequest) -> str:
-    """Backend name, for tests that open several stores themselves (see ``open_store``)."""
-    backend: str = request.param
-    return backend

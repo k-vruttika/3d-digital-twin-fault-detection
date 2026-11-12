@@ -76,8 +76,12 @@ class TimescaleStoreConfig(ConfigModel):
                     f"max_late_arrival_s + end_offset_s ({need:g}) so late readings are "
                     "re-aggregated"
                 )
-        if self.retention.enabled and self.retention.drop_after_s <= self.max_late_arrival_s:
-            errors.append("retention.drop_after_s must be > max_late_arrival_s")
+        longest = max(self.aggregates.m1.start_offset_s, self.aggregates.m10.start_offset_s)
+        if self.retention.enabled and self.retention.drop_after_s <= longest:
+            errors.append(
+                f"retention.drop_after_s ({self.retention.drop_after_s:g}) must be > the longest "
+                f"aggregate start_offset_s ({longest:g}), or refreshes would see dropped data"
+            )
         if errors:
             raise ValueError("; ".join(errors))
         return self

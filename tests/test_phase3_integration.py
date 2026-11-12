@@ -35,7 +35,6 @@ from twin_backend.testing import (
     REPO_ROOT,
     SimExport,
     load_jsonl_readings,
-    open_store,
     storage_config,
 )
 from twin_common.config import load_line_config
@@ -184,10 +183,10 @@ def settled_times(
 
 @pytest.fixture
 async def recorded_run(
-    sim_export: SimExport, sources_cfg: SourcesConfig, store_backend: str, tmp_path: Path
+    sim_export: SimExport, sources_cfg: SourcesConfig, store_factory: Any, tmp_path: Path
 ) -> Any:
     path = write_jsonl(edited_run(sim_export), tmp_path / "edited.jsonl")
-    store = await open_store(store_backend, tmp_path)
+    store = await store_factory(tmp_path)
     try:
         yield await ingest_file(path, "jsonl", sources_cfg, store, record=True)
     finally:
@@ -235,7 +234,7 @@ async def test_reconstruct_equals_live_state_at_random_times(recorded_run: Run) 
 async def test_export_replay_store_gives_the_same_events(
     recorded_run: Run,
     sources_cfg: SourcesConfig,
-    store_backend: str,
+    store_factory: Any,
     tmp_path: Path,
     fmt: ExportFormat,
 ) -> None:
@@ -246,7 +245,7 @@ async def test_export_replay_store_gives_the_same_events(
     )
     fresh_dir = tmp_path / f"fresh_{fmt}"
     fresh_dir.mkdir()
-    fresh = await open_store(store_backend, fresh_dir)
+    fresh = await store_factory(fresh_dir)
     try:
         await ingest_file(out, fmt, sources_cfg, fresh, record=False)
         replayed = await fresh.fetch(Stream.READINGS)

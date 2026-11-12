@@ -63,6 +63,7 @@ linetwin/
 ├─ config/
 │  ├─ line.yaml              # line layout, machines, sensors, buffers, part mappings
 │  ├─ sources.yaml           # active adapter + per-adapter settings
+│  ├─ storage.yaml           # event store backend (sqlite | timescale), writer, snapshots, policies
 │  ├─ mosquitto.d/           # Mosquitto settings shared by container and native fallback
 │  ├─ mosquitto.docker.conf  # Mosquitto entry config inside the container
 │  ├─ mosquitto.conf         # Mosquitto entry config for the native fallback
@@ -73,7 +74,7 @@ linetwin/
 │  ├─ adapters/              # base protocol, file, mock, mqtt, opcua, chaos
 │  ├─ ingest/                # normalizer, validator, dedup/reorder, staleness
 │  ├─ bus/                   # in-process async pub/sub
-│  ├─ storage/               # event store interface, postgres, sqlite, snapshots
+│  ├─ storage/               # event store interface, timescale, sqlite, writer, snapshots, replay, export, migrations/
 │  ├─ engine/                # state machines, line propagation, data quality
 │  ├─ commands/              # command bus, safety rules, audit
 │  ├─ inference/             # online inference, windows, drift, registry
@@ -111,6 +112,8 @@ Sensor values (speed, temp, vib, load, current) are nullable: null = missing. Pa
 
 **Command:** `commandId, idempotencyKey, machineId, type (START | STOP | SET_SPEED | SET_LOAD | SCHEDULE_MAINTENANCE | RESET), params, issuedBy, ts`
 **CommandAck:** `commandId, status (ACCEPTED | REJECTED | EXECUTED | TIMEOUT), reason, ts`
+**StateChange:** `machineId, state, previousState, ts, reason` (ts on the event-time axis, ADR 0010)
+**Alert:** `alertId, machineId, ts, severity (INFO | WARNING | CRITICAL), kind, message, source`
 
 **MQTT topics:** `plant/line1/{machineId}/telemetry`, `.../state`, `.../cmd`, `.../cmd/ack`
 
@@ -125,7 +128,7 @@ ML target mapping: RUNNING/IDLE/STARVED/BLOCKED/MAINTENANCE → NORMAL (machine 
 - Every module gets unit tests; every phase adds at least one integration test.
 - Logging: structured (JSON) via `structlog`, never `print` in library code.
 - Frontend `engine/` must not import React; pure state→visual mapping functions are unit tested.
-- Generated results go to `experiments/results/` and are produced by scripts, never typed by hand.
+- Generated results go to `experiments/results/` and are produced by scripts, never typed by hand. They are **committed**: reports (`*.md`), JSON summaries (`*.json`), plots (`*.png`, `*.svg`) and small tables (`*.csv`). Large or regenerable artefacts (Parquet/Arrow/NumPy dumps, model checkpoints, ONNX files, databases, `mlruns/`, `raw/` folders) are ignored in `.gitignore`. No file there may exceed 5 MB; `tests/test_results_policy.py` enforces the types and the size limit. Datasets stay in `data/`, which is never committed.
 - Services (TimescaleDB, Mosquitto) run via Docker Compose (`uv run poe up`). Native installs are a documented fallback. Minimal mode must never require Docker.
 - Developer tasks are added **only** as poe tasks in the root `pyproject.toml` (`[tool.poe.tasks]`). Use cross-platform commands only (tools from the uv environment, `uv`, `npm --prefix frontend`, `docker compose`); no Makefile, shell scripts, or bash/PowerShell syntax. CI calls the same poe tasks on Ubuntu, Windows and macOS.
 

@@ -73,3 +73,15 @@ Normalize → validate → dedup → reorder → event bus. Anything rejected go
 - **Startup delay:** each machine's first readings wait up to `lateness_window_s` (2 s by default).
 - **OPC UA outages** lose the readings fired while disconnected; they appear as gaps. The mock server and MQTT do not lose data across short outages.
 - **Looped file replay** restarts `runTime` on every pass.
+
+## Amendment (Phase 3, 2026-11-12): staleness timestamps on the event-time axis
+
+- `StateChange.ts` from the staleness monitor is now event time, not wall time:
+  - **STALE / OFFLINE:** the machine's last live reading ts + wall-clock silence × the active adapter's `time_scale`.
+  - **Recovery:** the ts of the reading that resumed the data.
+  - **A machine that never reported:** the line-wide watermark extrapolated the same way.
+- `SourceAdapter.time_scale` is the file adapter's `replay_speed`, and 1.0 for live sources. `SourceManager` passes it to the pipeline (`IngestPipeline.set_time_scale`).
+- Silence thresholds (`stale_after_s`, `offline_after_s`) are still measured in wall-clock seconds.
+- Why: readings and state changes must share one time axis so stored events can be replayed together ([ADR 0010](0010-event-time-replay-and-snapshots.md)). For live sources nothing changes in practice.
+- **LATE readings** are stored by the Phase 3 writer and never applied by the line-state fold. This holds both live and in `reconstruct`.
+- **`SourceManager.stop()`** now also releases what the reorder buffer still holds before draining the storage writer, but only when storage is wired in. Nothing held is lost on shutdown.

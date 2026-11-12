@@ -71,6 +71,13 @@ Connection details:
 
 Tests that need a service (marked `services`, e.g. `tests/test_compose_services.py`) run when the services are reachable. Otherwise they are skipped with "start services with: uv run poe up". Setting `LINETWIN_REQUIRE_SERVICES=1` makes them fail instead of skip; CI does this on Ubuntu, the only CI job that starts the services.
 
+Event-store tests run on SQLite and, when TimescaleDB is reachable, on TimescaleDB too. They never touch your configured database:
+- each test session creates its own database `linetwin_test_<random hex>` on the same server, runs the migrations, and drops it at the end (`DROP DATABASE ... WITH (FORCE)`);
+- the database user needs the right to create databases, which the Compose user has;
+- `uv run poe storage-bench` does the same with a `linetwin_bench_<hex>` database.
+
+To use TimescaleDB as the live store, set `backend: timescale` in `config/storage.yaml` and run `uv run poe db-migrate` once (the backend also migrates on start).
+
 ## 3. Native fallback (without Docker)
 
 Use this only if Docker is not an option. The services must then match what the code expects: Mosquitto 2 with the project config, and PostgreSQL 16 **with the TimescaleDB extension**.
@@ -126,4 +133,4 @@ A native PostgreSQL on 5432 and the Docker TimescaleDB cannot both use 5432. Set
 
 ## 4. Minimal mode reminder
 
-None of sections 2 and 3 is needed to run the 3D twin from a JSON/CSV file or the mock server. `config/sources.yaml` ships with `active: file`, and minimal mode never requires Docker (CLAUDE.md §1 and §7).
+None of sections 2 and 3 is needed to run the 3D twin from a JSON/CSV file or the mock server. `config/sources.yaml` ships with `active: file` and `config/storage.yaml` with `backend: sqlite`, and minimal mode never requires Docker (CLAUDE.md §1 and §7).

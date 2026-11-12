@@ -30,3 +30,9 @@ The ingest pipeline produces readings and state changes. Several consumers need 
   - Consumers that must see everything have to read from the event store.
   - The `dropped` counter makes losses visible, and the API will expose it as a metric in Phase 4.
 - **Message timing:** in-process delivery is synchronous fan-out into queues; consumers run when the event loop schedules them. Tests drain a subscription with `get_nowait()` and do not need to sleep.
+
+## Amendment (Phase 3, 2026-11-12)
+
+- `subscribe(topic, *, maxsize=None)`: a subscriber can set its own queue bound. The storage writer uses `writer.queue_size`. It keeps the drop-oldest policy, and publishers still never block.
+- Every message is stamped with the wall-clock time it was published, from an injectable clock (`InMemoryEventBus(queue_size, clock=...)`). `Subscription.get_stamped()` and `get_stamped_nowait()` return `(published_at, message)`. The event store keeps the stamp as `ingested_at`, so writer queueing does not distort it ([ADR 0009](0009-event-store-and-migrations.md)).
+- `Subscription.qsize()` reports the current queue depth. The storage queue-depth metric uses it.
