@@ -91,6 +91,11 @@ class FileReplayAdapter(BaseAdapter):
         self._records: list[_Record] = []
         self.passes = 0
 
+    @property
+    def time_scale(self) -> float:
+        """Event seconds per wall second: the configured replay speed."""
+        return self.cfg.replay_speed
+
     async def _prepare(self) -> None:
         if not self.path.is_file():
             raise AdapterError(f"replay file not found: {self.path} - {MISSING_FILE_HINT}")

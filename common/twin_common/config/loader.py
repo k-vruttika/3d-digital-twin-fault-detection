@@ -10,6 +10,7 @@ from pydantic import BaseModel, ValidationError
 
 from twin_common.config.line import LineConfig
 from twin_common.config.sources import SourcesConfig
+from twin_common.config.storage import StorageConfig
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -66,3 +67,7 @@ def load_line_config(path: str | Path) -> LineConfig:
 
 def load_sources_config(path: str | Path) -> SourcesConfig:
     return load_model(path, SourcesConfig)
+
+
+def load_storage_config(path: str | Path) -> StorageConfig:
+    return load_model(path, StorageConfig)

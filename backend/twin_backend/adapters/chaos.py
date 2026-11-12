@@ -89,6 +89,10 @@ class ChaosAdapter:
             "reordered": 0,
         }
 
+    @property
+    def time_scale(self) -> float:
+        return self.inner.time_scale
+
     async def start(self) -> None:
         await self.inner.start()
 

@@ -4,9 +4,18 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from twin_common.contracts import Attribution, Command, CommandAck, Prediction, Reading
+from twin_common.contracts import (
+    Alert,
+    Attribution,
+    Command,
+    CommandAck,
+    Prediction,
+    Reading,
+    StateChange,
+)
 from twin_common.enums import (
     AckStatus,
+    AlertSeverity,
     CommandType,
     HealthClass,
     MachineState,
@@ -81,3 +90,29 @@ def sample_ack(**overrides: object) -> CommandAck:
     }
     data.update(overrides)
     return CommandAck.model_validate(data)
+
+
+def sample_state_change(**overrides: object) -> StateChange:
+    data: dict[str, object] = {
+        "machine_id": "CNC-01",
+        "state": MachineState.STALE,
+        "previous_state": MachineState.RUNNING,
+        "ts": SAMPLE_TS,
+        "reason": "no data for 3.0 s (limit 3 s)",
+    }
+    data.update(overrides)
+    return StateChange.model_validate(data)
+
+
+def sample_alert(**overrides: object) -> Alert:
+    data: dict[str, object] = {
+        "alert_id": "alert-0001",
+        "machine_id": "CNC-01",
+        "ts": SAMPLE_TS,
+        "severity": AlertSeverity.WARNING,
+        "kind": "fault_predicted",
+        "message": "FAULT likely within 30 s",
+        "source": "inference",
+    }
+    data.update(overrides)
+    return Alert.model_validate(data)

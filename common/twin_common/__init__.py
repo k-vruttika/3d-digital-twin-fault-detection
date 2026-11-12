@@ -1,6 +1,7 @@
 """LineTwin shared contracts, enums and config loaders."""
 
 from twin_common.contracts import (
+    Alert,
     Attribution,
     Command,
     CommandAck,
@@ -11,6 +12,7 @@ from twin_common.contracts import (
 from twin_common.enums import (
     AckStatus,
     AdapterKind,
+    AlertSeverity,
     CommandType,
     HealthClass,
     MachineKind,
@@ -24,6 +26,8 @@ from twin_common.enums import (
 __all__ = [
     "AckStatus",
     "AdapterKind",
+    "Alert",
+    "AlertSeverity",
     "Attribution",
     "Command",
     "CommandAck",

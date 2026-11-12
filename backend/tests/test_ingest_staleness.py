@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from twin_backend.clock import FakeClock
@@ -80,3 +82,59 @@ def test_unknown_machine_ignored() -> None:
 def test_thresholds_validated() -> None:
     with pytest.raises(ValueError, match="stale_after_s"):
         StalenessMonitor(["A"], 5.0, 5.0, FakeClock())
+
+
+# ---------------------------------------------------------------- event-time stamps (Phase 3)
+EVENT_T0 = datetime(2026, 1, 1, 6, 0, tzinfo=UTC)  # sim time, far from the wall clock
+
+
+@pytest.mark.parametrize("scale", [1.0, 10.0, 0.5])
+def test_stale_and_offline_are_stamped_in_event_time(scale: float) -> None:
+    clock = FakeClock(datetime(2026, 11, 12, tzinfo=UTC))  # wall clock: months later
+    mon = StalenessMonitor(["A"], STALE_S, OFFLINE_S, clock, time_scale=scale)
+    mon.seen("A", MachineState.RUNNING, EVENT_T0)
+    clock.advance(STALE_S)
+    [stale] = mon.tick()
+    assert stale.ts == EVENT_T0 + timedelta(seconds=STALE_S * scale)
+    clock.advance(OFFLINE_S - STALE_S)
+    [offline] = mon.tick()
+    assert offline.ts == EVENT_T0 + timedelta(seconds=OFFLINE_S * scale)
+
+
+def test_recovery_carries_the_resuming_reading_ts() -> None:
+    clock = FakeClock()
+    mon = StalenessMonitor(["A"], STALE_S, OFFLINE_S, clock)
+    mon.seen("A", MachineState.RUNNING, EVENT_T0)
+    clock.advance(STALE_S)
+    mon.tick()
+    resumed = EVENT_T0 + timedelta(seconds=7)
+    change = mon.seen("A", MachineState.IDLE, resumed)
+    assert change is not None
+    assert change.ts == resumed
+    assert change.previous_state is MachineState.STALE
+
+
+def test_silent_machine_uses_the_line_watermark() -> None:
+    clock = FakeClock()
+    mon = StalenessMonitor(["A", "B"], STALE_S, OFFLINE_S, clock, time_scale=2.0)
+    clock.advance(1.0)
+    mon.seen("A", MachineState.RUNNING, EVENT_T0)  # B never reports
+    clock.advance(STALE_S - 1.0)  # B silent for 3 s since start, A for 2 s
+    [b_stale] = mon.tick()
+    assert b_stale.machine_id == "B"
+    # watermark (A's reading) + 2 s of wall time since it arrived x scale 2
+    assert b_stale.ts == EVENT_T0 + timedelta(seconds=4.0)
+
+
+def test_before_any_reading_the_wall_clock_stands_in() -> None:
+    clock = FakeClock()
+    mon = StalenessMonitor(["A"], STALE_S, OFFLINE_S, clock)
+    clock.advance(STALE_S)
+    [stale] = mon.tick()
+    assert stale.ts == clock.now()
+
+
+def test_time_scale_must_be_positive() -> None:
+    mon = monitor(FakeClock())
+    with pytest.raises(ValueError, match="time_scale"):
+        mon.time_scale = 0.0

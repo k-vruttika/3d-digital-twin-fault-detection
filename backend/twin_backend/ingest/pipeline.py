@@ -65,6 +65,10 @@ class IngestPipeline:
             [m.id for m in line.machines], cfg.stale_after_s, cfg.offline_after_s, clock
         )
 
+    def set_time_scale(self, time_scale: float) -> None:
+        """Event seconds per wall second of the active source (for staleness timestamps)."""
+        self.staleness.time_scale = time_scale
+
     def set_mapping(self, kind: AdapterKind, mapping: FieldMapping) -> None:
         self._normalizers[kind] = Normalizer(mapping, self.line)
 
@@ -97,7 +101,7 @@ class IngestPipeline:
                 await self._publish(reading.machine_id, released)
 
         if not self.reorder.is_late(reading.machine_id, reading.seq):
-            change = self.staleness.seen(reading.machine_id, reading.state)
+            change = self.staleness.seen(reading.machine_id, reading.state, reading.ts)
             if change is not None:
                 await self.bus.publish(Topic.STATES, change)
 

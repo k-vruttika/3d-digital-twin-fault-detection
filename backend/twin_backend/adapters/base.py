@@ -67,6 +67,11 @@ class SourceAdapter(Protocol):
     kind: AdapterKind
     capabilities: frozenset[Capability]
 
+    @property
+    def time_scale(self) -> float:
+        """Event-time seconds per wall-clock second (replay speed; 1.0 for live sources)."""
+        ...
+
     async def start(self) -> None: ...
 
     async def stop(self) -> None: ...
@@ -138,6 +143,11 @@ class BaseAdapter:
         self._last_message_at: datetime | None = None
         self._last_error: str | None = None
         self._stopping = False
+
+    @property
+    def time_scale(self) -> float:
+        """Live sources deliver event time at wall-clock pace; replaying adapters override."""
+        return 1.0
 
     # -- lifecycle ---------------------------------------------------------------------------
     async def start(self) -> None:

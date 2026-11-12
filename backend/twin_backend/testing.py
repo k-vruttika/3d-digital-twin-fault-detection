@@ -328,3 +328,45 @@ class StreamCollector:
 
     def seqs(self, machine_id: str) -> list[int]:
         return [r.seq for r in self.out if r.machine_id == machine_id]
+
+
+# ---------------------------------------------------------------- Phase 3: storage fixtures
+# Backends every store-level test runs on. Part B adds "timescale" (services marker).
+STORE_BACKENDS: list[Any] = ["sqlite"]
+
+
+def storage_config(**overrides: Any) -> Any:
+    """config/storage.yaml with top-level overrides (e.g. writer=..., snapshots=...)."""
+    from twin_common.config import load_storage_config
+
+    cfg = load_storage_config(REPO_ROOT / "config" / "storage.yaml")
+    return cfg.model_copy(update=overrides)
+
+
+async def open_store(backend: str, tmp: Path) -> Any:
+    """A connected, migrated, empty event store of ``backend``."""
+    if backend == "sqlite":
+        from twin_backend.storage.sqlite import SqliteEventStore
+
+        store = SqliteEventStore(tmp / "events.sqlite")
+        await store.connect()
+        await store.migrate()
+        return store
+    raise ValueError(f"unknown store backend {backend!r}")
+
+
+@pytest.fixture(params=STORE_BACKENDS)
+async def event_store(request: pytest.FixtureRequest, tmp_path: Path) -> Any:
+    """An empty event store, once per backend in ``STORE_BACKENDS``."""
+    store = await open_store(request.param, tmp_path)
+    try:
+        yield store
+    finally:
+        await store.close()
+
+
+@pytest.fixture(params=STORE_BACKENDS)
+def store_backend(request: pytest.FixtureRequest) -> str:
+    """Backend name, for tests that open several stores themselves (see ``open_store``)."""
+    backend: str = request.param
+    return backend

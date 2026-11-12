@@ -4,6 +4,10 @@ The active adapter comes from ``sources.yaml`` (``active:``). ``switch()`` start
 adapter first and only then stops the old one, so a source that cannot start leaves the
 current one running. Pipeline state (dedup, reorder, staleness) survives a switch, so data
 that both sources deliver is deduplicated. The API exposes ``switch()`` in Phase 4.
+
+With a ``StorageService`` (Phase 3) live ingestion persists automatically: storage starts
+before the adapter, quarantined messages are stored too, and ``stop()`` publishes what the
+reorder buffer still holds and then drains the writer.
 """
 
 from __future__ import annotations
@@ -12,6 +16,7 @@ import asyncio
 import contextlib
 from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from twin_backend.adapters.base import AdapterHealth, SourceAdapter
 from twin_backend.adapters.registry import build_adapter, mappings_from
@@ -25,6 +30,9 @@ from twin_common.config.sources import SourcesConfig
 from twin_common.contracts import Command, CommandAck
 from twin_common.enums import AckStatus, AdapterKind, AdapterStatus, Capability
 from twin_common.logging import get_logger
+
+if TYPE_CHECKING:
+    from twin_backend.storage.service import StorageService
 
 log = get_logger(__name__)
 
@@ -44,16 +52,21 @@ class SourceManager:
         metrics: IngestMetrics | None = None,
         factory: AdapterFactory = build_adapter,
         run_ticker: bool = True,
+        storage: StorageService | None = None,
     ) -> None:
         self.sources = sources
         self.line = line
         self.bus = bus
         self.root = root
         self.clock: Clock = clock if clock is not None else SystemClock()
-        self.quarantine = (
+        self.storage = storage
+        sink: QuarantineSink = (
             quarantine
             if quarantine is not None
             else build_quarantine(sources.ingest.quarantine, root)
+        )
+        self.quarantine: QuarantineSink = (
+            storage.quarantine_sink(sink) if storage is not None else sink
         )
         self.pipeline = IngestPipeline(
             line,
@@ -88,6 +101,8 @@ class SourceManager:
         async with self._lock:
             if self._adapter is not None:
                 return
+            if self.storage is not None:
+                await self.storage.start()
             adapter = self._build(self.sources.active, self.sources)
             await adapter.start()
             self._attach(adapter)
@@ -102,6 +117,9 @@ class SourceManager:
                 with contextlib.suppress(asyncio.CancelledError):
                     await self._ticker
                 self._ticker = None
+            if self.storage is not None:
+                await self.pipeline.flush()
+                await self.storage.stop()
 
     async def wait_idle(self) -> None:
         """Wait until the current adapter's stream ended (finite file replay)."""
@@ -129,6 +147,7 @@ class SourceManager:
 
     def _attach(self, adapter: SourceAdapter) -> None:
         self._adapter = adapter
+        self.pipeline.set_time_scale(adapter.time_scale)
         self._pump = asyncio.create_task(self._pump_loop(adapter), name=f"pump-{adapter.kind}")
 
     async def _detach(self) -> None:

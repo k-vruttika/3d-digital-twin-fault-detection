@@ -40,6 +40,10 @@ class TwinSettings(BaseSettings):
     def sources_config_path(self) -> Path:
         return self.config_dir / "sources.yaml"
 
+    @property
+    def storage_config_path(self) -> Path:
+        return self.config_dir / "storage.yaml"
+
     def _pg_location(self) -> str:
         user = quote(self.pg_user, safe="")
         password = quote(self.pg_password.get_secret_value(), safe="")

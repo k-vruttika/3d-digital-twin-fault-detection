@@ -99,6 +99,14 @@ class AdapterStatus(StrEnum):
     FAILED = "FAILED"
 
 
+class AlertSeverity(StrEnum):
+    """How urgent an alert is."""
+
+    INFO = "INFO"
+    WARNING = "WARNING"
+    CRITICAL = "CRITICAL"
+
+
 class QuarantineReason(StrEnum):
     """Why the ingest pipeline rejected a message."""
 

@@ -116,11 +116,24 @@ help = "OPC UA server on opcua.endpoint; extra args pass through"
 cmd = "python -m twin_sim opcua"
 
 [tool.poe.tasks.minimal-data-check]
-help = "Minimal-mode data path: sim-quick files -> file adapter -> ingest -> bus (no DB/broker/ML)"
+help = "Minimal-mode data path: sim-quick files -> file adapter -> ingest -> bus -> SQLite (no Docker/broker/ML)"
 sequence = [
     { ref = "sim-quick" },
-    { cmd = "pytest tests/test_phase1_integration.py tests/test_phase2_minimal.py", env = { LINETWIN_MINIMAL_DATA_DIR = "data/sim_quick" } },
+    { cmd = "pytest tests/test_phase1_integration.py tests/test_phase2_minimal.py tests/test_phase3_minimal.py", env = { LINETWIN_MINIMAL_DATA_DIR = "data/sim_quick" } },
 ]
+
+# Event store (config/storage.yaml; sqlite by default, timescale needs `up`).
+[tool.poe.tasks.db-migrate]
+help = "Apply pending event-store migrations to the configured backend"
+cmd = "python -m twin_backend.storage migrate"
+
+[tool.poe.tasks.db-info]
+help = "Row counts, time span and snapshots of the configured event store"
+cmd = "python -m twin_backend.storage info"
+
+[tool.poe.tasks.db-export]
+help = "Export a time range, e.g. `uv run poe db-export --format csv --out data/export/run.csv --from 2026-01-01T00:00:00Z`"
+cmd = "python -m twin_backend.storage export"
 
 [tool.poe.tasks.build-frontend]
 help = "Production build of the frontend"

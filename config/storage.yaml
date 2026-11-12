@@ -1,0 +1,42 @@
+# Event store (Phase 3). Validated by twin_common.config.StorageConfig.
+# `sqlite` is the minimal-mode default: no service needed. `timescale` uses the Docker Compose
+# TimescaleDB; its connection settings come from .env via TwinSettings (LINETWIN_PG_*).
+backend: sqlite                     # sqlite | timescale
+
+sqlite:
+  path: data/store/linetwin.sqlite  # relative to the repository root (data/ is gitignored)
+  busy_timeout_s: 5.0
+
+timescale:
+  pool_min: 1
+  pool_max: 4
+  command_timeout_s: 30.0
+  chunk_interval_s:
+    readings: 86400                 # 1 day per readings chunk
+    default: 604800                 # 7 days for the other event tables
+  # LATE readings up to this old must still show up in the 1 min / 10 min aggregates.
+  # Covers the MQTT persistent session (300 s) with a wide margin.
+  max_late_arrival_s: 3600
+  aggregates:                       # continuous-aggregate refresh policies
+    m1:  {start_offset_s: 7200,  end_offset_s: 60,  schedule_s: 60}
+    m10: {start_offset_s: 14400, end_offset_s: 600, schedule_s: 300}
+  compression:
+    enabled: false
+    after_s: 604800                 # compress chunks older than 7 days
+  retention:
+    enabled: false
+    drop_after_s: 7776000           # drop raw chunks older than 90 days
+
+writer:
+  batch_size: 500                   # rows per insert
+  flush_interval_s: 0.5             # a row waits at most this long for its batch
+  queue_size: 50000                 # per stream; when full the oldest row is dropped (counted)
+  retry:
+    attempts: 3
+    backoff_s: 0.2                  # doubles per attempt
+
+snapshots:
+  enabled: true
+  interval_s: 60                    # one full line snapshot per 60 s of event time
+  settle_s: 5                       # >= ingest.lateness_window_s + writer.flush_interval_s
+  check_every_s: 1.0

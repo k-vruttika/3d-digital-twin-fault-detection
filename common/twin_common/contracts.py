@@ -22,6 +22,7 @@ from pydantic.alias_generators import to_camel
 
 from twin_common.enums import (
     AckStatus,
+    AlertSeverity,
     CommandType,
     HealthClass,
     MachineState,
@@ -194,3 +195,20 @@ class StateChange(ContractModel):
     previous_state: MachineState | None = None
     ts: UtcDatetime
     reason: str | None = None
+
+
+class Alert(ContractModel):
+    """An operator-facing alert (bus topic ``alerts``).
+
+    Produced by the inference service and the twin engine in later phases; Phase 3 only stores
+    them. ``kind`` is a short machine-readable code (e.g. ``fault_predicted``), ``source`` names
+    the producer (e.g. ``inference``).
+    """
+
+    alert_id: NonEmptyStr
+    machine_id: NonEmptyStr
+    ts: UtcDatetime
+    severity: AlertSeverity
+    kind: NonEmptyStr
+    message: str
+    source: NonEmptyStr

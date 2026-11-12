@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from twin_common import (
     AckStatus,
+    AlertSeverity,
     Attribution,
     CommandType,
     MachineState,
@@ -19,7 +20,14 @@ from twin_common import (
     Reliability,
     SensorName,
 )
-from twin_common.testing import sample_ack, sample_command, sample_prediction, sample_reading
+from twin_common.testing import (
+    sample_ack,
+    sample_alert,
+    sample_command,
+    sample_prediction,
+    sample_reading,
+    sample_state_change,
+)
 
 CAMEL = re.compile(r"^[a-z][a-zA-Z0-9]*$")
 
@@ -52,6 +60,9 @@ CASES: list[BaseModel] = [
     ),
     *[make_ack(status=s) for s in AckStatus],
     make_ack(status=AckStatus.REJECTED, reason="speed above safety limit"),
+    *[sample_alert(severity=s) for s in AlertSeverity],
+    sample_state_change(),
+    sample_state_change(previous_state=None, reason=None, state=MachineState.RUNNING),
 ]
 
 
@@ -85,7 +96,9 @@ def _all_keys(obj: object) -> list[str]:
     return keys
 
 
-@pytest.mark.parametrize("model", [make_reading(), make_prediction(), make_command(), make_ack()])
+@pytest.mark.parametrize(
+    "model", [make_reading(), make_prediction(), make_command(), make_ack(), sample_alert()]
+)
 def test_wire_keys_are_camel_case(model: BaseModel) -> None:
     payload = json.loads(model.model_dump_json())
     # probs keys are class names (NORMAL, ...) and params keys are free-form.

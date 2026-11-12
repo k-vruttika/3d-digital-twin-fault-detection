@@ -67,3 +67,34 @@ async def test_closed_subscription_is_removed() -> None:
 def test_queue_size_validated() -> None:
     with pytest.raises(ValueError, match="queue_size"):
         InMemoryEventBus(queue_size=0)
+
+
+async def test_per_subscription_maxsize_overrides_default() -> None:
+    bus = InMemoryEventBus(queue_size=100)
+    small = bus.subscribe(Topic.READINGS, maxsize=2)
+    big = bus.subscribe(Topic.READINGS)
+    for seq in range(5):
+        await bus.publish(Topic.READINGS, sample_reading(seq=seq))
+    assert (small.maxsize, small.dropped, small.qsize()) == (2, 3, 2)
+    assert (big.dropped, big.qsize()) == (0, 5)
+    with pytest.raises(ValueError, match="maxsize"):
+        bus.subscribe(Topic.READINGS, maxsize=0)
+
+
+async def test_messages_are_stamped_at_publish() -> None:
+    from twin_backend.clock import FakeClock
+
+    clock = FakeClock()
+    bus = InMemoryEventBus(queue_size=10, clock=clock)
+    sub = bus.subscribe(Topic.READINGS)
+    published_at = clock.now()
+    await bus.publish(Topic.READINGS, sample_reading())
+    clock.advance(5)  # a slow consumer does not change the stamp
+    stamp, message = await sub.get_stamped()
+    assert stamp == published_at
+    assert message == sample_reading()
+    await bus.publish(Topic.READINGS, sample_reading(seq=1))
+    got = sub.get_stamped_nowait()
+    assert got is not None
+    assert got[0] == clock.now()
+    assert sub.get_stamped_nowait() is None
