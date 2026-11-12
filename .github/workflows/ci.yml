@@ -10,10 +10,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Linux: exercises the Makefile.
-  linux:
-    name: Lint and test (Linux, make)
-    runs-on: ubuntu-latest
+  # One definition for every OS: all steps are poe tasks (pyproject.toml), which run without a
+  # shell and therefore behave identically on Linux, Windows and macOS.
+  check:
+    name: Lint and test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -24,47 +29,16 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Install
-        run: |
-          uv sync --all-packages --locked
-          npm --prefix frontend ci
+      # One command per step: on Windows (pwsh) only the last command's exit code would count.
+      - name: Install Python dependencies
+        run: uv sync --all-packages --locked
+      - name: Install frontend dependencies
+        run: npm --prefix frontend ci
       - name: Lint
-        run: make lint
+        run: uv run --frozen poe lint
       - name: Test
-        run: make test
+        run: uv run --frozen poe test
       - name: Minimal-mode data path (simulator files, no DB/broker/ML)
-        run: |
-          uv run python -m twin_sim generate --quick --out data/sim_quick/ --export csv,jsonl
-          LINETWIN_MINIMAL_DATA_DIR=data/sim_quick uv run pytest tests/test_phase1_integration.py
+        run: uv run --frozen poe minimal-data-check
       - name: Frontend build
-        run: npm --prefix frontend run build
-
-  # Windows: exercises scripts/dev.ps1 under Windows PowerShell 5.1, the target platform.
-  windows:
-    name: Lint and test (Windows, dev.ps1)
-    runs-on: windows-latest
-    defaults:
-      run:
-        shell: powershell
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - name: Install
-        run: .\scripts\dev.ps1 install
-      - name: Lint
-        run: .\scripts\dev.ps1 lint
-      - name: Test
-        run: .\scripts\dev.ps1 test
-      - name: Minimal-mode data path (simulator files, no DB/broker/ML)
-        run: |
-          .\scripts\dev.ps1 sim-quick
-          $env:LINETWIN_MINIMAL_DATA_DIR = 'data/sim_quick'
-          uv run pytest tests/test_phase1_integration.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        run: uv run --frozen poe build-frontend

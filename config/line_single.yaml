@@ -2,7 +2,7 @@
 # one infeed conveyor, no buffers. The source feeds CNV-01 directly and finished parts
 # leave to an unbounded sink. Validated by twin_common.config.LineConfig.
 # Use with: python -m twin_sim generate --line config/line_single.yaml
-#           --scenario config/scenarios/quick_single.yaml   (.\scripts\dev.ps1 sim-quick-single)
+#           --scenario config/scenarios/quick_single.yaml   (uv run poe sim-quick-single)
 
 line_id: line1_single
 

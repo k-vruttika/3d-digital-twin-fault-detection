@@ -1,5 +1,35 @@
 # LineTwin progress
 
+## Tooling: poethepoet task runner (2026-11-12)
+
+### What changed
+
+- **One OS-neutral task runner.** The `Makefile` and `scripts/dev.ps1` were removed. Every developer task is now a [poethepoet](https://poethepoet.natn.io/) task in the root `pyproject.toml` (`[tool.poe.tasks]`), run as `uv run poe <task>`. The same commands work on Windows, Linux and macOS. See [ADR 0004](adr/0004-poe-task-runner.md).
+- **Tasks:**
+  - kept from before: `install`, `lint`, `fmt`, `test`, `dev`, `minimal` (`dev` and `minimal` are still stubs that exit with code 1), `sim`, `sim-quick`, `sim-quick-single`, `sim-plots`;
+  - new, moved out of CI: `minimal-data-check` and `build-frontend`;
+  - the old `help` target is replaced by `uv run poe`, which lists every task with its help text.
+- **No shell syntax.** Tasks run without a shell and call only tools from the uv environment, `uv`, and `npm --prefix frontend`. The environment variable for `minimal-data-check` is set through poe's `env` option.
+- **CI:** one job with an OS matrix (`ubuntu-latest`, `windows-latest`, `macos-latest`, `fail-fast: false`). Every check step is `uv run --frozen poe <task>`: lint, test, minimal-data-check, build-frontend.
+- **CLAUDE.md:** §4, §5 and §8 now refer to poe. §7 has a new rule: developer tasks are added only as poe tasks, using cross-platform commands only.
+- **Docs:** `setup_windows.md`, `simulator.md` and `config/line_single.yaml` use `uv run poe …`. The CLI examples in `simulator.md` no longer use PowerShell line continuations.
+- **Dependency:** `poethepoet` (0.49) added to the root dev group.
+
+### How to run
+
+```text
+uv sync --all-packages    # fresh clone only (installs poe)
+uv run poe install        # uv sync + npm ci
+uv run poe lint
+uv run poe test
+uv run poe                # list all tasks
+```
+
+### Known limitations
+
+- The new three-OS CI matrix has not run on GitHub yet (there is no remote). Only Windows was exercised locally.
+- The Phase 0 and Phase 1 sections below are historical: wherever they mention `make` or `dev.ps1`, the equivalent is now `uv run poe <same target>`.
+
 ## Phase 1: Simulator (done, 2026-11-11)
 
 ### What was built
@@ -22,15 +52,15 @@
   - `config/scenarios/`: `default`, `quick`, `e5_lubrication_loss`, `sensor_faults`, `cnc_stop`.
 - **Docs:** [simulator.md](simulator.md) covers the equations, parameter tables, threshold sources (ISO 10816 zones, IEC 60034-1 insulation classes, IEC 60947-4-1 overload), how lubrication_loss differs, the feasibility numbers, label definitions and measured performance. Design decisions are in [ADR 0003](adr/0003-simulator-design.md).
 - **Tooling:**
-  - `sim`, `sim-quick` and `sim-plots` targets in `Makefile` and `dev.ps1`.
-  - CI step "minimal-mode data path" in both jobs: `generate --quick --export csv,jsonl`, then `tests/test_phase1_integration.py` on the output.
+  - `sim`, `sim-quick` and `sim-plots` targets. These were originally in `Makefile` and `dev.ps1`; they are now poe tasks.
+  - CI step "minimal-mode data path": `generate --quick --export csv,jsonl`, then `tests/test_phase1_integration.py` on the output. This is now the poe task `minimal-data-check`.
 
 ### How to run
 
-```powershell
-.\scripts\dev.ps1 sim         # 200 runs x 3600 s, seed 42 -> data/sim/ (Parquet + manifest.json)
-.\scripts\dev.ps1 sim-quick   # 5 x 1800 s fault-dense runs + CSV/JSONL -> data/sim_quick/
-.\scripts\dev.ps1 sim-plots   # experiments/results/sim_examples/*.png
+```text
+uv run poe sim         # 200 runs x 3600 s, seed 42 -> data/sim/ (Parquet + manifest.json)
+uv run poe sim-quick   # 5 x 1800 s fault-dense runs + CSV/JSONL -> data/sim_quick/
+uv run poe sim-plots   # experiments/results/sim_examples/*.png
 uv run python -m twin_sim run --speed 10 --duration 120    # live Readings as JSON lines on stdout
 uv run python -m twin_sim generate --help
 ```
@@ -73,7 +103,7 @@ pytest now runs 221 tests: 76 in `simulator/tests` and 3 in `tests/test_phase1_i
 - Parquet stores observed values only. With sensor faults on, the true values are not in the dataset; they are available in `StepFrame` (`true_vib/temp/current`).
 - Ambient temperature is constant per run, and speed has process noise but no separate measurement noise.
 - With the default scenario, few spindle_imbalance faults reach FAULT (17 of 35 planned in the 200-run dataset), because only CNC-01 is eligible. Late or low-load gradual faults are often censored, and onsets that hit an already-faulted machine are skipped (60 of 383). All of this is recorded in the manifest.
-- `make` is still not installed locally. Only `dev.ps1` was run here, and the new CI steps have not run on GitHub yet.
+- At the time, only `dev.ps1` was run locally (no `make`). Both have since been replaced by poe tasks (see the Tooling section above). The CI steps have not run on GitHub yet.
 - I checked the example plots visually (bearing_wear, lubrication_loss, line coupling). Please review all seven PNGs.
 
 ### Enhancement: CNC spindle speed changes between jobs (2026-11-12)
@@ -101,7 +131,7 @@ pytest now runs 221 tests: 76 in `simulator/tests` and 3 in `tests/test_phase1_i
 - **`config/line_single.yaml`:** CNV-01 only, no buffers. This is the "conveyor or CNC station" from the original synopsis. The simulator needed no code change: the source feeds the machine directly and parts leave to the sink.
 - **`config/scenarios/quick_single.yaml`:** `quick` without the CNC-only parts. Full-line scenarios reference CNC-01 and are refused on the single line with a clear message (`... not on line 'line1_single'`).
 - **CLI:** `--line` on `generate` and `run`, defaulting to `config/line.yaml`. It replaces the earlier global `--line-config` option, which had never been documented. `plot-examples` always uses the full line.
-- **Targets:** `sim-quick-single` in the Makefile and dev.ps1 writes to `data/sim_quick_single/`. Ran it: 5 runs, 9000 rows, 1.6 s.
+- **Targets:** `sim-quick-single` (now the poe task `uv run poe sim-quick-single`) writes to `data/sim_quick_single/`. Ran it: 5 runs, 9000 rows, 1.6 s.
 - **Tests:** 8 new in `simulator/tests/test_sim_single_line.py`:
   - healthy station shows only RUNNING with null buffers
   - gradual fault lead time and root cause

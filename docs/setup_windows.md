@@ -17,25 +17,15 @@ You don't need to install Python yourself. uv downloads the pinned Python 3.11 a
 If winget reports that an id was not found, search for it with `winget search <name>`. Package ids occasionally change.
 
 ```powershell
-.\scripts\dev.ps1 install   # uv sync + npm ci
-.\scripts\dev.ps1 lint
-.\scripts\dev.ps1 test
+uv sync --all-packages      # first time only: installs the Python packages, including poe
+uv run poe install          # uv sync + npm ci
+uv run poe lint
+uv run poe test
+uv run poe                  # list every task (sim, sim-quick, sim-plots, ...)
 uv run pre-commit install   # optional: run hooks on every commit
 ```
 
-If PowerShell refuses to run the script ("running scripts is disabled on this system"), allow local scripts for your user once:
-
-```powershell
-Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
-```
-
-or run a single command without changing policy:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1 lint
-```
-
-`make` is optional on Windows. `scripts\dev.ps1` has the same targets as the `Makefile`.
+Developer tasks are [poethepoet](https://poethepoet.natn.io/) tasks defined in the root `pyproject.toml` ([ADR 0004](adr/0004-poe-task-runner.md)). They run without a shell, so the same commands work in PowerShell, cmd, and on Linux and macOS (bash or zsh). No execution-policy changes and no `make` are needed.
 
 ## 2. Mosquitto MQTT broker (Phase 2)
 

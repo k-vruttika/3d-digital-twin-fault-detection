@@ -46,15 +46,14 @@ WHAT-IF:      Dashboard ─► POST /whatif ─► simulator snapshot ─► fas
 - **ML:** PyTorch, scikit-learn, XGBoost, SHAP, Captum, `river` (ADWIN), MLflow (local file store), ONNX / onnxruntime
 - **Frontend:** TypeScript (strict), Vite, React, Three.js (used directly, NOT react-three-fiber), Chart.js
 - **Quality:** ruff, mypy, pytest, pytest-asyncio, Vitest, ESLint, pre-commit, GitHub Actions
-- **Ops:** Prometheus metrics endpoint (`/metrics`), Locust for load testing. Dev tasks via `scripts/dev.ps1` (Windows) and an equivalent `Makefile`
+- **Ops:** Prometheus metrics endpoint (`/metrics`), Locust for load testing. Dev tasks are poethepoet (`poe`) tasks in the root `pyproject.toml`, run as `uv run poe <task>`, identical on Windows, Linux and macOS
 
 ## 5. Repository layout
 
 ```
 linetwin/
 ├─ CLAUDE.md
-├─ Makefile                  # dev, minimal, test, lint, fmt, sim, train, experiments, loadtest
-├─ scripts/dev.ps1           # same targets as the Makefile, for Windows PowerShell
+├─ pyproject.toml            # uv workspace + poe tasks: dev, minimal, test, lint, fmt, sim, train, experiments, loadtest
 ├─ .github/workflows/ci.yml
 ├─ config/
 │  ├─ line.yaml              # line layout, machines, sensors, buffers, part mappings
@@ -120,12 +119,13 @@ ML target mapping: RUNNING/IDLE/STARVED/BLOCKED/MAINTENANCE → NORMAL (machine 
 - Frontend `engine/` must not import React; pure state→visual mapping functions are unit tested.
 - Generated results go to `experiments/results/` and are produced by scripts, never typed by hand.
 - Do not use Docker. All services run natively on Windows.
+- Developer tasks are added **only** as poe tasks in the root `pyproject.toml` (`[tool.poe.tasks]`). Use cross-platform commands only (tools from the uv environment, `uv`, `npm --prefix frontend`); no Makefile, shell scripts, or bash/PowerShell syntax. CI calls the same poe tasks on Ubuntu, Windows and macOS.
 
 ## 8. Working agreement for Claude
 
 1. At session start: read this file and `docs/PROGRESS.md`. Work only on the phase you are given.
 2. Before coding, present a short plan (files to create/change, key design choices, open questions). Wait for approval if anything is ambiguous or deviates from this file.
-3. Implement in small steps. Run `make lint` and `make test` before declaring done.
+3. Implement in small steps. Run `uv run poe lint` and `uv run poe test` before declaring done.
 4. At phase end: update `docs/PROGRESS.md` (what was built, how to run it, known limitations, deviations), add ADRs for significant decisions, and print a summary plus a suggested commit message. Then stop.
 5. **Never fabricate experiment numbers, citations, or dataset contents.** Results only come from running code. If something can't be run here (e.g. a dataset is missing), say so and leave a clearly marked TODO.
 6. Do not download datasets automatically; loaders expect files in `data/external/<name>/` and fail with a helpful message.

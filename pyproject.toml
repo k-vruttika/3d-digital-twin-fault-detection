@@ -32,7 +32,87 @@ dev = [
     "pre-commit>=4.0",
     "types-PyYAML>=6.0",
     "matplotlib>=3.11.2",
+    "poethepoet>=0.49.0",
 ]
+
+# ---------------------------------------------------------------- poe (developer tasks)
+# The single place for developer tasks: `uv run poe <task>` (list them with `uv run poe`).
+# Commands run without a shell, so they behave the same on Windows, Linux and macOS.
+# Rules: cross-platform commands only (tools from the uv environment, uv, npm --prefix frontend);
+# no bash/PowerShell syntax. Fresh clone: `uv sync --all-packages` first, then `uv run poe install`.
+[tool.poe]
+# Poe would otherwise auto-select its uv executor (`uv run <cmd>`), which cannot launch npm on
+# Windows (npm is npm.cmd). `uv run poe` already puts the project venv on PATH, so the simple
+# executor finds ruff/mypy/pytest/python there, and npm.cmd via PATHEXT on Windows.
+executor = { type = "simple" }
+
+[tool.poe.tasks.install]
+help = "Install Python (uv) and frontend (npm) dependencies"
+sequence = [
+    { cmd = "uv sync --all-packages" },
+    { cmd = "npm --prefix frontend ci" },
+]
+
+[tool.poe.tasks.lint]
+help = "ruff check, ruff format --check, mypy, eslint, tsc"
+sequence = [
+    { cmd = "ruff check ." },
+    { cmd = "ruff format --check ." },
+    { cmd = "mypy" },
+    { cmd = "npm --prefix frontend run lint" },
+    { cmd = "npm --prefix frontend run typecheck" },
+]
+
+[tool.poe.tasks.fmt]
+help = "ruff format, ruff check --fix, eslint --fix"
+sequence = [
+    { cmd = "ruff format ." },
+    { cmd = "ruff check --fix ." },
+    { cmd = "npm --prefix frontend run lint:fix" },
+]
+
+[tool.poe.tasks.test]
+help = "pytest, vitest"
+sequence = [
+    { cmd = "pytest" },
+    { cmd = "npm --prefix frontend test" },
+]
+
+[tool.poe.tasks.dev]
+help = "Full stack: backend + frontend (Phase 2+)"
+cmd = """python -c "import sys; sys.exit('dev is not implemented yet; it needs the backend and frontend (Phase 2+).')" """
+
+[tool.poe.tasks.minimal]
+help = "3D twin from a JSON/CSV file, no DB/broker/ML (Phase 2+)"
+cmd = """python -c "import sys; sys.exit('minimal is not implemented yet; it needs the file adapter and frontend (Phase 2+).')" """
+
+[tool.poe.tasks.sim]
+help = "Generate the full dataset: 200 runs x 3600 s -> data/sim/"
+cmd = "python -m twin_sim generate --runs 200 --duration 3600 --seed 42 --out data/sim/"
+
+[tool.poe.tasks.sim-quick]
+help = "5 short fault-dense runs (+ CSV/JSONL) -> data/sim_quick/"
+cmd = "python -m twin_sim generate --quick --out data/sim_quick/ --export csv,jsonl"
+
+[tool.poe.tasks.sim-quick-single]
+help = "Same as sim-quick on the single-station line (CNV-01 only) -> data/sim_quick_single/"
+cmd = """python -m twin_sim generate --quick --line config/line_single.yaml
+    --scenario config/scenarios/quick_single.yaml --out data/sim_quick_single/ --export csv,jsonl"""
+
+[tool.poe.tasks.sim-plots]
+help = "Example plots per fault type -> experiments/results/sim_examples/"
+cmd = "python -m twin_sim plot-examples --out experiments/results/sim_examples/"
+
+[tool.poe.tasks.minimal-data-check]
+help = "Minimal-mode data path: sim-quick files replay into Readings (no DB/broker/ML)"
+sequence = [
+    { ref = "sim-quick" },
+    { cmd = "pytest tests/test_phase1_integration.py", env = { LINETWIN_MINIMAL_DATA_DIR = "data/sim_quick" } },
+]
+
+[tool.poe.tasks.build-frontend]
+help = "Production build of the frontend"
+cmd = "npm --prefix frontend run build"
 
 # ---------------------------------------------------------------- ruff
 [tool.ruff]

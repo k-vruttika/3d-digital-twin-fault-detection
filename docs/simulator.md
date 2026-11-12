@@ -2,16 +2,23 @@
 
 A deterministic, physically motivated simulator of the line CNV-01 → B1 → CNC-01 → B2 → INSP-01 → B3 → CNV-02. It generates 1 Hz sensor data, gradual and sudden machine faults, sensor faults, and machine-to-machine disruption (STARVED/BLOCKED). The parameters live in [`config/simulator.yaml`](../config/simulator.yaml) (physics, faults, thresholds) and [`config/scenarios/*.yaml`](../config/scenarios) (operating conditions, fault schedules, seeds). The code does not hardcode any of these values.
 
-```powershell
-uv run python -m twin_sim generate --runs 200 --duration 3600 --seed 42 --out data/sim/   # .\scripts\dev.ps1 sim
-uv run python -m twin_sim generate --quick --export csv,jsonl --out data/sim_quick/       # .\scripts\dev.ps1 sim-quick
-uv run python -m twin_sim run --speed 10 --duration 120        # real time x10, JSON-lines Readings on stdout
-uv run python -m twin_sim plot-examples                        # .\scripts\dev.ps1 sim-plots
+The common runs are poe tasks, and the commands work the same in any shell on Windows, Linux and macOS:
 
-# Single-station mode (section 5): one conveyor, no buffers
-uv run python -m twin_sim generate --quick --line config/line_single.yaml `
-    --scenario config/scenarios/quick_single.yaml --export csv,jsonl --out data/sim_quick_single/   # .\scripts\dev.ps1 sim-quick-single
+```text
+uv run poe sim                # 200 runs x 3600 s, seed 42 -> data/sim/
+uv run poe sim-quick          # 5 fault-dense runs + CSV/JSONL -> data/sim_quick/
+uv run poe sim-quick-single   # the same on the single-station line (section 5)
+uv run poe sim-plots          # example plots -> experiments/results/sim_examples/
+```
+
+The CLI behind them, for custom runs:
+
+```text
+uv run python -m twin_sim generate --runs 200 --duration 3600 --seed 42 --out data/sim/
+uv run python -m twin_sim generate --quick --export csv,jsonl --out data/sim_quick/
+uv run python -m twin_sim run --speed 10 --duration 120     # real time x10, JSON-lines Readings on stdout
 uv run python -m twin_sim run --line config/line_single.yaml --scenario config/scenarios/quick_single.yaml --speed 10
+uv run python -m twin_sim generate --help
 ```
 
 `generate` and `run` take `--line` to choose the line layout. The default is `config/line.yaml`. `plot-examples` always uses the full line.
@@ -238,11 +245,11 @@ Parquet rows: one per machine per second, grouped by machine and then by time. T
 
 ## 9. Performance
 
-Measured on the development laptop by running `.\scripts\dev.ps1 sim`: 200 runs × 3600 s, 2.88 M rows, 132 MB of Parquet, generated in **9.8 s** with 17 worker processes. A rerun after the spindle speed changes were added took 16.2 s, within normal run-to-run variation. With one worker, 10 runs took 2.7 s, which puts the full dataset at about 1 minute on a single core. The target was under 15 minutes. The time for each generation is recorded in `manifest.json` (`generation_time_s`).
+Measured on the development laptop by running `uv run poe sim`: 200 runs × 3600 s, 2.88 M rows, 132 MB of Parquet, generated in **9.8 s** with 17 worker processes. A rerun after the spindle speed changes were added took 16.2 s, within normal run-to-run variation. With one worker, 10 runs took 2.7 s, which puts the full dataset at about 1 minute on a single core. The target was under 15 minutes. The time for each generation is recorded in `manifest.json` (`generation_time_s`).
 
 ## 10. Example plots
 
-`.\scripts\dev.ps1 sim-plots` writes the following to `experiments/results/sim_examples/`:
+`uv run poe sim-plots` writes the following to `experiments/results/sim_examples/`:
 - one figure per fault type (sensor panels with WARNING/FAULT threshold lines and a state band)
 - `sensor_faults.png`
 - `line_coupling_cnc_stop.png` (machine states and buffer levels)
