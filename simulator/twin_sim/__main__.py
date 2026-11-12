@@ -1,13 +1,19 @@
-"""Command line interface: ``python -m twin_sim {generate,run,plot-examples}``."""
+"""Command line interface: ``python -m twin_sim {generate,run,plot-examples,mock-server}``.
+
+Publisher subcommands (``mock-server``) import their network libraries lazily, so the
+simulator core never needs them.
+"""
 
 from __future__ import annotations
 
 import argparse
-import asyncio
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
-from twin_common.config import load_line_config
+from twin_common import aio
+from twin_common.config import load_line_config, load_sources_config
 from twin_common.config.loader import ConfigError
 from twin_common.config.settings import TwinSettings
 from twin_common.contracts import Reading
@@ -17,6 +23,9 @@ from twin_sim.config import check_scenario_compat, load_scenario, load_sim_confi
 from twin_sim.line import LineSimulator
 from twin_sim.runner import RealtimeRunner
 from twin_sim.scenario import make_run_plan
+
+if TYPE_CHECKING:
+    from twin_sim.publishers.session import SessionOptions as SessionOptionsT
 
 QUICK_RUNS = 5
 QUICK_SCENARIO = "quick.yaml"
@@ -65,10 +74,68 @@ def _parser(settings: TwinSettings) -> argparse.ArgumentParser:
     r.add_argument("--speed", type=float, default=1.0, help="speed multiplier (1 = real time)")
     r.add_argument("--duration", type=float, default=None, help="simulated seconds to run")
 
+    m = sub.add_parser("mock-server", help="mock machine server: REST + WebSocket (FastAPI)")
+    _session_args(m, settings)
+    mock_host, mock_port = _mock_address(settings)
+    m.add_argument("--host", default=mock_host, help="default: host of mock.base_url")
+    m.add_argument("--port", type=int, default=mock_port, help="default: port of mock.base_url")
+    m.add_argument("--command-timeout", type=float, default=5.0, help="seconds")
+
     e = sub.add_parser("plot-examples", help="plot one run of each fault type")
     e.add_argument("--out", type=Path, default=Path("experiments/results/sim_examples"))
     e.add_argument("--seed", type=int, default=7)
     return p
+
+
+def _session_args(p: argparse.ArgumentParser, settings: TwinSettings) -> None:
+    cfg = settings.config_dir
+    p.add_argument("--line", type=Path, default=settings.line_config_path, help="line layout YAML")
+    p.add_argument("--scenario", type=Path, default=cfg / "scenarios" / DEFAULT_SCENARIO)
+    p.add_argument("--seed", type=int, default=None)
+    p.add_argument("--run-index", type=int, default=0)
+    p.add_argument("--speed", type=float, default=1.0, help="speed multiplier (1 = real time)")
+    p.add_argument("--duration", type=float, default=None, help="simulated seconds to run")
+    p.add_argument("--history-size", type=int, default=3600, help="readings kept per machine")
+
+
+def _mock_address(settings: TwinSettings) -> tuple[str, int]:
+    """Host and port of ``mock.base_url`` in sources.yaml (fallback 127.0.0.1:8100)."""
+    try:
+        mock = load_sources_config(settings.sources_config_path).mock
+    except ConfigError:
+        mock = None
+    url = urlparse(mock.base_url if mock is not None else "http://127.0.0.1:8100")
+    return url.hostname or "127.0.0.1", url.port or 8100
+
+
+def _session_options(args: argparse.Namespace) -> SessionOptionsT:
+    from twin_sim.publishers.session import SessionOptions
+
+    return SessionOptions(
+        line_path=args.line,
+        scenario_path=args.scenario,
+        sim_config_path=args.sim_config,
+        seed=args.seed,
+        run_index=args.run_index,
+        speed=args.speed,
+        duration_s=args.duration,
+        history_size=args.history_size,
+    )
+
+
+def _cmd_mock_server(args: argparse.Namespace) -> int:
+    from twin_sim.publishers.http import make_server
+    from twin_sim.publishers.mock_server import create_app
+    from twin_sim.publishers.session import SimSession
+
+    session = SimSession.from_options(_session_options(args))
+    app = create_app(session, own_session=True, command_timeout_s=args.command_timeout)
+    sys.stderr.write(f"mock server on http://{args.host}:{args.port} (Ctrl+C to stop)\n")
+    try:
+        aio.run(make_server(app, args.host, args.port).serve())
+    except KeyboardInterrupt:
+        return 130
+    return 0
 
 
 def _cmd_generate(args: argparse.Namespace, settings: TwinSettings) -> int:
@@ -115,7 +182,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
     runner = RealtimeRunner(sim, emit, speed=args.speed)
     max_ticks = round(args.duration) if args.duration is not None else round(plan.duration_s)
     try:
-        asyncio.run(runner.run(max_ticks=max_ticks))
+        aio.run(runner.run(max_ticks=max_ticks))
     except KeyboardInterrupt:
         return 130
     return 0
@@ -146,6 +213,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_generate(args, settings)
         if args.command == "run":
             return _cmd_run(args)
+        if args.command == "mock-server":
+            return _cmd_mock_server(args)
         return _cmd_plot(args)
     except (ConfigError, ValueError) as exc:
         sys.stderr.write(f"error: {exc}\n")

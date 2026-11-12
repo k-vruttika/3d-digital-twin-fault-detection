@@ -168,3 +168,17 @@ class CommandAck(ContractModel):
     status: AckStatus
     reason: str | None = None
     ts: UtcDatetime
+
+
+class StateChange(ContractModel):
+    """A machine's effective state changed (bus topic ``states``).
+
+    Emitted by the ingest pipeline when the data link degrades (STALE, OFFLINE) or recovers,
+    and by the twin engine (later phases) for machine state transitions.
+    """
+
+    machine_id: NonEmptyStr
+    state: MachineState
+    previous_state: MachineState | None = None
+    ts: UtcDatetime
+    reason: str | None = None

@@ -4,9 +4,14 @@ version = "0.1.0"
 description = "LineTwin production line simulator and publishers"
 requires-python = ">=3.11,<3.12"
 dependencies = [
+    "aiomqtt>=2.5.1",
+    "asyncua>=2.1.0",
+    "fastapi>=0.162.5",
     "numpy>=2.4.6",
     "pyarrow>=26.0.1",
     "twin-common",
+    "uvicorn>=0.54.0",
+    "websockets>=17.4",
 ]
 
 [tool.uv.sources]

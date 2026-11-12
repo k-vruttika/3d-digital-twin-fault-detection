@@ -20,6 +20,7 @@ import pytest
 
 from twin_common.config import load_sources_config
 from twin_common.config.settings import TwinSettings
+from twin_common.config.sources import SourcesConfig
 
 REPO_ROOT = Path(__file__).resolve().parents[2]  # backend/twin_backend/testing.py -> repo
 REQUIRE_SERVICES_ENV = "LINETWIN_REQUIRE_SERVICES"
@@ -118,3 +119,132 @@ def timescale_db() -> PgService:
     if reason is not None:
         _unavailable("TimescaleDB", display, reason)
     return PgService(settings.pg_dsn, display)
+
+
+# ---------------------------------------------------------------- Phase 2: ingest fixtures
+@dataclass(frozen=True)
+class SimExport:
+    """One simulated run exported as JSONL and CSV (same plan, same readings)."""
+
+    dir: Path
+    jsonl: Path
+    csv: Path
+    line_path: Path
+    scenario_path: Path
+    seed: int
+    duration_s: float
+
+
+EXPORT_DURATION_S = 120.0
+EXPORT_SEED = 11
+
+
+def _export(tmp: Path, line_name: str, scenario_name: str) -> SimExport:
+    from twin_common.config import load_line_config
+    from twin_sim.batch import generate
+    from twin_sim.config import load_scenario, load_sim_config
+
+    config = REPO_ROOT / "config"
+    line_path = config / line_name
+    scenario_path = config / "scenarios" / scenario_name
+    scenario = load_scenario(scenario_path).model_copy(update={"duration_s": EXPORT_DURATION_S})
+    generate(
+        line=load_line_config(line_path),
+        sim=load_sim_config(config / "simulator.yaml"),
+        scenario=scenario,
+        runs=1,
+        base_seed=EXPORT_SEED,
+        out_dir=tmp,
+        exports=("csv", "jsonl"),
+        workers=1,
+    )
+    return SimExport(
+        tmp,
+        tmp / "run_0000.jsonl",
+        tmp / "run_0000.csv",
+        line_path,
+        scenario_path,
+        EXPORT_SEED,
+        EXPORT_DURATION_S,
+    )
+
+
+@pytest.fixture(scope="session")
+def sim_export(tmp_path_factory: pytest.TempPathFactory) -> SimExport:
+    """120 s of the full line (quick scenario), exported as JSONL + CSV."""
+    return _export(tmp_path_factory.mktemp("sim_export"), "line.yaml", "quick.yaml")
+
+
+@pytest.fixture(scope="session")
+def sim_export_single(tmp_path_factory: pytest.TempPathFactory) -> SimExport:
+    """120 s of the single-station line (quick_single scenario), exported as JSONL + CSV."""
+    return _export(
+        tmp_path_factory.mktemp("sim_export_single"), "line_single.yaml", "quick_single.yaml"
+    )
+
+
+@pytest.fixture(scope="session")
+def sources_cfg() -> SourcesConfig:
+    """The shipped config/sources.yaml (tests derive variants with model_copy)."""
+    return load_sources_config(REPO_ROOT / "config" / "sources.yaml")
+
+
+def drain_readings(sub: Any) -> list[Any]:
+    """Everything currently queued on a bus subscription."""
+    out: list[Any] = []
+    while (msg := sub.get_nowait()) is not None:
+        out.append(msg)
+    return out
+
+
+async def replay_into(adapter: Any, pipeline: Any, *, tick: bool = True) -> None:
+    """Start ``adapter``, push its whole stream through ``pipeline``, flush at the end.
+
+    With ``tick`` the pipeline's housekeeping runs after every message (on the pipeline clock).
+    """
+    await adapter.start()
+    try:
+        async for raw in adapter.stream():
+            await pipeline.process(raw)
+            if tick:
+                await pipeline.tick()
+        await pipeline.flush()
+    finally:
+        await adapter.stop()
+
+
+def load_jsonl_readings(path: Path) -> list[Any]:
+    from twin_common.contracts import Reading
+
+    return [
+        Reading.model_validate_json(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+def canonical_order(readings: list[Any], machine_order: list[str]) -> list[Any]:
+    """Sort readings by (ts, line machine order), the order every adapter must reproduce."""
+    rank = {m: i for i, m in enumerate(machine_order)}
+    return sorted(readings, key=lambda r: (r.ts, rank.get(r.machine_id, len(rank)), r.seq))
+
+
+def matching_session(export: SimExport, speed: float, history_size: int = 10_000) -> Any:
+    """A live SimSession that replays exactly the run in ``export`` (same plan and seed)."""
+    from twin_common.config import load_line_config
+    from twin_sim.config import load_scenario, load_sim_config
+    from twin_sim.publishers.session import SimSession, build_simulator
+
+    scenario = load_scenario(export.scenario_path).model_copy(
+        update={"duration_s": export.duration_s}
+    )
+    sim = build_simulator(
+        load_line_config(export.line_path),
+        load_sim_config(REPO_ROOT / "config" / "simulator.yaml"),
+        scenario,
+        export.seed,
+        0,
+    )
+    session = SimSession(sim, speed, history_size)
+    session.max_ticks = round(export.duration_s)
+    return session

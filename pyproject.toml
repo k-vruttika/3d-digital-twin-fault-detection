@@ -103,6 +103,10 @@ cmd = """python -m twin_sim generate --quick --line config/line_single.yaml
 help = "Example plots per fault type -> experiments/results/sim_examples/"
 cmd = "python -m twin_sim plot-examples --out experiments/results/sim_examples/"
 
+[tool.poe.tasks.sim-mock]
+help = "Mock machine server (REST + WebSocket) on mock.base_url; extra args pass through"
+cmd = "python -m twin_sim mock-server"
+
 [tool.poe.tasks.minimal-data-check]
 help = "Minimal-mode data path: sim-quick files replay into Readings (no DB/broker/ML)"
 sequence = [
@@ -181,6 +185,10 @@ testpaths = ["common/tests", "simulator/tests", "backend/tests", "ml/tests", "te
 addopts = ["--import-mode=importlib", "-ra", "--strict-markers"]
 markers = [
     "services: needs the Docker Compose services (uv run poe up); skipped when unreachable",
+]
+filterwarnings = [
+    # Starlette's TestClient asks for the httpx2 package; httpx works and is what we depend on.
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
 ]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

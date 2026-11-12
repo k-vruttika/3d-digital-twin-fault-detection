@@ -80,6 +80,36 @@ class AdapterKind(StrEnum):
     OPCUA = "opcua"
 
 
+class Capability(StrEnum):
+    """Optional features a source adapter supports beyond streaming readings."""
+
+    COMMANDS = "commands"
+    WHATIF = "whatif"
+    HISTORY = "history"
+
+
+class AdapterStatus(StrEnum):
+    """Connection status of a source adapter."""
+
+    STARTING = "STARTING"
+    CONNECTED = "CONNECTED"
+    RECONNECTING = "RECONNECTING"
+    EOF = "EOF"
+    STOPPED = "STOPPED"
+    FAILED = "FAILED"
+
+
+class QuarantineReason(StrEnum):
+    """Why the ingest pipeline rejected a message."""
+
+    DECODE_ERROR = "DECODE_ERROR"
+    MAPPING_ERROR = "MAPPING_ERROR"
+    SCHEMA_ERROR = "SCHEMA_ERROR"
+    NON_FINITE = "NON_FINITE"
+    UNKNOWN_MACHINE = "UNKNOWN_MACHINE"
+    OUT_OF_RANGE = "OUT_OF_RANGE"
+
+
 # CLAUDE.md section 6: ML target mapping. OFFLINE and STALE describe the *data link*, not
 # machine health, so they deliberately have no label (see to_health_class).
 _HEALTH_MAP: dict[MachineState, HealthClass] = {

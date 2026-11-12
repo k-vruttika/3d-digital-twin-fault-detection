@@ -16,17 +16,27 @@ from twin_common.config.loader import (
 )
 from twin_common.config.settings import TwinSettings
 from twin_common.config.sources import (
+    BusConfig,
+    ChaosConfig,
+    FieldMapping,
     FileSourceConfig,
+    IngestConfig,
     MockSourceConfig,
     MqttSourceConfig,
     OpcUaSourceConfig,
+    QuarantineConfig,
+    ReconnectConfig,
     SourcesConfig,
 )
 
 __all__ = [
     "BufferConfig",
+    "BusConfig",
+    "ChaosConfig",
     "ConfigError",
+    "FieldMapping",
     "FileSourceConfig",
+    "IngestConfig",
     "LineConfig",
     "LoadRange",
     "LoadRanges",
@@ -34,6 +44,8 @@ __all__ = [
     "MockSourceConfig",
     "MqttSourceConfig",
     "OpcUaSourceConfig",
+    "QuarantineConfig",
+    "ReconnectConfig",
     "SensorSpec",
     "SourcesConfig",
     "TwinSettings",
