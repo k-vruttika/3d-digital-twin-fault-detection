@@ -41,7 +41,22 @@ class IngestMetrics:
             f"{PREFIX}_gap_seqs", "Seqs given up after the lateness window", ["source"], registry=r
         )
         self.suspect = Counter(
-            f"{PREFIX}_suspect", "Readings flagged SUSPECT (out of range)", ["source"], registry=r
+            f"{PREFIX}_suspect",
+            "Readings flagged SUSPECT (out of range or partially missing)",
+            ["source"],
+            registry=r,
+        )
+        self.partial = Counter(
+            f"{PREFIX}_partial",
+            "Readings kept with some sensor values missing (quality SUSPECT)",
+            ["source"],
+            registry=r,
+        )
+        self.missing_sensor = Counter(
+            f"{PREFIX}_missing_sensor",
+            "Missing sensor values in kept readings, per sensor",
+            ["source", "sensor"],
+            registry=r,
         )
         self.source_resets = Counter(
             f"{PREFIX}_source_resets", "Seq restarts detected", ["source"], registry=r

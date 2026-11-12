@@ -1,5 +1,142 @@
 # LineTwin progress
 
+## Phase 2: Adapters and ingestion (done, 2026-11-12)
+
+### What was built
+
+- **Shared code (`twin_common`):**
+  - `Reading` sensor fields are nullable (`null` = missing); `schemaVersion` stays 2. Helpers: `sensor_values()`, `missing_sensors()`.
+  - New `StateChange` contract (bus topic `states`).
+  - New enums: `Capability`, `AdapterStatus`, `QuarantineReason` (including `NO_SENSOR_DATA`).
+  - `units.py`: unit-conversion table into the catalog units.
+  - `opcua_names.py`: OPC UA browse names, event type and method table, shared by server and adapter.
+  - `aio.py`: `run()` and `new_event_loop()` use a selector loop on Windows; `require_selector_loop()` gives a clear error otherwise ([ADR 0008](adr/0008-windows-selector-event-loop.md)).
+- **`config/sources.yaml` / `SourcesConfig`:**
+  - A field mapping per adapter (`fields`, `units`, `drop_unmapped`).
+  - New required sections: `reconnect`, `ingest`, `bus`, `chaos`, plus `command_timeout_s`.
+  - Per-adapter settings:
+    - `mqtt.qos: 1` and `mqtt.session_expiry_s`;
+    - `opcua.publishing_interval_ms`, `event_queue_size` and `watchdog_s`;
+    - `file.format` accepts `csv | jsonl | json`, plus `start_offset_s`;
+    - `mock.ws_path` is now `/stream`, plus `history_path`, `command_path`, `rest_poll_s` and `history_limit`.
+  - The default replay file is now `data/sim_quick/run_0000.csv`; the old default never existed.
+  - Validation rules: STALE before OFFLINE, `seq_reset_threshold <= dedup_window`, and a JSONL quarantine needs a path.
+- **Backend (`twin_backend`):**
+  - **`adapters/`:**
+    - `base.py`: `SourceAdapter` protocol, `RawMessage`, `AdapterHealth`, `BaseAdapter` (I/O task, bounded queue, re-cancelling `stop()`) and `Backoff`.
+    - Adapters: `file.py` (standard library only), `mock.py` (WebSocket, `/history` backfill, REST fallback), `mqtt.py` (aiomqtt, MQTT v5 persistent session, commands via `cmd`/`cmd/ack`) and `opcua.py` (ReadingEvent subscription, watchdog, method calls).
+    - `chaos.py`: seeded drop, duplicate, delay, reorder and corrupt faults.
+    - `registry.py` (lazy imports) and `manager.py` (`SourceManager`: active adapter, pump and ticker, hot `switch()`, `send_command`).
+  - **`ingest/`:** normalizer, validator (missing values, ranges), quarantine (memory or JSONL), dedup, reorder buffer, staleness monitor, Prometheus metrics, and the pipeline that ties them together ([ADR 0007](adr/0007-adapters-and-ingest.md)).
+  - **`bus/`:** `EventBus` protocol and `InMemoryEventBus` (bounded per-subscriber queues, drop-oldest) ([ADR 0006](adr/0006-event-bus-interface.md)).
+  - **`clock.py`:** `SystemClock` and `FakeClock`.
+- **Simulator publishers (`twin_sim.publishers`, never imported by `twin_sim` itself):**
+  - `session.py`: `SimSession` wraps the RealtimeRunner, with history and listeners.
+  - `mock_server.py`: FastAPI app with `/info`, `/state`, `/history`, `WS /stream` and `POST /command`.
+  - `mqtt.py`: telemetry plus a retained state topic, commands and acks, a buffered publish loop and reconnect.
+  - `opcua.py`: objects, variables and methods per machine, plus one `ReadingEventType` event per reading.
+  - `http.py`: uvicorn started inside the running loop.
+- **CLI and poe tasks:**
+  - New subcommands `mock-server`, `mqtt` and `opcua`, which take the same `--line`, `--scenario`, `--seed`, `--run-index`, `--speed`, `--duration` and `--history-size` options as `run`. Their defaults come from `sources.yaml`.
+  - New poe tasks: `sim-mock`, `sim-mqtt`, `sim-opcua`.
+  - `run` now starts through `aio.run`.
+  - `minimal-data-check` also runs `tests/test_phase2_minimal.py`.
+- **Config:** the load catalog maximum was raised from 120 to 130 % in `line.yaml` and `line_single.yaml`, after the sensor-range check (approved). The line.yaml comment now describes the configurable out-of-range handling.
+- **Docs:**
+  - [api.md](api.md) is new: Reading, the mock server, MQTT topics and the OPC UA address space.
+  - [architecture.md](architecture.md) has a new ingest section; [simulator.md](simulator.md) a new §11 on the publishers.
+  - ADRs [0006](adr/0006-event-bus-interface.md), [0007](adr/0007-adapters-and-ingest.md) and [0008](adr/0008-windows-selector-event-loop.md).
+  - CLAUDE.md §6 notes the nullable sensor fields.
+- **Dependencies (approved):**
+  - simulator: fastapi, uvicorn, websockets, aiomqtt, asyncua;
+  - backend: asyncua, websockets, httpx, prometheus-client.
+
+### How to run
+
+```text
+uv run poe sim-quick                      # replay file for the default file adapter
+uv run poe minimal-data-check             # file -> adapter -> ingest -> bus, no services
+uv run poe sim-mock                       # mock server on http://127.0.0.1:8100
+uv run poe up; uv run poe sim-mqtt        # MQTT publisher (needs the broker)
+uv run poe sim-opcua                      # OPC UA server on opc.tcp://127.0.0.1:4840/linetwin/
+uv run poe sim-opcua --line config/line_single.yaml --scenario config/scenarios/quick_single.yaml
+```
+
+The backend entry point (API, `/metrics`, hot switch over HTTP) arrives in Phase 4. Until then, `SourceManager` is used from code and tests.
+
+### Tests
+
+pytest now runs 416 tests, up from 226. The most important ones:
+
+- **Identical sequences** (`tests/test_phase2_integration.py`): one seeded 120 s run through File JSONL, File CSV, Mock, OPC UA and MQTT gives identical canonical Reading sequences. The MQTT case asserts QoS 1 and that the publisher dropped nothing.
+- **Commands** through MQTT, OPC UA and Mock reach the simulator (SET_SPEED applied, EXECUTED) and return acks (an invalid RESET is REJECTED with the simulator's reason).
+- **OPC UA:**
+  - the adapter reconnects after a server restart;
+  - the single-station line works;
+  - a partially missing reading travels as NaN and arrives as `null` with SUSPECT.
+- **Chaos:**
+  - with 10 % duplicates and reordering, the output equals the simulated run exactly (no LATE readings, no gaps);
+  - with 5 % corruption, every corrupted message is quarantined with a reason and nothing else is lost;
+  - same seed gives the same output, and the fault rates match.
+- **Mock adapter:**
+  - backfill closes the startup gap;
+  - a server restart mid-stream loses no seq;
+  - REST fallback works while the WebSocket is unavailable;
+  - commands, a server that is down, and the single-station line are covered.
+- **Hot switch** from file to a mock server streaming the same run is seamless (overlap deduplicated). A failing switch keeps the current source.
+- **Unit tests:**
+  - normalizer: mapping and units;
+  - validator: every quarantine reason, partially missing readings, suspect vs quarantine mode;
+  - dedup and source reset; reorder (in order, gap filled, window timeout, LATE, initial hold);
+  - staleness at exact fake-clock times; bus fan-out and drop-oldest; backoff; clock;
+  - file replay: CSV/JSONL/JSON, pacing, speed, offset, loop, missing-file hint;
+  - pipeline metrics.
+- **Contracts:** round trips with null sensors; missing keys are accepted; non-sensor fields stay required.
+- **Loop type:** on Windows, async tests and `aio.run()` run on a SelectorEventLoop, and a Proactor loop is rejected.
+- **Sensor ranges** (`simulator/tests/test_sim_sensor_ranges.py`): analytic worst cases per machine kind, plus an empirical sweep (quick, sensor_faults, e5_lubrication_loss, cnc_stop, quick_single; 3 seeds × 1800 s) and a commanded 120 % overload. Everything lies inside the catalog.
+- **Minimal mode** (`tests/test_phase2_minimal.py`): in a fresh interpreter, the `sim-quick` CSV and JSONL go through `SourceManager` with no broker, DB, HTTP or ML module imported.
+
+### Verified here (Windows 11)
+
+| Check | Result |
+|---|---|
+| `uv run poe lint` | passes |
+| `uv run poe test`, services up, `LINETWIN_REQUIRE_SERVICES=1` | 416 passed |
+| `uv run poe test`, after `uv run poe down` | 412 passed, 4 skipped (MQTT/DB) with the start hint |
+| `uv run poe minimal-data-check` | passes |
+| `mock-server` | smoke-run |
+| `mqtt` | streamed through its adapter (full line) |
+| `opcua` | streamed through its adapter (full and single-station line) |
+| OPC UA test group | passed 8 runs in a row |
+| Mock and source-manager tests | passed 5 runs in a row |
+
+### Known limitations
+
+- **Startup delay:** each machine's first readings wait up to `lateness_window_s` (2 s) after start or a detected source restart, so early out-of-order messages are not flagged LATE.
+- **OPC UA outages lose data:** readings fired while the adapter is disconnected are lost and show up as a gap. Mock (history backfill) and MQTT (persistent session) recover short outages.
+- **No MQTT broker-outage test:** stopping the shared Docker broker from a test is not done. Publisher buffering and the adapter's persistent session are covered by code review only.
+- **Dropout rows in CSV:** the CSV export contains sensor-dropout rows with every sensor NaN; they are quarantined as `NO_SENSOR_DATA`. JSONL omits them.
+- **Looped file replay** restarts `runTime` on every pass.
+- **Load and CSV order:** the file adapter loads the whole file into memory and sorts CSV rows by (ts, line order). That is fine for simulator exports; very large files would need streaming.
+- **Metrics not yet served:** they are collected per pipeline, but nothing serves `/metrics` before Phase 4.
+- **OPC UA test speed:** the OPC UA tests take 3 to 8 s each, mostly asyncua connection setup and teardown.
+- **CI:** the new jobs (Ubuntu with services, Windows and macOS without) have not run on GitHub yet; there is no remote.
+
+### Deviations from the plan / CLAUDE.md
+
+- **`Reading` contract:** sensor fields are nullable while `schemaVersion` stays 2 (requested in review). CLAUDE.md §6 was updated.
+- **`QuarantineReason.NO_SENSOR_DATA`** was added. Sensor NaN/inf now means "missing", not `NON_FINITE`, which now applies only to `runTime`.
+- **Load catalog max** raised from 120 to 130 % (approved).
+- **New files outside the CLAUDE.md layout:**
+  - `common/twin_common/aio.py`, `units.py` and `opcua_names.py`;
+  - `backend/twin_backend/clock.py`;
+  - `simulator/twin_sim/publishers/` (CLAUDE.md §5 lists publishers under the simulator without a folder).
+- **Root `conftest.py`** now also sets the event loop type, through pytest-asyncio's `pytest_asyncio_loop_factories` hook; overriding `event_loop_policy` is deprecated in pytest-asyncio 1.4.
+- **Two workarounds:**
+  - A pytest filter ignores Starlette's "use httpx2" TestClient deprecation warning.
+  - `OpcUaServer.stop()` closes asyncua's listening socket first. Otherwise a client reconnecting during shutdown keeps `wait_closed()` (Python 3.11.15) waiting forever.
+- **Python 3.11 cancellation:** `BaseAdapter.stop()` re-cancels its task until it ends, because on Python 3.11 `asyncio.wait_for` (used inside asyncua) can swallow a cancellation. Both of these hangs were seen in testing and are fixed.
+
 ## Infrastructure: Docker Compose services (2026-11-12)
 
 ### What was built

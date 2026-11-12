@@ -83,8 +83,8 @@ help = "Full stack: backend + frontend (Phase 2+)"
 cmd = """python -c "import sys; sys.exit('dev is not implemented yet; it needs the backend and frontend (Phase 2+).')" """
 
 [tool.poe.tasks.minimal]
-help = "3D twin from a JSON/CSV file, no DB/broker/ML (Phase 2+)"
-cmd = """python -c "import sys; sys.exit('minimal is not implemented yet; it needs the file adapter and frontend (Phase 2+).')" """
+help = "3D twin from a JSON/CSV file, no DB/broker/ML (Phase 4)"
+cmd = """python -c "import sys; sys.exit('minimal is not implemented yet; the file adapter and ingest exist (Phase 2), the API and frontend arrive in Phase 4.')" """
 
 [tool.poe.tasks.sim]
 help = "Generate the full dataset: 200 runs x 3600 s -> data/sim/"
@@ -107,11 +107,19 @@ cmd = "python -m twin_sim plot-examples --out experiments/results/sim_examples/"
 help = "Mock machine server (REST + WebSocket) on mock.base_url; extra args pass through"
 cmd = "python -m twin_sim mock-server"
 
+[tool.poe.tasks.sim-mqtt]
+help = "MQTT publisher to the broker in sources.yaml (start it with `up`); extra args pass through"
+cmd = "python -m twin_sim mqtt"
+
+[tool.poe.tasks.sim-opcua]
+help = "OPC UA server on opcua.endpoint; extra args pass through"
+cmd = "python -m twin_sim opcua"
+
 [tool.poe.tasks.minimal-data-check]
-help = "Minimal-mode data path: sim-quick files replay into Readings (no DB/broker/ML)"
+help = "Minimal-mode data path: sim-quick files -> file adapter -> ingest -> bus (no DB/broker/ML)"
 sequence = [
     { ref = "sim-quick" },
-    { cmd = "pytest tests/test_phase1_integration.py", env = { LINETWIN_MINIMAL_DATA_DIR = "data/sim_quick" } },
+    { cmd = "pytest tests/test_phase1_integration.py tests/test_phase2_minimal.py", env = { LINETWIN_MINIMAL_DATA_DIR = "data/sim_quick" } },
 ]
 
 [tool.poe.tasks.build-frontend]

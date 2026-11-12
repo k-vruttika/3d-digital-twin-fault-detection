@@ -11,7 +11,7 @@ sensors:
   speed:   { unit: RPM,  min: 0.0,   max: 15000.0 }
   temp:    { unit: degC, min: -20.0, max: 150.0 }
   vib:     { unit: mm/s, min: 0.0,   max: 50.0 }
-  load:    { unit: "%",  min: 0.0,   max: 120.0 }
+  load:    { unit: "%",  min: 0.0,   max: 130.0 }   # > max_load_pct 120 + measurement noise
   current: { unit: A,    min: 0.0,   max: 100.0 }
 
 machines:

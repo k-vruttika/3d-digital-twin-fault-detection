@@ -129,7 +129,7 @@ async def test_late_message_flagged_and_gap_counted(h: Harness) -> None:
 
 async def test_quarantine_reasons(h: Harness) -> None:
     await h.pipeline.process(h.raw(b"\x00garbage"))
-    await h.send("CNC-01", 1, temp=float("nan"))
+    await h.send("CNC-01", 1, runTime=float("nan"))
     bad_seq = sample_reading(seq=2).model_dump(mode="json") | {"seq": "x"}
     await h.pipeline.process(h.raw(bad_seq))
     await h.send("PRESS-9", 3)
@@ -155,6 +155,30 @@ async def test_out_of_range_suspect_published(h: Harness) -> None:
     [r] = h.out()
     assert r.quality is Quality.SUSPECT
     assert h.metric("suspect") == 1
+
+
+async def test_partial_reading_kept_and_missing_sensors_counted(h: Harness) -> None:
+    await h.warm_up()
+    await h.send("CNC-01", 2, temp=None, vib=float("nan"))
+    await h.send("CNC-01", 3, temp=None)
+    await h.send("CNC-01", 3, temp=None)  # duplicate: not counted twice
+    out = h.out()
+    assert [(r.seq, r.quality, r.temp) for r in out] == [
+        (2, Quality.SUSPECT, None),
+        (3, Quality.SUSPECT, None),
+    ]
+    assert h.metric("partial") == 2
+    assert h.metric("missing_sensor", sensor="temp") == 2
+    assert h.metric("missing_sensor", sensor="vib") == 1
+    assert h.metric("missing_sensor", sensor="speed") == 0
+    assert not h.quarantine.records
+
+
+async def test_reading_without_any_sensor_quarantined(h: Harness) -> None:
+    await h.send("CNC-01", 1, speed=None, temp=None, vib=None, load=None, current=None)
+    [rec] = h.quarantine.records
+    assert rec.reason is QuarantineReason.NO_SENSOR_DATA
+    assert rec.machine_id == "CNC-01"
 
 
 async def test_out_of_range_quarantine_mode(

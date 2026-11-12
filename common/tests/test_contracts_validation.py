@@ -13,6 +13,7 @@ from twin_common import (
     HealthClass,
     MachineState,
     Reading,
+    SensorName,
     to_health_class,
 )
 from twin_common.enums import UnlabelableStateError, is_labelable
@@ -45,6 +46,24 @@ def test_reading_rejects_wrong_schema_version() -> None:
 def test_reading_rejects_negative(field: str) -> None:
     with pytest.raises(ValidationError):
         make_reading(**{field: -1})
+
+
+def test_reading_sensor_values_nullable() -> None:
+    r = make_reading(temp=None, vib=None)
+    assert r.temp is None
+    assert r.missing_sensors() == [SensorName.TEMP, SensorName.VIB]
+    payload = json.loads(make_reading().model_dump_json())
+    del payload["current"]  # absent key = missing
+    assert Reading.model_validate(payload).current is None
+    assert make_reading().missing_sensors() == []
+
+
+@pytest.mark.parametrize("field", ["machine_id", "seq", "ts", "state", "run_time"])
+def test_reading_non_sensor_fields_stay_required(field: str) -> None:
+    payload = make_reading().model_dump(by_alias=False)
+    del payload[field]
+    with pytest.raises(ValidationError):
+        Reading.model_validate(payload)
 
 
 def test_reading_rejects_unknown_state() -> None:

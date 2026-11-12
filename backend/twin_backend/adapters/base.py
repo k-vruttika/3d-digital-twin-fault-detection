@@ -28,6 +28,8 @@ Payload = bytes | str | Mapping[str, Any]
 # Internal buffer between an adapter's I/O task and its consumer. Purely a buffer size: a full
 # queue applies backpressure to the reader (file replay, socket reads); it never drops data.
 DEFAULT_QUEUE_SIZE = 1024
+# How often stop() repeats the cancellation of a task that has not ended yet.
+STOP_RECANCEL_S = 0.2
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,9 +153,14 @@ class BaseAdapter:
         self._stopping = True
         task, self._task = self._task, None
         if task is not None:
-            task.cancel()
+            # Re-cancel until the task ends: on Python 3.11 ``asyncio.wait_for`` (used inside
+            # client libraries, e.g. asyncua's next_event) can swallow a cancellation that
+            # arrives in the same loop iteration as the inner result.
+            while not task.done():
+                task.cancel()
+                await asyncio.wait({task}, timeout=STOP_RECANCEL_S)
             with contextlib.suppress(asyncio.CancelledError):
-                await task
+                task.result()
         await self._cleanup()
         self._connected = False
         if self._status not in (AdapterStatus.EOF, AdapterStatus.FAILED):

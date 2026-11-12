@@ -254,3 +254,30 @@ Measured on the development laptop by running `uv run poe sim`: 200 runs × 3600
 - `sensor_faults.png`
 - `line_coupling_cnc_stop.png` (machine states and buffer levels)
 - `imbalance_vs_bearing_speed_steps.png`: CNC-01 stepping between 7500 and 10000 RPM every 200 s, with spindle_imbalance in one run and bearing_wear in the other (onset 300 s). The bottom panel shows vibration divided by the speed ratio: it is smooth for bearing wear and keeps the speed steps for imbalance.
+
+## 11. Publishers (Phase 2)
+
+Three publishers put the simulated line onto the outside interfaces the backend adapters consume ([api.md](api.md) has the exact formats). Each one is driven by a `SimSession`: a `RealtimeRunner`, a bounded per-machine history and reading listeners. Commands go through `RealtimeRunner.submit` and are applied at the next tick.
+
+```text
+uv run poe sim-mock     # FastAPI mock server: GET /info, /state, /history, WS /stream, POST /command
+uv run poe up           # broker first (Docker Compose)
+uv run poe sim-mqtt     # telemetry/state on plant/line1/{id}/..., commands on .../cmd, acks on .../cmd/ack
+uv run poe sim-opcua    # OPC UA server: one object per machine, variables, methods, ReadingEvents
+```
+
+All three accept the `run` options:
+
+- `--line` and `--scenario`
+- `--seed` and `--run-index`
+- `--speed` and `--duration`
+- `--history-size`
+
+Extra arguments pass through the poe task, for example `uv run poe sim-opcua --line config/line_single.yaml --scenario config/scenarios/quick_single.yaml --speed 10`.
+
+Addresses, MQTT topic prefix and QoS, OPC UA endpoint and namespace, and the command timeout default to the values in `config/sources.yaml`, so the publishers and the backend adapters agree.
+
+- **Lazy imports:** importing `twin_sim` does not import the publishers (FastAPI, uvicorn, aiomqtt, asyncua). Each publisher loads its libraries only when its subcommand runs.
+- **Event loop:** the publishers run on `twin_common.aio.run`, a selector loop on Windows ([ADR 0008](adr/0008-windows-selector-event-loop.md)). uvicorn is started inside that loop.
+- **MQTT buffering:** the publisher sends readings from a bounded buffer (`--history-size` × number of machines). A short broker outage loses nothing, and the publisher reconnects with exponential backoff (`reconnect:` in `sources.yaml`).
+- **OPC UA:** each tick writes the variables and fires one `ReadingEventType` event per machine. A missing sensor value (`None`) is published as Double NaN.

@@ -7,6 +7,7 @@ validator. Values are not type-checked here (CSV values are still strings).
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Mapping
 from typing import Any
 
@@ -23,6 +24,23 @@ STAGE = "normalize"
 READING_WIRE_KEYS: tuple[str, ...] = tuple(
     (f.alias or name) for name, f in Reading.model_fields.items()
 )
+
+
+def is_missing(value: Any) -> bool:
+    """A missing sensor value: None, NaN, +/-inf or an empty/blank string.
+
+    Non-numeric strings are not "missing"; they fail the schema check.
+    """
+    if value is None:
+        return True
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, str) and not value.strip():
+        return True
+    try:
+        return not math.isfinite(float(value))
+    except (TypeError, ValueError):
+        return False
 
 
 def machine_id_of(data: Mapping[str, Any]) -> str | None:
@@ -79,8 +97,8 @@ class Normalizer:
                 if key not in consumed:
                     out.setdefault(key, value)
         for sensor, convert in self._converters.items():
-            if sensor not in out:
-                continue
+            if sensor not in out or is_missing(out[sensor]):
+                continue  # missing values stay missing (the validator sets them to None)
             try:
                 out[sensor] = convert(float(out[sensor]))
             except (TypeError, ValueError) as exc:

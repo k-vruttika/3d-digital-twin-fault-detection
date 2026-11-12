@@ -54,8 +54,28 @@ def build_adapter(
             command_timeout_s=sources.command_timeout_s,
             clock=clock,
         )
+    elif kind is AdapterKind.MQTT:
+        from twin_backend.adapters.mqtt import MqttAdapter
+
+        assert sources.mqtt is not None
+        adapter = MqttAdapter(
+            sources.mqtt,
+            line,
+            reconnect=sources.reconnect,
+            command_timeout_s=sources.command_timeout_s,
+            clock=clock,
+        )
     else:
-        raise AdapterError(f"the {kind.value} adapter is not available yet")
+        from twin_backend.adapters.opcua import OpcUaAdapter
+
+        assert sources.opcua is not None
+        adapter = OpcUaAdapter(
+            sources.opcua,
+            line,
+            reconnect=sources.reconnect,
+            command_timeout_s=sources.command_timeout_s,
+            clock=clock,
+        )
     if sources.chaos.enabled:
         from twin_backend.adapters.chaos import ChaosAdapter
 

@@ -1,7 +1,8 @@
-"""Command line interface: ``python -m twin_sim {generate,run,plot-examples,mock-server}``.
+"""Command line interface: ``python -m twin_sim <subcommand>``.
 
-Publisher subcommands (``mock-server``) import their network libraries lazily, so the
-simulator core never needs them.
+Subcommands: generate, run, plot-examples, and the publishers mock-server, mqtt and opcua.
+Publishers import their network libraries lazily, so the simulator core never needs them.
+Their defaults (addresses, topic prefix, QoS, command timeout) come from config/sources.yaml.
 """
 
 from __future__ import annotations
@@ -16,8 +17,10 @@ from twin_common import aio
 from twin_common.config import load_line_config, load_sources_config
 from twin_common.config.loader import ConfigError
 from twin_common.config.settings import TwinSettings
+from twin_common.config.sources import SourcesConfig
 from twin_common.contracts import Reading
 from twin_common.logging import configure_logging
+from twin_common.topics import DEFAULT_TOPIC_PREFIX
 from twin_sim.batch import EXPORT_FORMATS, generate
 from twin_sim.config import check_scenario_compat, load_scenario, load_sim_config
 from twin_sim.line import LineSimulator
@@ -30,6 +33,11 @@ if TYPE_CHECKING:
 QUICK_RUNS = 5
 QUICK_SCENARIO = "quick.yaml"
 DEFAULT_SCENARIO = "default.yaml"
+# Fallbacks only used when config/sources.yaml cannot be loaded.
+DEFAULT_COMMAND_TIMEOUT_S = 5.0
+DEFAULT_MOCK_URL = "http://127.0.0.1:8100"
+DEFAULT_OPCUA_ENDPOINT = "opc.tcp://127.0.0.1:4840/linetwin/"
+DEFAULT_OPCUA_NS = "urn:linetwin:sim"
 
 
 class _LazyStderr:
@@ -74,12 +82,32 @@ def _parser(settings: TwinSettings) -> argparse.ArgumentParser:
     r.add_argument("--speed", type=float, default=1.0, help="speed multiplier (1 = real time)")
     r.add_argument("--duration", type=float, default=None, help="simulated seconds to run")
 
+    sources = _load_sources(settings)
+    timeout = sources.command_timeout_s if sources else DEFAULT_COMMAND_TIMEOUT_S
+
     m = sub.add_parser("mock-server", help="mock machine server: REST + WebSocket (FastAPI)")
     _session_args(m, settings)
-    mock_host, mock_port = _mock_address(settings)
-    m.add_argument("--host", default=mock_host, help="default: host of mock.base_url")
-    m.add_argument("--port", type=int, default=mock_port, help="default: port of mock.base_url")
-    m.add_argument("--command-timeout", type=float, default=5.0, help="seconds")
+    mock_url = urlparse(sources.mock.base_url if sources and sources.mock else DEFAULT_MOCK_URL)
+    m.add_argument("--host", default=mock_url.hostname, help="default: host of mock.base_url")
+    m.add_argument("--port", type=int, default=mock_url.port, help="default: port of mock.base_url")
+    m.add_argument("--command-timeout", type=float, default=timeout, help="seconds")
+
+    q = sub.add_parser("mqtt", help="MQTT publisher on plant/line1/... (needs a broker)")
+    _session_args(q, settings)
+    mq = sources.mqtt if sources else None
+    q.add_argument("--host", default=mq.host if mq else "127.0.0.1", help="broker host")
+    q.add_argument("--port", type=int, default=mq.port if mq else 1883, help="broker port")
+    q.add_argument("--prefix", default=mq.topic_prefix if mq else DEFAULT_TOPIC_PREFIX)
+    q.add_argument("--qos", type=int, choices=(0, 1, 2), default=mq.qos if mq else 1)
+    q.add_argument("--client-id", default="linetwin-sim")
+    q.add_argument("--command-timeout", type=float, default=timeout, help="seconds")
+
+    o = sub.add_parser("opcua", help="OPC UA server (asyncua)")
+    _session_args(o, settings)
+    ua_cfg = sources.opcua if sources else None
+    o.add_argument("--endpoint", default=ua_cfg.endpoint if ua_cfg else DEFAULT_OPCUA_ENDPOINT)
+    o.add_argument("--namespace", default=ua_cfg.namespace if ua_cfg else DEFAULT_OPCUA_NS)
+    o.add_argument("--command-timeout", type=float, default=timeout, help="seconds")
 
     e = sub.add_parser("plot-examples", help="plot one run of each fault type")
     e.add_argument("--out", type=Path, default=Path("experiments/results/sim_examples"))
@@ -98,14 +126,12 @@ def _session_args(p: argparse.ArgumentParser, settings: TwinSettings) -> None:
     p.add_argument("--history-size", type=int, default=3600, help="readings kept per machine")
 
 
-def _mock_address(settings: TwinSettings) -> tuple[str, int]:
-    """Host and port of ``mock.base_url`` in sources.yaml (fallback 127.0.0.1:8100)."""
+def _load_sources(settings: TwinSettings) -> SourcesConfig | None:
+    """sources.yaml supplies the publisher defaults; the CLI still works without it."""
     try:
-        mock = load_sources_config(settings.sources_config_path).mock
+        return load_sources_config(settings.sources_config_path)
     except ConfigError:
-        mock = None
-    url = urlparse(mock.base_url if mock is not None else "http://127.0.0.1:8100")
-    return url.hostname or "127.0.0.1", url.port or 8100
+        return None
 
 
 def _session_options(args: argparse.Namespace) -> SessionOptionsT:
@@ -133,6 +159,70 @@ def _cmd_mock_server(args: argparse.Namespace) -> int:
     sys.stderr.write(f"mock server on http://{args.host}:{args.port} (Ctrl+C to stop)\n")
     try:
         aio.run(make_server(app, args.host, args.port).serve())
+    except KeyboardInterrupt:
+        return 130
+    return 0
+
+
+def _cmd_mqtt(args: argparse.Namespace, settings: TwinSettings) -> int:
+    from twin_sim.publishers.mqtt import MqttPublisher, MqttPublisherOptions
+    from twin_sim.publishers.session import SimSession
+
+    sources = load_sources_config(settings.sources_config_path)  # reconnect settings
+    session = SimSession.from_options(_session_options(args))
+    publisher = MqttPublisher(
+        session,
+        MqttPublisherOptions(
+            host=args.host,
+            port=args.port,
+            topic_prefix=args.prefix,
+            qos=args.qos,
+            keepalive_s=sources.mqtt.keepalive_s if sources.mqtt else 30,
+            client_id=args.client_id,
+            reconnect=sources.reconnect,
+            command_timeout_s=args.command_timeout,
+            buffer_size=args.history_size * len(session.machine_ids),
+        ),
+    )
+
+    async def main() -> None:
+        session.start()
+        try:
+            await publisher.run()
+        finally:
+            await session.stop()
+
+    sys.stderr.write(
+        f"MQTT publisher -> {args.host}:{args.port} {args.prefix}/... (Ctrl+C to stop)\n"
+    )
+    try:
+        aio.run(main())
+    except KeyboardInterrupt:
+        return 130
+    return 0
+
+
+def _cmd_opcua(args: argparse.Namespace) -> int:
+    import asyncio
+
+    from twin_sim.publishers.opcua import OpcUaServer
+    from twin_sim.publishers.session import SimSession
+
+    session = SimSession.from_options(_session_options(args))
+    server = OpcUaServer(session, args.endpoint, args.namespace, args.command_timeout)
+
+    async def main() -> None:
+        await server.start()
+        session.start()
+        try:
+            await asyncio.Event().wait()  # serve until Ctrl+C
+        finally:
+            await session.stop()
+            await server.stop()
+
+    sys.stderr.write(f"OPC UA server on {args.endpoint} (Ctrl+C to stop)\n")
+    try:
+        aio.run(main())
     except KeyboardInterrupt:
         return 130
     return 0
@@ -215,6 +305,10 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_run(args)
         if args.command == "mock-server":
             return _cmd_mock_server(args)
+        if args.command == "mqtt":
+            return _cmd_mqtt(args, settings)
+        if args.command == "opcua":
+            return _cmd_opcua(args)
         return _cmd_plot(args)
     except (ConfigError, ValueError) as exc:
         sys.stderr.write(f"error: {exc}\n")

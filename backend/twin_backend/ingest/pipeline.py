@@ -74,17 +74,22 @@ class IngestPipeline:
         normalizer = self._normalizers.get(raw.source, self._default_normalizer)
         try:
             data = normalizer.normalize(raw)
-            reading = self.validator.validate(data)
+            validated = self.validator.check(data)
         except RejectedMessageError as rej:
             await self._quarantine(raw, rej)
             return
-        if reading.quality is Quality.SUSPECT:
-            self.metrics.suspect.labels(source=src).inc()
+        reading = validated.reading
 
         result = self.dedup.check(reading.machine_id, reading.seq)
         if result is DedupResult.DUPLICATE:
             self.metrics.duplicates.labels(source=src).inc()
             return
+        if reading.quality is Quality.SUSPECT:
+            self.metrics.suspect.labels(source=src).inc()
+        if validated.missing:
+            self.metrics.partial.labels(source=src).inc()
+            for sensor in validated.missing:
+                self.metrics.missing_sensor.labels(source=src, sensor=sensor).inc()
         if result is DedupResult.RESET:
             self.metrics.source_resets.labels(source=src).inc()
             log.warning("ingest.source_reset", machine=reading.machine_id, seq=reading.seq)

@@ -248,3 +248,83 @@ def matching_session(export: SimExport, speed: float, history_size: int = 10_000
     session = SimSession(sim, speed, history_size)
     session.max_ticks = round(export.duration_s)
     return session
+
+
+def free_port() -> int:
+    """A TCP port that was free a moment ago (for servers that need an explicit port)."""
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        port: int = s.getsockname()[1]
+        return port
+
+
+class StreamCollector:
+    """Runs an adapter into a real-clock ingest pipeline and collects the bus output."""
+
+    def __init__(
+        self,
+        adapter: Any,
+        line: Any,
+        sources: SourcesConfig,
+        *,
+        lateness_window_s: float = 0.5,
+    ) -> None:
+
+        from twin_backend.adapters.registry import mappings_from
+        from twin_backend.bus import InMemoryEventBus, Topic
+        from twin_backend.clock import SystemClock
+        from twin_backend.ingest.pipeline import IngestPipeline
+        from twin_backend.ingest.quarantine import MemoryQuarantine
+
+        self.adapter = adapter
+        self.clock = SystemClock()
+        self.bus = InMemoryEventBus(queue_size=1_000_000)
+        self.sub = self.bus.subscribe(Topic.READINGS)
+        self.quarantine = MemoryQuarantine(100_000)
+        ingest = sources.ingest.model_copy(update={"lateness_window_s": lateness_window_s})
+        self.pipeline = IngestPipeline(
+            line, ingest, self.bus, self.quarantine, self.clock, mappings_from(sources)
+        )
+        self.out: list[Any] = []
+        self._pump: asyncio.Task[None] | None = None
+
+    async def start(self) -> None:
+        import asyncio
+
+        await self.adapter.start()
+        self._pump = asyncio.create_task(self._run())
+
+    async def _run(self) -> None:
+        async for raw in self.adapter.stream():
+            await self.pipeline.process(raw)
+
+    async def until(self, cond: Any, timeout: float = 20.0) -> None:
+        """Poll (ticking the pipeline) until ``cond()`` is true."""
+        import asyncio
+
+        async def poll() -> None:
+            while True:
+                await self.pipeline.tick()
+                self.out.extend(drain_readings(self.sub))
+                if cond():
+                    return
+                await asyncio.sleep(0.02)
+
+        await asyncio.wait_for(poll(), timeout)
+
+    async def wait_connected(self, timeout: float = 20.0) -> None:
+        await self.until(lambda: self.adapter.health().connected, timeout)
+
+    async def stop(self) -> None:
+        import asyncio
+
+        await self.adapter.stop()
+        if self._pump is not None:
+            await asyncio.wait_for(self._pump, 10)
+        await self.pipeline.flush()
+        self.out.extend(drain_readings(self.sub))
+
+    def seqs(self, machine_id: str) -> list[int]:
+        return [r.seq for r in self.out if r.machine_id == machine_id]

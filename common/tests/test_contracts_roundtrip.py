@@ -33,6 +33,9 @@ CASES: list[BaseModel] = [
     make_reading(),
     *[make_reading(state=s) for s in MachineState],
     *[make_reading(quality=q) for q in Quality],
+    # Partially missing sensor values (null = missing), as kept by the ingest pipeline.
+    *[make_reading(**{s.value: None}, quality=Quality.SUSPECT) for s in SensorName],
+    make_reading(temp=None, vib=None, current=None, quality=Quality.SUSPECT),
     make_prediction(),
     make_prediction(ttf_s=None, ttf_interval=None, attributions=[], calibrated=False),
     make_prediction(conformal_set=[], reliability=Reliability.DEGRADED),
@@ -112,6 +115,14 @@ def test_reading_wire_format() -> None:
         "runTime",
         "quality",
     }
+
+
+def test_reading_missing_sensors_serialize_as_null() -> None:
+    payload = json.loads(make_reading(temp=None, vib=None).model_dump_json())
+    assert payload["temp"] is None
+    assert payload["vib"] is None
+    assert payload["speed"] == 8000.0
+    assert Reading.model_validate(payload) == make_reading(temp=None, vib=None)
 
 
 def test_prediction_wire_format() -> None:

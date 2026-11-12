@@ -41,6 +41,27 @@ flowchart LR
     BUS --> WS --> FE
 ```
 
+## Ingest (Phase 2)
+
+Implemented in `backend/twin_backend/adapters/`, `ingest/` and `bus/`. The semantics are described in [ADR 0007](adr/0007-adapters-and-ingest.md), the bus in [ADR 0006](adr/0006-event-bus-interface.md), and the wire formats in [api.md](api.md).
+
+```mermaid
+flowchart LR
+    SM["SourceManager<br/>active adapter from sources.yaml,<br/>hot switch"] --> AD["Adapter<br/>file | mock | mqtt | opcua<br/>(optional ChaosAdapter)"]
+    AD -- RawMessage --> N["Normalizer<br/>field mapping, units"]
+    N --> V["Validator<br/>schema, machine, missing values, ranges"]
+    V -- reject + reason --> Q[("Quarantine sink")]
+    V --> DD["Dedup<br/>(machineId, seq)"] --> RB["Reorder buffer<br/>lateness window; LATE flag"]
+    RB -- readings --> BUS(["Event bus"])
+    ST["Staleness monitor<br/>STALE / OFFLINE"] -- states --> BUS
+    TICK["tick (ingest.tick_s)"] --> RB & ST
+```
+
+- **Adapters** reconnect with exponential backoff. Every stage is driven by an injectable clock, so tests advance a fake clock instead of sleeping.
+- **Metrics** are Prometheus counters and an end-to-end latency histogram, kept per pipeline registry. They will be served at `/metrics` from Phase 4.
+- **Commands:** `SourceManager.send_command` forwards a command to the active adapter if that adapter has the `commands` capability. Commands and acks are also published on the `commands` topic.
+- **Event loop:** all async entry points run on `twin_common.aio.run`, which uses a selector loop on Windows ([ADR 0008](adr/0008-windows-selector-event-loop.md)).
+
 ## Command path
 
 ```mermaid
@@ -64,7 +85,8 @@ The minimal path is `File export` or `Mock server` → adapter → ingest → bu
 
 All wire formats are defined once in `common/twin_common/contracts.py`:
 
-- `Reading` (schemaVersion 2)
+- `Reading` (schemaVersion 2; sensor values nullable, `null` = missing)
+- `StateChange` (bus topic `states`)
 - `Prediction`
 - `Attribution`
 - `Command`

@@ -103,9 +103,14 @@ def test_csv_strings_are_coerced(line_cfg: LineConfig) -> None:
 @pytest.mark.parametrize(
     ("overrides", "reason"),
     [
-        ({"temp": float("nan")}, QuarantineReason.NON_FINITE),
-        ({"speed": "inf"}, QuarantineReason.NON_FINITE),
         ({"runTime": float("-inf")}, QuarantineReason.NON_FINITE),
+        ({"runTime": "nan"}, QuarantineReason.NON_FINITE),
+        ({"runTime": None}, QuarantineReason.SCHEMA_ERROR),
+        ({"temp": "hot"}, QuarantineReason.SCHEMA_ERROR),  # junk, not "missing"
+        (
+            {"speed": None, "temp": float("nan"), "vib": "", "load": "inf", "current": None},
+            QuarantineReason.NO_SENSOR_DATA,
+        ),
         ({"seq": "#corrupt#"}, QuarantineReason.SCHEMA_ERROR),
         ({"state": "EXPLODED"}, QuarantineReason.SCHEMA_ERROR),
         ({"ts": "2026-01-01T00:00:00"}, QuarantineReason.SCHEMA_ERROR),  # naive
@@ -128,6 +133,50 @@ def test_missing_field_is_schema_error(line_cfg: LineConfig) -> None:
     del data["seq"]
     with pytest.raises(RejectedMessageError, match="SCHEMA_ERROR: seq"):
         Validator(line_cfg, "suspect").validate(data)
+
+
+@pytest.mark.parametrize("missing", [None, float("nan"), "nan", float("inf"), "", "  "])
+def test_partially_missing_reading_kept_as_suspect(line_cfg: LineConfig, missing: object) -> None:
+    result = Validator(line_cfg, "quarantine").check(wire(temp=missing, vib=missing))
+    assert result.reading.temp is None
+    assert result.reading.vib is None
+    assert result.reading.speed == 8000.0
+    assert result.reading.quality is Quality.SUSPECT
+    assert result.missing == ("temp", "vib")
+
+
+def test_absent_sensor_key_is_missing(line_cfg: LineConfig) -> None:
+    data = wire()
+    del data["current"]
+    result = Validator(line_cfg, "suspect").check(data)
+    assert result.missing == ("current",)
+    assert result.reading.quality is Quality.SUSPECT
+
+
+def test_single_sensor_left_is_enough(line_cfg: LineConfig) -> None:
+    data = wire(speed=None, temp=None, vib=None, load=None)
+    assert Validator(line_cfg, "suspect").validate(data).current == 14.2
+
+
+def test_missing_and_out_of_range_combined(line_cfg: LineConfig) -> None:
+    result = Validator(line_cfg, "suspect").check(wire(temp=None, current=150.0))
+    assert result.missing == ("temp",)
+    assert result.out_of_range == ("current",)
+    assert result.reading.quality is Quality.SUSPECT
+
+
+def test_complete_reading_not_flagged(line_cfg: LineConfig) -> None:
+    result = Validator(line_cfg, "suspect").check(wire())
+    assert result.missing == ()
+    assert result.reading.quality is Quality.OK
+
+
+def test_unit_conversion_leaves_missing_values(line_cfg: LineConfig) -> None:
+    n = Normalizer(FieldMapping(units={"temp": "degF"}), line_cfg)
+    out = n.normalize(raw(wire(temp=None)))
+    assert out["temp"] is None
+    out = n.normalize(raw(wire(temp=float("nan"))))
+    assert Validator(line_cfg, "suspect").check(out).missing == ("temp",)
 
 
 def test_out_of_range_suspect_mode(line_cfg: LineConfig) -> None:

@@ -37,10 +37,16 @@ mqtt:
   # QoS 0 may legitimately drop messages; QoS 2 costs two extra round trips. See ADR 0007.
   qos: 1
   keepalive_s: 30
+  # Persistent MQTT v5 session: while the backend reconnects, the broker queues QoS 1 telemetry
+  # for up to this long, so a short outage loses nothing.
+  session_expiry_s: 300
 
 opcua:
   endpoint: opc.tcp://127.0.0.1:4840/linetwin/
   namespace: urn:linetwin:sim
+  publishing_interval_ms: 100       # subscription publishing interval
+  event_queue_size: 10000           # server-side ReadingEvent queue per machine (no loss < this)
+  watchdog_s: 2.0                   # no events for this long -> probe the server state
   mapping:
     # Browse names of the simulator's OPC UA variables / ReadingEvent fields.
     fields:

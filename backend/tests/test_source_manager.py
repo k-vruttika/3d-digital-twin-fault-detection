@@ -158,8 +158,10 @@ async def test_failed_switch_keeps_current_source(
             await mgr.switch(AdapterKind.FILE, broken)
         assert mgr.active_kind is AdapterKind.FILE
         assert mgr.switches == 0
-        with pytest.raises(AdapterError, match=r"not available yet"):
-            await mgr.switch(AdapterKind.OPCUA)
+        no_opcua = sources.model_copy(update={"opcua": None})
+        with pytest.raises(AdapterError, match=r"no .opcua:. section"):
+            await mgr.switch(AdapterKind.OPCUA, no_opcua)
+        assert mgr.active_kind is AdapterKind.FILE
     finally:
         await mgr.stop()
 

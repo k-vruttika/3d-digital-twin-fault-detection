@@ -105,7 +105,8 @@ class QuarantineReason(StrEnum):
     DECODE_ERROR = "DECODE_ERROR"
     MAPPING_ERROR = "MAPPING_ERROR"
     SCHEMA_ERROR = "SCHEMA_ERROR"
-    NON_FINITE = "NON_FINITE"
+    NON_FINITE = "NON_FINITE"  # runTime not finite (sensor NaN = missing, not an error)
+    NO_SENSOR_DATA = "NO_SENSOR_DATA"  # every sensor value of the machine is missing
     UNKNOWN_MACHINE = "UNKNOWN_MACHINE"
     OUT_OF_RANGE = "OUT_OF_RANGE"
 

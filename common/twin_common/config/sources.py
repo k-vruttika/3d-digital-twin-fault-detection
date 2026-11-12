@@ -79,12 +79,18 @@ class MqttSourceConfig(ConfigModel):
     client_id: str = Field(min_length=1)
     qos: Literal[0, 1, 2]
     keepalive_s: int = Field(gt=0)
+    session_expiry_s: int = Field(
+        ge=0, description="broker keeps the session (and QoS>0 messages) this long offline"
+    )
     mapping: FieldMapping = Field(default_factory=FieldMapping)
 
 
 class OpcUaSourceConfig(ConfigModel):
     endpoint: str = Field(min_length=1)
     namespace: str = Field(min_length=1)
+    publishing_interval_ms: int = Field(gt=0, description="subscription publishing interval")
+    event_queue_size: int = Field(ge=1, description="server-side event queue per machine")
+    watchdog_s: float = Field(gt=0, description="probe the server after this long without events")
     mapping: FieldMapping = Field(default_factory=FieldMapping)
 
 

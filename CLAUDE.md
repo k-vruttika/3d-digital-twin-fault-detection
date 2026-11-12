@@ -103,6 +103,7 @@ linetwin/
 
 **Reading** (schemaVersion 2):
 `schemaVersion, machineId, seq (int, per machine), ts (ISO-8601 UTC), state, speed (RPM), temp (°C), vib (mm/s RMS), load (%), current (A), runTime (s), quality (OK | FILLED | LATE | SUSPECT)`
+Sensor values (speed, temp, vib, load, current) are nullable: null = missing. Partially missing readings are kept with quality SUSPECT; readings with no sensor value are quarantined (ADR 0007).
 
 **MachineState:** `RUNNING, IDLE, WARNING, FAULT, STARVED, BLOCKED, MAINTENANCE, OFFLINE, STALE`
 

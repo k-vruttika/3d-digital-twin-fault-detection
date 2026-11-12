@@ -61,18 +61,30 @@ class ContractModel(BaseModel):
 
 
 class Reading(ContractModel):
-    """One telemetry sample from one machine."""
+    """One telemetry sample from one machine.
+
+    Sensor values are nullable: ``null`` (or an absent key) means the sensor value is missing
+    for this sample. The ingest pipeline keeps partially missing readings with
+    ``quality=SUSPECT`` and quarantines readings without any sensor value (ADR 0007).
+    """
 
     schema_version: Literal[2] = READING_SCHEMA_VERSION
     machine_id: NonEmptyStr
     seq: int = Field(ge=0, description="Monotonic per-machine sequence number")
     ts: UtcDatetime
     state: MachineState
-    speed: float = Field(ge=0, description="RPM")
-    temp: float = Field(description="degrees C")
-    vib: float = Field(ge=0, description="mm/s RMS")
-    load: float = Field(ge=0, description="percent")
-    current: float = Field(ge=0, description="A")
+    speed: float | None = Field(default=None, ge=0, description="RPM; null = missing")
+    temp: float | None = Field(default=None, description="degrees C; null = missing")
+    vib: float | None = Field(default=None, ge=0, description="mm/s RMS; null = missing")
+    load: float | None = Field(default=None, ge=0, description="percent; null = missing")
+    current: float | None = Field(default=None, ge=0, description="A; null = missing")
+
+    def sensor_values(self) -> dict[SensorName, float | None]:
+        return {s: getattr(self, s.value) for s in SensorName}
+
+    def missing_sensors(self) -> list[SensorName]:
+        return [s for s, v in self.sensor_values().items() if v is None]
+
     run_time: float = Field(ge=0, description="seconds since start")
     quality: Quality = Quality.OK
 
