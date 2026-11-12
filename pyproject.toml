@@ -114,6 +114,27 @@ sequence = [
 help = "Production build of the frontend"
 cmd = "npm --prefix frontend run build"
 
+# Services (TimescaleDB, Mosquitto) via Docker Compose. Minimal mode never needs them.
+[tool.poe.tasks.up]
+help = "Start TimescaleDB + Mosquitto (Docker Compose) and wait until healthy"
+cmd = "docker compose up -d --wait --wait-timeout 120"
+
+[tool.poe.tasks.down]
+help = "Stop the services (data volumes are kept)"
+cmd = "docker compose down"
+
+[tool.poe.tasks.reset]
+help = "Stop the services and DELETE their data volumes"
+cmd = "docker compose down -v"
+
+[tool.poe.tasks.logs]
+help = "Service logs; extra args pass through, e.g. `uv run poe logs -f mosquitto`"
+cmd = "docker compose logs --tail 200"
+
+[tool.poe.tasks.ps]
+help = "Service status and health"
+cmd = "docker compose ps"
+
 # ---------------------------------------------------------------- ruff
 [tool.ruff]
 line-length = 100
@@ -145,8 +166,8 @@ strict = false
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
-# pyarrow ships no type information.
-module = ["pyarrow", "pyarrow.*"]
+# pyarrow and asyncpg ship no type information.
+module = ["pyarrow", "pyarrow.*", "asyncpg", "asyncpg.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]
@@ -158,5 +179,8 @@ warn_required_dynamic_aliases = true
 [tool.pytest.ini_options]
 testpaths = ["common/tests", "simulator/tests", "backend/tests", "ml/tests", "tests"]
 addopts = ["--import-mode=importlib", "-ra", "--strict-markers"]
+markers = [
+    "services: needs the Docker Compose services (uv run poe up); skipped when unreachable",
+]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

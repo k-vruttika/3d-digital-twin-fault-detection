@@ -1,6 +1,6 @@
 # LineTwin architecture
 
-This is the Mermaid version of the diagram in `CLAUDE.md` section 3. All services run natively on Windows; there is no Docker (see [ADR 0002](adr/0002-native-services-no-docker.md)).
+This is the Mermaid version of the diagram in `CLAUDE.md` section 3. The services (TimescaleDB, Mosquitto) run via Docker Compose (`uv run poe up`), with native installs as a fallback (see [ADR 0005](adr/0005-docker-compose-services.md) and [setup.md](setup.md)). Minimal mode never needs them.
 
 ## Data path
 
@@ -9,7 +9,7 @@ flowchart LR
     subgraph SIM["Simulator (4-machine line, physics-based degradation,<br/>snapshot / restore / fast-forward)"]
         FILE["File export<br/>CSV / JSON / Parquet"]
         MOCK["Mock REST/WS<br/>machine server"]
-        MQTTP["MQTT publisher<br/>(native Mosquitto)"]
+        MQTTP["MQTT publisher<br/>(Mosquitto, Docker Compose)"]
         OPCUA["OPC UA server<br/>(asyncua)"]
     end
 
@@ -23,7 +23,7 @@ flowchart LR
 
     BUS(["Event bus<br/>(in-process async pub/sub)"])
 
-    STORE[("Event store<br/>PostgreSQL | SQLite")]
+    STORE[("Event store<br/>TimescaleDB | SQLite")]
     ENGINE["Twin engine<br/>state machines, line propagation"]
     INFER["Inference service<br/>models, calibration, conformal,<br/>anomaly, attributions, drift"]
     WS["WS gateway"]
@@ -58,7 +58,7 @@ flowchart LR
 
 ## Minimal mode
 
-The minimal path is `File export` or `Mock server` → adapter → ingest → bus → twin engine → WS gateway → frontend, with the SQLite (or no) event store and no broker, PostgreSQL or ML. It must keep working in every phase (CLAUDE.md section 1).
+The minimal path is `File export` or `Mock server` → adapter → ingest → bus → twin engine → WS gateway → frontend, with the SQLite (or no) event store and no broker, TimescaleDB, Docker or ML. It must keep working in every phase (CLAUDE.md section 1).
 
 ## Shared contracts
 

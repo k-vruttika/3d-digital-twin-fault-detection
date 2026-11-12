@@ -36,8 +36,16 @@ jobs:
         run: npm --prefix frontend ci
       - name: Lint
         run: uv run --frozen poe lint
+      # Docker Compose services (TimescaleDB, Mosquitto) on Ubuntu only: the macOS runners have
+      # no Docker and the Windows runners only run Windows containers.
+      - name: Start services (Ubuntu)
+        if: runner.os == 'Linux'
+        run: uv run --frozen poe up
       - name: Test
         run: uv run --frozen poe test
+        env:
+          # Ubuntu: service tests must run (fail instead of skip). Elsewhere they are skipped.
+          LINETWIN_REQUIRE_SERVICES: ${{ runner.os == 'Linux' && '1' || '0' }}
       - name: Minimal-mode data path (simulator files, no DB/broker/ML)
         run: uv run --frozen poe minimal-data-check
       - name: Frontend build

@@ -26,9 +26,9 @@ A desktop 3D digital twin of a small production line (conveyor → CNC → inspe
 SIMULATOR (4-machine line, physics-based degradation, snapshot/restore/fast-forward)
   ├─ File export (CSV/JSON/Parquet) ─┐
   ├─ Mock REST/WS machine server     ├─► ADAPTER LAYER ─► Normalizer ─► Validator ─► Dedup/Reorder ─► EVENT BUS
-  ├─ MQTT (native Mosquitto)         │   (+ Chaos wrapper)               │ invalid → quarantine         │
+  ├─ MQTT (Mosquitto)                │   (+ Chaos wrapper)               │ invalid → quarantine         │
   └─ OPC UA server (asyncua)        ─┘                                                                  │
-                                                                                                        ├─► EVENT STORE (PostgreSQL | SQLite)
+                                                                                                        ├─► EVENT STORE (TimescaleDB | SQLite)
                                                                                                         ├─► TWIN ENGINE (state machines, line propagation)
                                                                                                         ├─► INFERENCE SERVICE (models, calibration, conformal,
                                                                                                         │                      anomaly, attributions, drift)
@@ -36,13 +36,16 @@ SIMULATOR (4-machine line, physics-based degradation, snapshot/restore/fast-forw
 
 COMMAND PATH: Dashboard ─► POST /commands ─► safety rules ─► Command bus ─► active adapter.send_command ─► machine ─► ack
 WHAT-IF:      Dashboard ─► POST /whatif ─► simulator snapshot ─► fast-forward copy ─► model ─► projected trajectory
+
+SERVICES:     Docker Compose (uv run poe up): TimescaleDB (PostgreSQL 16) + Mosquitto 2, ports on 127.0.0.1 only.
+              Minimal mode (file / mock server, SQLite) needs none of them.
 ```
 
 ## 4. Tech stack (do not add other major dependencies without asking)
 
 - **Python 3.11**, managed with `uv`. FastAPI, Uvicorn, Pydantic v2, pydantic-settings, asyncio
-- **Messaging:** Mosquitto installed natively on Windows (config in `config/mosquitto.conf`) + `aiomqtt`; OPC UA via `asyncua`
-- **Storage:** PostgreSQL installed natively, via `asyncpg`/SQLAlchemy 2. Plain PostgreSQL features only (B-tree and BRIN indexes, materialized views for downsampling); no TimescaleDB or other extensions. SQLite implementation for minimal mode and tests; Parquet (pyarrow) for datasets
+- **Messaging:** Mosquitto 2 via Docker Compose (shared settings in `config/mosquitto.d/`, container entry `config/mosquitto.docker.conf`; native fallback entry `config/mosquitto.conf`) + `aiomqtt`; OPC UA via `asyncua`
+- **Storage:** PostgreSQL 16 with the TimescaleDB extension via Docker Compose (hypertables and continuous aggregates allowed), via `asyncpg`/SQLAlchemy 2. SQLite implementation for minimal mode and tests; Parquet (pyarrow) for datasets
 - **ML:** PyTorch, scikit-learn, XGBoost, SHAP, Captum, `river` (ADWIN), MLflow (local file store), ONNX / onnxruntime
 - **Frontend:** TypeScript (strict), Vite, React, Three.js (used directly, NOT react-three-fiber), Chart.js
 - **Quality:** ruff, mypy, pytest, pytest-asyncio, Vitest, ESLint, pre-commit, GitHub Actions
@@ -53,12 +56,16 @@ WHAT-IF:      Dashboard ─► POST /whatif ─► simulator snapshot ─► fas
 ```
 linetwin/
 ├─ CLAUDE.md
-├─ pyproject.toml            # uv workspace + poe tasks: dev, minimal, test, lint, fmt, sim, train, experiments, loadtest
+├─ pyproject.toml            # uv workspace + poe tasks: dev, minimal, test, lint, fmt, sim, up/down, train, experiments, loadtest
+├─ docker-compose.yml        # services: TimescaleDB (PostgreSQL 16) + Mosquitto 2, 127.0.0.1 only
+├─ .env.example              # service credentials/ports (copy to .env, gitignored); read by Compose and TwinSettings
 ├─ .github/workflows/ci.yml
 ├─ config/
 │  ├─ line.yaml              # line layout, machines, sensors, buffers, part mappings
 │  ├─ sources.yaml           # active adapter + per-adapter settings
-│  ├─ mosquitto.conf         # local native Mosquitto broker config
+│  ├─ mosquitto.d/           # Mosquitto settings shared by container and native fallback
+│  ├─ mosquitto.docker.conf  # Mosquitto entry config inside the container
+│  ├─ mosquitto.conf         # Mosquitto entry config for the native fallback
 │  └─ models/*.yaml          # per-model training configs
 ├─ common/twin_common/       # shared Pydantic contracts (Reading, Command, ...), config loaders
 ├─ simulator/twin_sim/       # physics, machines, line, scenarios, publishers (mqtt, opcua, mock server), CLI
@@ -88,7 +95,7 @@ linetwin/
 ├─ tests/                    # cross-package integration / e2e tests
 └─ docs/
    ├─ PROGRESS.md            # updated at end of every phase
-   ├─ architecture.md  api.md  simulator.md  experiments.md  setup_windows.md
+   ├─ architecture.md  api.md  simulator.md  experiments.md  setup.md
    └─ adr/                   # architecture decision records (NNNN-title.md)
 ```
 
@@ -118,8 +125,8 @@ ML target mapping: RUNNING/IDLE/STARVED/BLOCKED/MAINTENANCE → NORMAL (machine 
 - Logging: structured (JSON) via `structlog`, never `print` in library code.
 - Frontend `engine/` must not import React; pure state→visual mapping functions are unit tested.
 - Generated results go to `experiments/results/` and are produced by scripts, never typed by hand.
-- Do not use Docker. All services run natively on Windows.
-- Developer tasks are added **only** as poe tasks in the root `pyproject.toml` (`[tool.poe.tasks]`). Use cross-platform commands only (tools from the uv environment, `uv`, `npm --prefix frontend`); no Makefile, shell scripts, or bash/PowerShell syntax. CI calls the same poe tasks on Ubuntu, Windows and macOS.
+- Services (TimescaleDB, Mosquitto) run via Docker Compose (`uv run poe up`). Native installs are a documented fallback. Minimal mode must never require Docker.
+- Developer tasks are added **only** as poe tasks in the root `pyproject.toml` (`[tool.poe.tasks]`). Use cross-platform commands only (tools from the uv environment, `uv`, `npm --prefix frontend`, `docker compose`); no Makefile, shell scripts, or bash/PowerShell syntax. CI calls the same poe tasks on Ubuntu, Windows and macOS.
 
 ## 8. Working agreement for Claude
 

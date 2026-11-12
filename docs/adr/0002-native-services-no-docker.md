@@ -1,6 +1,6 @@
 # ADR 0002: Native Windows services instead of Docker; plain PostgreSQL instead of TimescaleDB
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR 0005](0005-docker-compose-services.md) (2026-11-12). Kept for history.
 - **Date:** 2026-11-11
 - **Phase:** 0
 

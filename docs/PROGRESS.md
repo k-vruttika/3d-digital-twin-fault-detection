@@ -1,5 +1,58 @@
 # LineTwin progress
 
+## Infrastructure: Docker Compose services (2026-11-12)
+
+### What was built
+
+- **`docker-compose.yml`** (project `linetwin`). Both services publish their ports on 127.0.0.1 only.
+  - **`timescaledb`:** `timescale/timescaledb:2.31.0-pg16`, i.e. PostgreSQL 16 with TimescaleDB. 2.32.0 was published the same day, so I took the previous release. Named volume `timescale-data`, health check `pg_isready` over TCP.
+  - **`mosquitto`:** `eclipse-mosquitto:2.1.2-alpine`, matching the native 2.1.2 (2.1.x is only published as alpine tags). Named volume `mosquitto-data`, health check `mosquitto_pub`.
+- **`.env.example`** (committed; `.env` stays gitignored): `LINETWIN_PG_DB`, `LINETWIN_PG_USER`, `LINETWIN_PG_PASSWORD`, `LINETWIN_PG_PORT`. Docker Compose and `TwinSettings` both read it.
+- **Mosquitto config split:**
+  - `config/mosquitto.d/common.conf`: shared settings;
+  - `config/mosquitto.docker.conf`: container entry, all interfaces inside the container;
+  - `config/mosquitto.conf`: native entry, `listener 1883 127.0.0.1` plus `include_dir`.
+- **poe tasks:** `up` (starts and waits until healthy), `down`, `reset` (also deletes volumes), `logs`, `ps`. All are plain `docker compose` commands.
+- **`TwinSettings`:** new fields `pg_host`, `pg_port`, `pg_db`, `pg_user` and `pg_password` (SecretStr), and new properties `pg_dsn` and `database_url`. Reads `.env`; real environment variables take precedence.
+- **Backend dependencies:** `asyncpg`, and `aiomqtt` (which brings `paho-mqtt`).
+- **Test fixtures** in `twin_backend/testing.py` (plugin registered in the root `conftest.py`): `mqtt_broker` and `timescale_db`.
+  - When a service can't be reached, they skip with "… not reachable at … - start services with: uv run poe up".
+  - With `LINETWIN_REQUIRE_SERVICES=1` they fail instead.
+  - The pytest marker `services` is registered.
+- **Tests:**
+  - `tests/test_compose_services.py`: an MQTT publish/subscribe round trip, and a PostgreSQL 16 check that the `timescaledb` extension is available and installed;
+  - `common/tests/test_settings.py`: settings defaults, `.env` and environment overrides, URL escaping, and `.env.example` matching the defaults.
+- **CI:** the Ubuntu job runs `uv run poe up` before the tests and sets `LINETWIN_REQUIRE_SERVICES=1`. Windows and macOS don't start services, and the service tests are skipped there.
+- **Docs:**
+  - **CLAUDE.md:** architecture diagram, §4 storage and messaging, §5 layout, and the §7 rule (services via Docker Compose, native as the fallback, minimal mode never requires Docker; the poe rule now allows `docker compose`).
+  - **ADRs:** [ADR 0005](adr/0005-docker-compose-services.md) is new; [ADR 0002](adr/0002-native-services-no-docker.md) is marked superseded.
+  - **Setup guide:** `docs/setup_windows.md` was renamed to [setup.md](setup.md). Docker Desktop (Windows, macOS) and Docker Engine (Linux) are the main path; native Mosquitto and PostgreSQL with TimescaleDB are the fallback.
+  - **architecture.md:** updated.
+
+### How to run
+
+```text
+uv run poe up      # start + wait until healthy (first run downloads the images)
+uv run poe ps      # status
+uv run poe test    # service tests run when the services are up, otherwise they are skipped
+uv run poe down    # stop (data kept);  uv run poe reset  # stop and delete volumes
+```
+
+### Verified here (Windows 11, Docker 29.9, Compose v5.7)
+
+- `uv run poe up`: both services healthy. The first run spent about 11 minutes downloading the images; later starts take seconds.
+- **With services up:** `uv run poe lint` passes, and `uv run poe test` with `LINETWIN_REQUIRE_SERVICES=1` gives 226 passed (both service tests ran).
+- **After `uv run poe down`:** `uv run poe lint` passes, and `uv run poe test` gives 224 passed and 2 skipped with the start hint.
+- With services down, `LINETWIN_REQUIRE_SERVICES=1` makes the service tests error, as intended.
+- `uv run poe reset` followed by `up`: on a fresh volume the extension is recreated and the service tests pass. `uv run poe logs` works.
+
+### Known limitations
+
+- **Port 5432 is taken on this machine** by a native `postgres` process (PID at the time: 6716, not a visible Windows service), so Docker could not bind it. A local `.env` (not committed) sets `LINETWIN_PG_PORT=5433`. If that native PostgreSQL is no longer needed, stop it and delete the `.env` line to go back to 5432.
+- **Mosquitto 2.1 quirk:** a per-listener option such as `protocol` in a file without a listener makes mosquitto 2.1 create an extra default listener, which collides on 1883. `common.conf` therefore contains no per-listener options; a comment there explains why.
+- **The native fallback configs were not run here.** `mosquitto -c config/mosquitto.conf` and a native PostgreSQL with TimescaleDB are documented but untested, because the native Mosquitto service is disabled.
+- The Ubuntu CI job with services has not run on GitHub yet (there is no remote).
+
 ## Tooling: poethepoet task runner (2026-11-12)
 
 ### What changed

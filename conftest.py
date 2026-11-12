@@ -1,3 +1,3 @@
 """Repo-wide pytest configuration: shared fixture plugins."""
 
-pytest_plugins = ["twin_sim.testing"]
+pytest_plugins = ["twin_sim.testing", "twin_backend.testing"]

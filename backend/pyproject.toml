@@ -3,7 +3,11 @@ name = "twin-backend"
 version = "0.1.0"
 description = "LineTwin backend: adapters, ingest, event store, twin engine, inference, API"
 requires-python = ">=3.11,<3.12"
-dependencies = ["twin-common"]
+dependencies = [
+    "aiomqtt>=2.5.1",
+    "asyncpg>=0.32.0",
+    "twin-common",
+]
 
 [tool.uv.sources]
 twin-common = { workspace = true }
