@@ -16,7 +16,9 @@ sensors:
   current: { unit: A,    min: 0.0,   max: 100.0 }
 
 # Machines in material-flow order. sensor_parts maps every sensor to the 3D part it
-# is highlighted on (explanations, alarms).
+# is highlighted on (explanations, alarms). The 3D twin lays machines out automatically
+# along the flow; an optional per-machine override places one explicitly:
+#   layout: { position: [x, y, z], rotation_deg: 90 }     # metres, y up; either key alone
 machines:
   - id: CNV-01
     kind: CONVEYOR

@@ -83,8 +83,22 @@ help = "Simulator publisher for the active source + backend with TimescaleDB (ru
 cmd = "python -m twin_backend.devstack"
 
 [tool.poe.tasks.api-docs]
-help = "Regenerate the generated part of docs/api.md from the OpenAPI schema"
-cmd = "python -m twin_backend.api.docs"
+help = "Regenerate docs/api.md, frontend/src/api/openapi.json + schema.gen.ts and the line fixtures from the API"
+sequence = [
+    { cmd = "python -m twin_backend.api.docs" },
+    { cmd = "npm --prefix frontend run gen:api" },
+]
+
+[tool.poe.tasks.frontend]
+help = "Frontend dev server (Vite) on http://127.0.0.1:5173; the 3D twin dev page is /dev.html"
+cmd = "npm --prefix frontend run dev"
+
+[tool.poe.tasks.screenshots]
+help = "Headless Chromium screenshots of the 3D dev page (synthetic data) -> experiments/results/frontend_screenshots/"
+sequence = [
+    { cmd = "npm --prefix frontend exec -- playwright install chromium" },
+    { cmd = "npm --prefix frontend run screenshots" },
+]
 
 [tool.poe.tasks.minimal]
 help = "Backend API from the replay file + SQLite, no Docker/broker/ML (run sim-quick first); extra args pass through"
@@ -123,7 +137,7 @@ cmd = "python -m twin_sim opcua"
 help = "Minimal mode: sim-quick files -> file adapter -> ingest -> SQLite -> API (no Docker/broker/ML)"
 sequence = [
     { ref = "sim-quick" },
-    { cmd = "pytest tests/test_phase1_integration.py tests/test_phase2_minimal.py tests/test_phase3_minimal.py tests/test_phase4_minimal.py", env = { LINETWIN_MINIMAL_DATA_DIR = "data/sim_quick" } },
+    { cmd = "pytest tests/test_phase1_integration.py tests/test_phase2_minimal.py tests/test_phase3_minimal.py tests/test_phase4_minimal.py tests/test_phase5_frontend_contract.py", env = { LINETWIN_MINIMAL_DATA_DIR = "data/sim_quick" } },
 ]
 
 # Event store (config/storage.yaml; sqlite by default, timescale needs `up`).

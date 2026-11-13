@@ -43,6 +43,7 @@ def build_for_mode(
     file_path: str | None = None,
     replay_speed: float | None = None,
     sqlite_path: str | None = None,
+    loop: bool | None = None,
 ) -> Runtime:
     """A Runtime with the mode's overrides applied (imports stay lazy for minimal mode)."""
     from twin_backend.runtime import build_runtime
@@ -66,6 +67,8 @@ def build_for_mode(
         file_update["path"] = file_path
     if replay_speed is not None:
         file_update["replay_speed"] = replay_speed
+    if loop is not None:
+        file_update["loop"] = loop
     if file_update:
         if sources.file is None:
             raise ConfigError("sources.yaml has no 'file' section")
@@ -91,6 +94,13 @@ def add_serve_args(s: argparse.ArgumentParser) -> None:
     s.add_argument("--source", choices=[k.value for k in AdapterKind], help="override active")
     s.add_argument("--file", dest="file_path", help="replay file for the file source")
     s.add_argument("--replay-speed", type=float, help="file source replay speed")
+    s.add_argument(
+        "--loop",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="file source: replay forever (--loop) or stop at the end (--no-loop); "
+        "default: sources.yaml",
+    )
     s.add_argument("--sqlite-path", help="SQLite event store file")
     s.add_argument("--host", help="bind address (default: api.yaml host)")
     s.add_argument("--port", type=int, help="port (default: api.yaml port)")
@@ -116,6 +126,7 @@ def run_serve(args: argparse.Namespace) -> int:
             file_path=args.file_path,
             replay_speed=args.replay_speed,
             sqlite_path=args.sqlite_path,
+            loop=getattr(args, "loop", None),
         )
     except ConfigError as exc:
         print(f"configuration error:\n{exc}", file=sys.stderr)

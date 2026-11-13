@@ -1,0 +1,3812 @@
+{
+  "components": {
+    "schemas": {
+      "AckStatus": {
+        "enum": [
+          "ACCEPTED",
+          "REJECTED",
+          "EXECUTED",
+          "TIMEOUT"
+        ],
+        "title": "AckStatus",
+        "type": "string"
+      },
+      "AdapterHealthModel": {
+        "additionalProperties": false,
+        "properties": {
+          "connected": {
+            "title": "Connected",
+            "type": "boolean"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AdapterKind"
+          },
+          "lastError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lasterror"
+          },
+          "lastMessageAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastmessageat"
+          },
+          "messages": {
+            "title": "Messages",
+            "type": "integer"
+          },
+          "reconnects": {
+            "title": "Reconnects",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AdapterStatus"
+          }
+        },
+        "required": [
+          "kind",
+          "status",
+          "connected",
+          "messages",
+          "reconnects"
+        ],
+        "title": "AdapterHealthModel",
+        "type": "object"
+      },
+      "AdapterKind": {
+        "enum": [
+          "file",
+          "mock",
+          "mqtt",
+          "opcua"
+        ],
+        "title": "AdapterKind",
+        "type": "string"
+      },
+      "AdapterStatus": {
+        "description": "Connection status of a source adapter.",
+        "enum": [
+          "STARTING",
+          "CONNECTED",
+          "RECONNECTING",
+          "EOF",
+          "STOPPED",
+          "FAILED"
+        ],
+        "title": "AdapterStatus",
+        "type": "string"
+      },
+      "Alert": {
+        "additionalProperties": false,
+        "description": "One lifecycle event of an operator-facing alert (bus topic ``alerts``, ADR 0011).\n\nAlarm states follow ISA-18.2: ``active`` (the condition is present) and ``acknowledged``\n(an operator has seen it) are independent. Every transition (raise, clear, acknowledge,\nre-raise) is a new append-only event with the same ``alertId`` and the next ``rev``; the\ncurrent alert is the event with the highest ``rev``. An alert is resolved (no longer shown)\nonce it is both cleared and acknowledged.\n\n``ts`` is on the event-time axis (ADR 0010); ``ackedAt`` is the wall-clock time of the\nacknowledgement. ``kind`` is a short machine-readable code (e.g. ``machine_fault``),\n``source`` names the producer (e.g. ``engine``).",
+        "properties": {
+          "ackedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ackedat"
+          },
+          "ackedBy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ackedby"
+          },
+          "acknowledged": {
+            "default": false,
+            "title": "Acknowledged",
+            "type": "boolean"
+          },
+          "active": {
+            "default": true,
+            "title": "Active",
+            "type": "boolean"
+          },
+          "alertId": {
+            "minLength": 1,
+            "title": "Alertid",
+            "type": "string"
+          },
+          "kind": {
+            "minLength": 1,
+            "title": "Kind",
+            "type": "string"
+          },
+          "machineId": {
+            "minLength": 1,
+            "title": "Machineid",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "rev": {
+            "default": 0,
+            "description": "per-alert revision, +1 per transition",
+            "minimum": 0.0,
+            "title": "Rev",
+            "type": "integer"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/AlertSeverity"
+          },
+          "source": {
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          }
+        },
+        "required": [
+          "alertId",
+          "machineId",
+          "ts",
+          "severity",
+          "kind",
+          "message",
+          "source"
+        ],
+        "title": "Alert",
+        "type": "object"
+      },
+      "AlertSeverity": {
+        "description": "How urgent an alert is.",
+        "enum": [
+          "INFO",
+          "WARNING",
+          "CRITICAL"
+        ],
+        "title": "AlertSeverity",
+        "type": "string"
+      },
+      "AlertsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/Alert"
+            },
+            "title": "Alerts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "alerts"
+        ],
+        "title": "AlertsResponse",
+        "type": "object"
+      },
+      "Attribution": {
+        "additionalProperties": false,
+        "description": "Contribution of one sensor (and the physical part it maps to) to a prediction.",
+        "properties": {
+          "part": {
+            "minLength": 1,
+            "title": "Part",
+            "type": "string"
+          },
+          "sensor": {
+            "$ref": "#/components/schemas/SensorName"
+          },
+          "weight": {
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "sensor",
+          "part",
+          "weight"
+        ],
+        "title": "Attribution",
+        "type": "object"
+      },
+      "AuthInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "anonymousRead": {
+            "title": "Anonymousread",
+            "type": "boolean"
+          },
+          "keysConfigured": {
+            "title": "Keysconfigured",
+            "type": "boolean"
+          },
+          "operatorKeys": {
+            "title": "Operatorkeys",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "keysConfigured",
+          "anonymousRead",
+          "operatorKeys"
+        ],
+        "title": "AuthInfo",
+        "type": "object"
+      },
+      "Capability": {
+        "description": "Optional features a source adapter supports beyond streaming readings.",
+        "enum": [
+          "commands",
+          "whatif",
+          "history",
+          "scenario"
+        ],
+        "title": "Capability",
+        "type": "string"
+      },
+      "Command": {
+        "additionalProperties": false,
+        "description": "Operator command sent towards a machine.",
+        "properties": {
+          "commandId": {
+            "minLength": 1,
+            "title": "Commandid",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "minLength": 1,
+            "title": "Idempotencykey",
+            "type": "string"
+          },
+          "issuedBy": {
+            "minLength": 1,
+            "title": "Issuedby",
+            "type": "string"
+          },
+          "machineId": {
+            "minLength": 1,
+            "title": "Machineid",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/CommandType"
+          }
+        },
+        "required": [
+          "commandId",
+          "idempotencyKey",
+          "machineId",
+          "type",
+          "issuedBy",
+          "ts"
+        ],
+        "title": "Command",
+        "type": "object"
+      },
+      "CommandAck": {
+        "additionalProperties": false,
+        "description": "Acknowledgement of a command by the command bus or the machine.",
+        "properties": {
+          "commandId": {
+            "minLength": 1,
+            "title": "Commandid",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AckStatus"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          }
+        },
+        "required": [
+          "commandId",
+          "status",
+          "ts"
+        ],
+        "title": "CommandAck",
+        "type": "object"
+      },
+      "CommandRecord": {
+        "additionalProperties": false,
+        "description": "A command with every ack it got (the audit view).",
+        "properties": {
+          "acks": {
+            "items": {
+              "$ref": "#/components/schemas/CommandAck"
+            },
+            "title": "Acks",
+            "type": "array"
+          },
+          "command": {
+            "$ref": "#/components/schemas/Command"
+          }
+        },
+        "required": [
+          "command"
+        ],
+        "title": "CommandRecord",
+        "type": "object"
+      },
+      "CommandRequest": {
+        "additionalProperties": false,
+        "description": "Body of ``POST /commands``. The server adds commandId, issuedBy and ts.",
+        "properties": {
+          "idempotencyKey": {
+            "description": "repeat it to retry safely",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Idempotencykey",
+            "type": "string"
+          },
+          "machineId": {
+            "minLength": 1,
+            "title": "Machineid",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "type": {
+            "$ref": "#/components/schemas/CommandType"
+          }
+        },
+        "required": [
+          "machineId",
+          "type",
+          "idempotencyKey"
+        ],
+        "title": "CommandRequest",
+        "type": "object"
+      },
+      "CommandType": {
+        "enum": [
+          "START",
+          "STOP",
+          "SET_SPEED",
+          "SET_LOAD",
+          "SCHEDULE_MAINTENANCE",
+          "RESET"
+        ],
+        "title": "CommandType",
+        "type": "string"
+      },
+      "CommandsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "commands": {
+            "items": {
+              "$ref": "#/components/schemas/CommandRecord"
+            },
+            "title": "Commands",
+            "type": "array"
+          }
+        },
+        "required": [
+          "commands"
+        ],
+        "title": "CommandsResponse",
+        "type": "object"
+      },
+      "DataQuality": {
+        "description": "Per-machine data-quality status derived by the twin engine (late, quarantine, partial\nreadings, staleness). Separate from ``Reliability``, which describes model output.",
+        "enum": [
+          "OK",
+          "DEGRADED"
+        ],
+        "title": "DataQuality",
+        "type": "string"
+      },
+      "DataQualityReport": {
+        "additionalProperties": false,
+        "description": "What the API and WS stream show per machine.",
+        "properties": {
+          "latePct": {
+            "default": 0.0,
+            "title": "Latepct",
+            "type": "number"
+          },
+          "linkDown": {
+            "default": false,
+            "title": "Linkdown",
+            "type": "boolean"
+          },
+          "machineId": {
+            "title": "Machineid",
+            "type": "string"
+          },
+          "partialPct": {
+            "default": 0.0,
+            "title": "Partialpct",
+            "type": "number"
+          },
+          "quarantinePct": {
+            "default": 0.0,
+            "title": "Quarantinepct",
+            "type": "number"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "samples": {
+            "default": 0,
+            "title": "Samples",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DataQuality",
+            "default": "OK"
+          }
+        },
+        "required": [
+          "machineId"
+        ],
+        "title": "DataQualityReport",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthClass": {
+        "description": "ML target classes for machine health.",
+        "enum": [
+          "NORMAL",
+          "WARNING",
+          "FAULT"
+        ],
+        "title": "HealthClass",
+        "type": "string"
+      },
+      "HealthResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "auth": {
+            "$ref": "#/components/schemas/AuthInfo"
+          },
+          "eventLoop": {
+            "title": "Eventloop",
+            "type": "string"
+          },
+          "lineId": {
+            "title": "Lineid",
+            "type": "string"
+          },
+          "loadedOptionalModules": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loadedoptionalmodules"
+          },
+          "machines": {
+            "title": "Machines",
+            "type": "integer"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdapterHealthModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "degraded"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "store": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Store"
+          }
+        },
+        "required": [
+          "status",
+          "lineId",
+          "machines",
+          "eventLoop",
+          "auth"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "HistoryBucketModel": {
+        "additionalProperties": false,
+        "properties": {
+          "bucket": {
+            "format": "date-time",
+            "title": "Bucket",
+            "type": "string"
+          },
+          "machineId": {
+            "title": "Machineid",
+            "type": "string"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "nLate": {
+            "title": "Nlate",
+            "type": "integer"
+          },
+          "nSuspect": {
+            "title": "Nsuspect",
+            "type": "integer"
+          },
+          "sensors": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SensorStatsModel"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/SensorName"
+            },
+            "title": "Sensors",
+            "type": "object"
+          }
+        },
+        "required": [
+          "bucket",
+          "machineId",
+          "n",
+          "nLate",
+          "nSuspect",
+          "sensors"
+        ],
+        "title": "HistoryBucketModel",
+        "type": "object"
+      },
+      "HistoryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "buckets": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/HistoryBucketModel"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buckets"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "machines": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machines"
+          },
+          "readings": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Reading"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Readings"
+          },
+          "resolution": {
+            "enum": [
+              "raw",
+              "1s",
+              "1m",
+              "10m"
+            ],
+            "title": "Resolution",
+            "type": "string"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resolution",
+          "start",
+          "end"
+        ],
+        "title": "HistoryResponse",
+        "type": "object"
+      },
+      "LineBufferModel": {
+        "additionalProperties": false,
+        "properties": {
+          "capacity": {
+            "title": "Capacity",
+            "type": "integer"
+          },
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "from",
+          "to",
+          "capacity"
+        ],
+        "title": "LineBufferModel",
+        "type": "object"
+      },
+      "LineMachineModel": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MachineKind"
+          },
+          "layout": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MachineLayoutModel"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "placement override; null = automatic layout"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "parts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Parts",
+            "type": "array"
+          },
+          "sensorParts": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "sensor -> part it is highlighted on",
+            "title": "Sensorparts",
+            "type": "object"
+          },
+          "sensors": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sensors",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "sensors",
+          "parts",
+          "sensorParts"
+        ],
+        "title": "LineMachineModel",
+        "type": "object"
+      },
+      "LineResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "buffers": {
+            "items": {
+              "$ref": "#/components/schemas/LineBufferModel"
+            },
+            "title": "Buffers",
+            "type": "array"
+          },
+          "lineId": {
+            "title": "Lineid",
+            "type": "string"
+          },
+          "machines": {
+            "items": {
+              "$ref": "#/components/schemas/LineMachineModel"
+            },
+            "title": "Machines",
+            "type": "array"
+          },
+          "sensors": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SensorSpecModel"
+            },
+            "title": "Sensors",
+            "type": "object"
+          },
+          "topology": {
+            "$ref": "#/components/schemas/TopologyModel"
+          }
+        },
+        "required": [
+          "lineId",
+          "sensors",
+          "machines",
+          "buffers",
+          "topology"
+        ],
+        "title": "LineResponse",
+        "type": "object"
+      },
+      "LineState": {
+        "additionalProperties": false,
+        "description": "Full line state. ``as_of`` is set by whoever built it (reconstruct time, live watermark).",
+        "properties": {
+          "asOf": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asof"
+          },
+          "machines": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MachineView"
+            },
+            "title": "Machines",
+            "type": "object"
+          },
+          "predictions": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "$ref": "#/components/schemas/Prediction"
+              },
+              "type": "object"
+            },
+            "title": "Predictions",
+            "type": "object"
+          }
+        },
+        "title": "LineState",
+        "type": "object"
+      },
+      "LineStatus": {
+        "enum": [
+          "RUNNING",
+          "DEGRADED",
+          "STOPPED",
+          "UNKNOWN"
+        ],
+        "title": "LineStatus",
+        "type": "string"
+      },
+      "LineViewModel": {
+        "additionalProperties": false,
+        "description": "Serialisable line view (API ``/machines``, WS channel ``line``).",
+        "properties": {
+          "impacted": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Impacted",
+            "type": "object"
+          },
+          "rootCauses": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RootCauseView"
+            },
+            "title": "Rootcauses",
+            "type": "object"
+          },
+          "status": {
+            "$ref": "#/components/schemas/LineStatus"
+          }
+        },
+        "required": [
+          "status",
+          "rootCauses",
+          "impacted"
+        ],
+        "title": "LineViewModel",
+        "type": "object"
+      },
+      "MachineKind": {
+        "enum": [
+          "CONVEYOR",
+          "CNC",
+          "INSPECTION"
+        ],
+        "title": "MachineKind",
+        "type": "string"
+      },
+      "MachineLayoutModel": {
+        "additionalProperties": false,
+        "properties": {
+          "position": {
+            "anyOf": [
+              {
+                "maxItems": 3,
+                "minItems": 3,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "[x, y, z] in metres, y up",
+            "title": "Position"
+          },
+          "rotationDeg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "about the vertical axis",
+            "title": "Rotationdeg"
+          }
+        },
+        "title": "MachineLayoutModel",
+        "type": "object"
+      },
+      "MachineState": {
+        "description": "Operational state of a single machine.",
+        "enum": [
+          "RUNNING",
+          "IDLE",
+          "WARNING",
+          "FAULT",
+          "STARVED",
+          "BLOCKED",
+          "MAINTENANCE",
+          "OFFLINE",
+          "STALE"
+        ],
+        "title": "MachineState",
+        "type": "string"
+      },
+      "MachineStateResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/Alert"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "dataQuality": {
+            "$ref": "#/components/schemas/DataQualityReport"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MachineKind"
+          },
+          "lastReading": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Reading"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastStateChange": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StateChange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "machineId": {
+            "title": "Machineid",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "predictions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Prediction"
+            },
+            "title": "Predictions",
+            "type": "object"
+          },
+          "reportedState": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MachineState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rootCause": {
+            "$ref": "#/components/schemas/RootCauseView"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MachineState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stateTs": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statets"
+          }
+        },
+        "required": [
+          "machineId",
+          "kind",
+          "name",
+          "rootCause",
+          "dataQuality"
+        ],
+        "title": "MachineStateResponse",
+        "type": "object"
+      },
+      "MachineView": {
+        "additionalProperties": false,
+        "properties": {
+          "lastReading": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Reading"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastStateChange": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StateChange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "machineId": {
+            "title": "Machineid",
+            "type": "string"
+          },
+          "reportedState": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MachineState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MachineState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stateTs": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statets"
+          }
+        },
+        "required": [
+          "machineId"
+        ],
+        "title": "MachineView",
+        "type": "object"
+      },
+      "MachinesResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asof"
+          },
+          "line": {
+            "$ref": "#/components/schemas/LineViewModel"
+          },
+          "lineId": {
+            "title": "Lineid",
+            "type": "string"
+          },
+          "machines": {
+            "items": {
+              "$ref": "#/components/schemas/MachineStateResponse"
+            },
+            "title": "Machines",
+            "type": "array"
+          }
+        },
+        "required": [
+          "lineId",
+          "line",
+          "machines"
+        ],
+        "title": "MachinesResponse",
+        "type": "object"
+      },
+      "Prediction": {
+        "additionalProperties": false,
+        "description": "Model output for one machine at one horizon.",
+        "properties": {
+          "anomalyScore": {
+            "title": "Anomalyscore",
+            "type": "number"
+          },
+          "attributions": {
+            "items": {
+              "$ref": "#/components/schemas/Attribution"
+            },
+            "title": "Attributions",
+            "type": "array"
+          },
+          "calibrated": {
+            "title": "Calibrated",
+            "type": "boolean"
+          },
+          "conformalSet": {
+            "items": {
+              "$ref": "#/components/schemas/HealthClass"
+            },
+            "title": "Conformalset",
+            "type": "array"
+          },
+          "horizonS": {
+            "exclusiveMinimum": 0.0,
+            "title": "Horizons",
+            "type": "number"
+          },
+          "machineId": {
+            "minLength": 1,
+            "title": "Machineid",
+            "type": "string"
+          },
+          "modelVersion": {
+            "minLength": 1,
+            "title": "Modelversion",
+            "type": "string"
+          },
+          "probs": {
+            "additionalProperties": {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/HealthClass"
+            },
+            "title": "Probs",
+            "type": "object"
+          },
+          "reliability": {
+            "$ref": "#/components/schemas/Reliability"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "ttfInterval": {
+            "anyOf": [
+              {
+                "maxItems": 2,
+                "minItems": 2,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ttfinterval"
+          },
+          "ttfS": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "None: no fault expected",
+            "title": "Ttfs"
+          }
+        },
+        "required": [
+          "machineId",
+          "ts",
+          "horizonS",
+          "probs",
+          "calibrated",
+          "conformalSet",
+          "anomalyScore",
+          "reliability",
+          "modelVersion"
+        ],
+        "title": "Prediction",
+        "type": "object"
+      },
+      "Quality": {
+        "description": "Data-quality flag attached to each reading by the ingest pipeline.",
+        "enum": [
+          "OK",
+          "FILLED",
+          "LATE",
+          "SUSPECT"
+        ],
+        "title": "Quality",
+        "type": "string"
+      },
+      "Reading": {
+        "additionalProperties": false,
+        "description": "One telemetry sample from one machine.\n\nSensor values are nullable: ``null`` (or an absent key) means the sensor value is missing\nfor this sample. The ingest pipeline keeps partially missing readings with\n``quality=SUSPECT`` and quarantines readings without any sensor value (ADR 0007).",
+        "properties": {
+          "current": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A; null = missing",
+            "title": "Current"
+          },
+          "load": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "percent; null = missing",
+            "title": "Load"
+          },
+          "machineId": {
+            "minLength": 1,
+            "title": "Machineid",
+            "type": "string"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality",
+            "default": "OK"
+          },
+          "runTime": {
+            "description": "seconds since start",
+            "minimum": 0.0,
+            "title": "Runtime",
+            "type": "number"
+          },
+          "schemaVersion": {
+            "const": 2,
+            "default": 2,
+            "title": "Schemaversion",
+            "type": "integer"
+          },
+          "seq": {
+            "description": "Monotonic per-machine sequence number",
+            "minimum": 0.0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "speed": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "RPM; null = missing",
+            "title": "Speed"
+          },
+          "state": {
+            "$ref": "#/components/schemas/MachineState"
+          },
+          "temp": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "degrees C; null = missing",
+            "title": "Temp"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "vib": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "mm/s RMS; null = missing",
+            "title": "Vib"
+          }
+        },
+        "required": [
+          "machineId",
+          "seq",
+          "ts",
+          "state",
+          "runTime"
+        ],
+        "title": "Reading",
+        "type": "object"
+      },
+      "Reliability": {
+        "enum": [
+          "OK",
+          "DEGRADED"
+        ],
+        "title": "Reliability",
+        "type": "string"
+      },
+      "Role": {
+        "description": "API roles, in increasing order of privilege.",
+        "enum": [
+          "viewer",
+          "operator"
+        ],
+        "title": "Role",
+        "type": "string"
+      },
+      "RootCauseView": {
+        "additionalProperties": false,
+        "properties": {
+          "cause": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cause"
+          },
+          "unknown": {
+            "default": false,
+            "title": "Unknown",
+            "type": "boolean"
+          }
+        },
+        "title": "RootCauseView",
+        "type": "object"
+      },
+      "ScenarioAck": {
+        "additionalProperties": false,
+        "description": "The simulator's answer to a ScenarioRequest (status EXECUTED / REJECTED / TIMEOUT).",
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "requestId": {
+            "minLength": 1,
+            "title": "Requestid",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AckStatus"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId",
+          "status",
+          "ts"
+        ],
+        "title": "ScenarioAck",
+        "type": "object"
+      },
+      "ScenarioAction": {
+        "description": "Simulation-only scenario injection (ADR 0015). Real equipment would not offer this.",
+        "enum": [
+          "INJECT_FAULT",
+          "LOAD_SCENARIO"
+        ],
+        "title": "ScenarioAction",
+        "type": "string"
+      },
+      "ScenarioPayload": {
+        "additionalProperties": false,
+        "description": "Body of ``POST /scenario``. The server adds requestId, requestedBy, source and ts.",
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ScenarioAction"
+          },
+          "faultType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "INJECT_FAULT: simulator fault, e.g. bearing_wear, belt_jam",
+            "title": "Faulttype"
+          },
+          "machineId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "INJECT_FAULT: target machine",
+            "title": "Machineid"
+          },
+          "progressionS": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "INJECT_FAULT: gradual fault duration (default fastest)",
+            "title": "Progressions"
+          },
+          "scenario": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "LOAD_SCENARIO: scenario file name without .yaml",
+            "title": "Scenario"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "LOAD_SCENARIO: plan seed",
+            "title": "Seed"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "ScenarioPayload",
+        "type": "object"
+      },
+      "ScenarioRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "acks": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioAck"
+            },
+            "title": "Acks",
+            "type": "array"
+          },
+          "request": {
+            "$ref": "#/components/schemas/ScenarioRequest"
+          }
+        },
+        "required": [
+          "request"
+        ],
+        "title": "ScenarioRecord",
+        "type": "object"
+      },
+      "ScenarioRequest": {
+        "additionalProperties": false,
+        "description": "A simulation-only request to inject a fault or load a scenario (ADR 0015).\n\nStored in the event store (stream ``scenario_requests``) so injected faults can be told\napart from real ones in replay and experiments. ``ts`` is on the event-time axis (the\nsource's watermark when the request was made). ``faultType`` names a simulator fault\n(e.g. ``bearing_wear``); the simulator validates it.",
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ScenarioAction"
+          },
+          "faultType": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Faulttype"
+          },
+          "machineId": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machineid"
+          },
+          "progressionS": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progressions"
+          },
+          "requestId": {
+            "minLength": 1,
+            "title": "Requestid",
+            "type": "string"
+          },
+          "requestedBy": {
+            "minLength": 1,
+            "title": "Requestedby",
+            "type": "string"
+          },
+          "scenario": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9_-]{1,64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "source": {
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId",
+          "action",
+          "requestedBy",
+          "source",
+          "ts"
+        ],
+        "title": "ScenarioRequest",
+        "type": "object"
+      },
+      "ScenariosResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "requests": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioRecord"
+            },
+            "title": "Requests",
+            "type": "array"
+          }
+        },
+        "required": [
+          "requests"
+        ],
+        "title": "ScenariosResponse",
+        "type": "object"
+      },
+      "SensorName": {
+        "description": "Sensor channels carried by a Reading (field names in Python and in YAML config).",
+        "enum": [
+          "speed",
+          "temp",
+          "vib",
+          "load",
+          "current"
+        ],
+        "title": "SensorName",
+        "type": "string"
+      },
+      "SensorSpecModel": {
+        "additionalProperties": false,
+        "properties": {
+          "max": {
+            "title": "Max",
+            "type": "number"
+          },
+          "min": {
+            "title": "Min",
+            "type": "number"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "unit",
+          "min",
+          "max"
+        ],
+        "title": "SensorSpecModel",
+        "type": "object"
+      },
+      "SensorStatsModel": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          }
+        },
+        "required": [
+          "count"
+        ],
+        "title": "SensorStatsModel",
+        "type": "object"
+      },
+      "SourcesResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdapterKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/Capability"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "configured": {
+            "items": {
+              "$ref": "#/components/schemas/AdapterKind"
+            },
+            "title": "Configured",
+            "type": "array"
+          },
+          "health": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdapterHealthModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "switches": {
+            "title": "Switches",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "configured",
+          "switches"
+        ],
+        "title": "SourcesResponse",
+        "type": "object"
+      },
+      "StateChange": {
+        "additionalProperties": false,
+        "description": "A machine's effective state changed (bus topic ``states``).\n\nEmitted by the ingest pipeline when the data link degrades (STALE, OFFLINE) or recovers,\nand by the twin engine (later phases) for machine state transitions.",
+        "properties": {
+          "machineId": {
+            "minLength": 1,
+            "title": "Machineid",
+            "type": "string"
+          },
+          "previousState": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MachineState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "state": {
+            "$ref": "#/components/schemas/MachineState"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          }
+        },
+        "required": [
+          "machineId",
+          "state",
+          "ts"
+        ],
+        "title": "StateChange",
+        "type": "object"
+      },
+      "SwitchRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/AdapterKind"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "SwitchRequest",
+        "type": "object"
+      },
+      "TopologyModel": {
+        "additionalProperties": false,
+        "properties": {
+          "downstream": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": "machine -> receiver; null = SINK",
+            "title": "Downstream",
+            "type": "object"
+          },
+          "order": {
+            "description": "machine ids in material-flow (config) order",
+            "items": {
+              "type": "string"
+            },
+            "title": "Order",
+            "type": "array"
+          },
+          "upstream": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": "machine -> feeder; null = SOURCE",
+            "title": "Upstream",
+            "type": "object"
+          }
+        },
+        "required": [
+          "order",
+          "upstream",
+          "downstream"
+        ],
+        "title": "TopologyModel",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "WsAckMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CommandAck"
+          },
+          "type": {
+            "const": "ack",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "WsAckMessage",
+        "type": "object"
+      },
+      "WsAlertMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Alert"
+          },
+          "type": {
+            "const": "alert",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "WsAlertMessage",
+        "type": "object"
+      },
+      "WsAuthInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "principal": {
+            "title": "Principal",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        },
+        "required": [
+          "principal",
+          "role"
+        ],
+        "title": "WsAuthInfo",
+        "type": "object"
+      },
+      "WsAuthMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WsAuthInfo"
+          },
+          "type": {
+            "const": "auth",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "WsAuthMessage",
+        "type": "object"
+      },
+      "WsAuthRequest": {
+        "description": "First message of every connection. ``apiKey`` may be omitted for anonymous read.",
+        "properties": {
+          "apiKey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Apikey"
+          },
+          "type": {
+            "const": "auth",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "WsAuthRequest",
+        "type": "object"
+      },
+      "WsClientMessage": {
+        "discriminator": {
+          "mapping": {
+            "auth": "#/components/schemas/WsAuthRequest",
+            "ping": "#/components/schemas/WsPingRequest",
+            "subscribe": "#/components/schemas/WsSubscribeRequest"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/WsAuthRequest"
+          },
+          {
+            "$ref": "#/components/schemas/WsSubscribeRequest"
+          },
+          {
+            "$ref": "#/components/schemas/WsPingRequest"
+          }
+        ]
+      },
+      "WsCommandMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Command"
+          },
+          "type": {
+            "const": "command",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "WsCommandMessage",
+        "type": "object"
+      },
+      "WsDataQualityMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DataQualityReport"
+          },
+          "type": {
+            "const": "dataQuality",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "WsDataQualityMessage",
+        "type": "object"
+      },
+      "WsDroppedInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count"
+        ],
+        "title": "WsDroppedInfo",
+        "type": "object"
+      },
+      "WsDroppedMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WsDroppedInfo"
+          },
+          "type": {
+            "const": "dropped",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "WsDroppedMessage",
+        "type": "object"
+      },
+      "WsEmpty": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "WsEmpty",
+        "type": "object"
+      },
+      "WsErrorInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "channels": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channels"
+          },
+          "machines": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machines"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "WsErrorInfo",
+        "type": "object"
+      },
+      "WsErrorMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WsErrorInfo"
+          },
+          "type": {
+            "const": "error",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "WsErrorMessage",
+        "type": "object"
+      },
+      "WsLineMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LineViewModel"
+          },
+          "type": {
+            "const": "line",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "WsLineMessage",
+        "type": "object"
+      },
+      "WsPingRequest": {
+        "properties": {
+          "type": {
+            "const": "ping",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "WsPingRequest",
+        "type": "object"
+      },
+      "WsPongMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WsEmpty"
+          },
+          "type": {
+            "const": "pong",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "WsPongMessage",
+        "type": "object"
+      },
+      "WsPredictionMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Prediction"
+          },
+          "type": {
+            "const": "prediction",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "WsPredictionMessage",
+        "type": "object"
+      },
+      "WsReadingMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/Reading"
+          },
+          "type": {
+            "const": "reading",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "WsReadingMessage",
+        "type": "object"
+      },
+      "WsServerMessage": {
+        "discriminator": {
+          "mapping": {
+            "ack": "#/components/schemas/WsAckMessage",
+            "alert": "#/components/schemas/WsAlertMessage",
+            "auth": "#/components/schemas/WsAuthMessage",
+            "command": "#/components/schemas/WsCommandMessage",
+            "dataQuality": "#/components/schemas/WsDataQualityMessage",
+            "dropped": "#/components/schemas/WsDroppedMessage",
+            "error": "#/components/schemas/WsErrorMessage",
+            "line": "#/components/schemas/WsLineMessage",
+            "pong": "#/components/schemas/WsPongMessage",
+            "prediction": "#/components/schemas/WsPredictionMessage",
+            "reading": "#/components/schemas/WsReadingMessage",
+            "snapshot": "#/components/schemas/WsSnapshotMessage",
+            "state": "#/components/schemas/WsStateMessage",
+            "subscribed": "#/components/schemas/WsSubscribedMessage"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/WsAuthMessage"
+          },
+          {
+            "$ref": "#/components/schemas/WsSubscribedMessage"
+          },
+          {
+            "$ref": "#/components/schemas/WsSnapshotMessage"
+          },
+          {
+            "$ref": "#/components/schemas/WsReadingMessage"
+          },
+          {
+            "$ref": "#/components/schemas/WsStateMessage"
+          },
+          {
+            "$ref": "#/components/schemas/WsLineMessage"
+          },
+          {
+            "$ref": "#/components/schemas/WsDataQualityMessage"
+          },
+          {
+            "$ref": "#/components/schemas/WsAlertMessage"
+          },
+          {
+            "$ref": "#/components/schemas/WsCommandMessage"
+          },
+          {
+            "$ref": "#/components/schemas/WsAckMessage"
+          },
+          {
+            "$ref": "#/components/schemas/WsPredictionMessage"
+          },
+          {
+            "$ref": "#/components/schemas/WsDroppedMessage"
+          },
+          {
+            "$ref": "#/components/schemas/WsErrorMessage"
+          },
+          {
+            "$ref": "#/components/schemas/WsPongMessage"
+          }
+        ]
+      },
+      "WsSnapshotData": {
+        "additionalProperties": false,
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/Alert"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "asOf": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asof"
+          },
+          "dataQuality": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/DataQualityReport"
+            },
+            "title": "Dataquality",
+            "type": "object"
+          },
+          "line": {
+            "$ref": "#/components/schemas/LineViewModel"
+          },
+          "machines": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MachineView"
+            },
+            "title": "Machines",
+            "type": "object"
+          }
+        },
+        "required": [
+          "machines",
+          "line",
+          "dataQuality",
+          "alerts"
+        ],
+        "title": "WsSnapshotData",
+        "type": "object"
+      },
+      "WsSnapshotMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WsSnapshotData"
+          },
+          "type": {
+            "const": "snapshot",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "WsSnapshotMessage",
+        "type": "object"
+      },
+      "WsStateMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/StateChange"
+          },
+          "type": {
+            "const": "state",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "WsStateMessage",
+        "type": "object"
+      },
+      "WsSubscribeRequest": {
+        "description": "Select machines (``null`` = all) and channels (default: all); repeat to change.",
+        "properties": {
+          "channels": {
+            "items": {
+              "enum": [
+                "readings",
+                "states",
+                "line",
+                "dataQuality",
+                "alerts",
+                "commands",
+                "predictions"
+              ],
+              "type": "string"
+            },
+            "title": "Channels",
+            "type": "array"
+          },
+          "machines": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machines"
+          },
+          "type": {
+            "const": "subscribe",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "WsSubscribeRequest",
+        "type": "object"
+      },
+      "WsSubscribedInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "channels": {
+            "items": {
+              "enum": [
+                "readings",
+                "states",
+                "line",
+                "dataQuality",
+                "alerts",
+                "commands",
+                "predictions"
+              ],
+              "type": "string"
+            },
+            "title": "Channels",
+            "type": "array"
+          },
+          "machines": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machines"
+          }
+        },
+        "required": [
+          "channels"
+        ],
+        "title": "WsSubscribedInfo",
+        "type": "object"
+      },
+      "WsSubscribedMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WsSubscribedInfo"
+          },
+          "type": {
+            "const": "subscribed",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "data"
+        ],
+        "title": "WsSubscribedMessage",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "APIKeyHeader": {
+        "description": "API key (viewer or operator). Optional for reads when the server runs without keys on a loopback address.",
+        "in": "header",
+        "name": "X-API-Key",
+        "type": "apiKey"
+      }
+    }
+  },
+  "info": {
+    "description": "LineTwin backend: live state of the production-line twin, event-store queries, alerts,\noperator commands, source management and (simulation only) scenario injection.\n\n**Auth:** send an API key in the `X-API-Key` header. Viewers can read; operators can also send\ncommands, switch sources and acknowledge alerts. Without configured keys the server serves\nread-only access on a loopback address only. WebSocket clients authenticate with their first\nmessage (see the WebSocket reference in docs/api.md).\n",
+    "title": "LineTwin API",
+    "version": "0.4.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/alerts": {
+      "get": {
+        "operationId": "list_alerts_alerts_get",
+        "parameters": [
+          {
+            "description": "only active / only cleared",
+            "in": "query",
+            "name": "active",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "only active / only cleared",
+              "title": "Active"
+            }
+          },
+          {
+            "description": "filter by acknowledgement",
+            "in": "query",
+            "name": "acknowledged",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "filter by acknowledgement",
+              "title": "Acknowledged"
+            }
+          },
+          {
+            "description": "machine id",
+            "in": "query",
+            "name": "machine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "machine id",
+              "title": "Machine"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Unresolved alerts (active, or cleared but not yet acknowledged)",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
+    "/alerts/history": {
+      "get": {
+        "operationId": "alert_history_alerts_history_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "description": "machine id",
+            "in": "query",
+            "name": "machine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "machine id",
+              "title": "Machine"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Stored alert lifecycle events in a time range (every raise, clear, ack)",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
+    "/alerts/{alert_id}/ack": {
+      "post": {
+        "operationId": "acknowledge_alerts__alert_id__ack_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alert_id",
+            "required": true,
+            "schema": {
+              "title": "Alert Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Alert"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Unknown or already resolved alert"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Acknowledge an alert (operator); repeating it changes nothing",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
+    "/commands": {
+      "get": {
+        "operationId": "list_commands_commands_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "description": "machine ids",
+            "in": "query",
+            "name": "machines",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "machine ids",
+              "title": "Machines"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Audit trail: commands (and their acks) in an event-time range",
+        "tags": [
+          "commands"
+        ]
+      },
+      "post": {
+        "description": "Every outcome of the command itself is a 200 with the final `CommandAck`: `EXECUTED`, `REJECTED` (safety rule, unsupported by the active source, or refused by the machine; see `reason`) or `TIMEOUT`. STOP is always allowed by the safety rules. Repeating an `idempotencyKey` with the same request returns the original ack without sending again (response header `Idempotent-Replay: true`).",
+        "operationId": "send_command_commands_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandAck"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Not an operator"
+          },
+          "404": {
+            "description": "Unknown machine"
+          },
+          "409": {
+            "description": "idempotencyKey already used for a different request"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Send a command (operator); answers with the final ack",
+        "tags": [
+          "commands"
+        ]
+      }
+    },
+    "/commands/{command_id}": {
+      "get": {
+        "operationId": "get_command_commands__command_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "command_id",
+            "required": true,
+            "schema": {
+              "title": "Command Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Unknown command"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "A command and every ack it got (audit trail)",
+        "tags": [
+          "commands"
+        ]
+      }
+    },
+    "/export": {
+      "get": {
+        "operationId": "export_export_get",
+        "parameters": [
+          {
+            "description": "inclusive, ISO-8601 with zone",
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "description": "inclusive, ISO-8601 with zone",
+              "format": "date-time",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "description": "exclusive, ISO-8601 with zone",
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "description": "exclusive, ISO-8601 with zone",
+              "format": "date-time",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "description": "file format",
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "csv",
+              "description": "file format",
+              "enum": [
+                "csv",
+                "jsonl"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "description": "machine ids (repeat the parameter or separate with commas); all if omitted",
+            "in": "query",
+            "name": "machines",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "machine ids (repeat the parameter or separate with commas); all if omitted",
+              "title": "Machines"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/x-ndjson": {},
+              "text/csv": {}
+            },
+            "description": "Canonical Reading rows ordered by (ts, line order, seq)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Readings in a time range as CSV or JSONL (replayable by the file adapter)",
+        "tags": [
+          "history"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health_health_get",
+        "parameters": [
+          {
+            "description": "also list which optional heavy modules are loaded",
+            "in": "query",
+            "name": "modules",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "also list which optional heavy modules are loaded",
+              "title": "Modules",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Liveness and wiring (no key needed)",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/history": {
+      "get": {
+        "operationId": "history_history_get",
+        "parameters": [
+          {
+            "description": "inclusive, ISO-8601 with zone",
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "description": "inclusive, ISO-8601 with zone",
+              "format": "date-time",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "description": "exclusive, ISO-8601 with zone",
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "description": "exclusive, ISO-8601 with zone",
+              "format": "date-time",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "description": "raw rows or bucket width",
+            "in": "query",
+            "name": "resolution",
+            "required": false,
+            "schema": {
+              "default": "1m",
+              "description": "raw rows or bucket width",
+              "enum": [
+                "raw",
+                "1s",
+                "1m",
+                "10m"
+              ],
+              "title": "Resolution",
+              "type": "string"
+            }
+          },
+          {
+            "description": "machine ids (repeat the parameter or separate with commas); all if omitted",
+            "in": "query",
+            "name": "machines",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "machine ids (repeat the parameter or separate with commas); all if omitted",
+              "title": "Machines"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Readings in a time range: raw, or 1 s / 1 min / 10 min buckets",
+        "tags": [
+          "history"
+        ]
+      }
+    },
+    "/line": {
+      "get": {
+        "operationId": "get_line_line_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Line layout: machines, kinds, parts, buffers and topology from the line config",
+        "tags": [
+          "line"
+        ]
+      }
+    },
+    "/machines": {
+      "get": {
+        "operationId": "list_machines_machines_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MachinesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Live state of every machine",
+        "tags": [
+          "machines"
+        ]
+      }
+    },
+    "/machines/{machine_id}/state": {
+      "get": {
+        "operationId": "machine_state_machines__machine_id__state_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "machine_id",
+            "required": true,
+            "schema": {
+              "title": "Machine Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MachineStateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Unknown machine"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Live state of one machine",
+        "tags": [
+          "machines"
+        ]
+      }
+    },
+    "/metrics": {
+      "get": {
+        "operationId": "metrics_metrics_get",
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {}
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Prometheus metrics (text exposition format)",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/predict": {
+      "get": {
+        "operationId": "predict_predict_get",
+        "responses": {
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "available from Phase 11 (inference service); not implemented yet"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Fault predictions (Phase 11; returns 501 until then)",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/replay": {
+      "get": {
+        "operationId": "replay_replay_get",
+        "parameters": [
+          {
+            "description": "event time, ISO-8601 with zone",
+            "in": "query",
+            "name": "t",
+            "required": true,
+            "schema": {
+              "description": "event time, ISO-8601 with zone",
+              "format": "date-time",
+              "title": "T",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Line state at event time t (snapshot + replay, equals reconstruct(t))",
+        "tags": [
+          "history"
+        ]
+      }
+    },
+    "/scenario": {
+      "get": {
+        "operationId": "list_requests_scenario_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "description": "machine id",
+            "in": "query",
+            "name": "machine",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "machine id",
+              "title": "Machine"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenariosResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Audit trail of scenario requests in an event-time range",
+        "tags": [
+          "scenario (simulation only)"
+        ]
+      },
+      "post": {
+        "description": "Simulation-only capability: asks the simulator behind the active source to start a fault now (`INJECT_FAULT`) or to schedule a scenario file's events from now on (`LOAD_SCENARIO`). The request and its ack are stored, so injected faults are distinguishable from real ones. The simulator's verdict is in the ack (`EXECUTED`, `REJECTED` with a reason, `TIMEOUT`).",
+        "operationId": "inject_scenario_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScenarioPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Not an operator"
+          },
+          "409": {
+            "description": "The active source does not support scenario injection"
+          },
+          "422": {
+            "description": "Inconsistent request"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Inject a fault or load a scenario (operator; simulation only)",
+        "tags": [
+          "scenario (simulation only)"
+        ]
+      }
+    },
+    "/scenario/{request_id}": {
+      "get": {
+        "operationId": "get_request_scenario__request_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "title": "Request Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Unknown request"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "One scenario request and its ack",
+        "tags": [
+          "scenario (simulation only)"
+        ]
+      }
+    },
+    "/sources": {
+      "get": {
+        "operationId": "get_sources_sources_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourcesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Active source and its health",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
+    "/sources/switch": {
+      "post": {
+        "operationId": "switch_source_sources_switch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SwitchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourcesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "409": {
+            "description": "The new source could not start"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Hot-switch to another source (operator); a failing source keeps the current one",
+        "tags": [
+          "sources"
+        ]
+      }
+    },
+    "/whatif": {
+      "post": {
+        "operationId": "whatif_whatif_post",
+        "responses": {
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "available from Phase 11 (inference service); not implemented yet"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "What-if simulation (Phase 11; returns 501 until then)",
+        "tags": [
+          "system"
+        ]
+      }
+    }
+  }
+}

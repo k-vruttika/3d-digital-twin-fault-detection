@@ -9,6 +9,7 @@ from twin_common.config.line import (
     LoadRange,
     LoadRanges,
     MachineConfig,
+    MachineLayout,
     SensorSpec,
 )
 from twin_common.config.loader import (
@@ -63,6 +64,7 @@ __all__ = [
     "LoadRange",
     "LoadRanges",
     "MachineConfig",
+    "MachineLayout",
     "MockSourceConfig",
     "MqttSourceConfig",
     "OpcUaSourceConfig",

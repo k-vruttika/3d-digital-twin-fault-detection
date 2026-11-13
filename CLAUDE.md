@@ -48,7 +48,7 @@ SERVICES:     Docker Compose (uv run poe up): TimescaleDB (PostgreSQL 16) + Mosq
 - **Storage:** PostgreSQL 16 with the TimescaleDB extension via Docker Compose (hypertables and continuous aggregates allowed), via `asyncpg`/SQLAlchemy 2. SQLite implementation for minimal mode and tests; Parquet (pyarrow) for datasets
 - **ML:** PyTorch, scikit-learn, XGBoost, SHAP, Captum, `river` (ADWIN), MLflow (local file store), ONNX / onnxruntime
 - **Frontend:** TypeScript (strict), Vite, React, Three.js (used directly, NOT react-three-fiber), Chart.js
-- **Quality:** ruff, mypy, pytest, pytest-asyncio, Vitest, ESLint, pre-commit, GitHub Actions
+- **Quality:** ruff, mypy, pytest, pytest-asyncio, Vitest, ESLint, pre-commit, GitHub Actions; frontend dev tools `openapi-typescript` (API types, ADR 0017) and Playwright (dev-page screenshots)
 - **Ops:** Prometheus metrics endpoint (`/metrics`), Locust for load testing. Dev tasks are poethepoet (`poe`) tasks in the root `pyproject.toml`, run as `uv run poe <task>`, identical on Windows, Linux and macOS
 
 ## 5. Repository layout
@@ -90,16 +90,20 @@ linetwin/
 │  ├─ train/  calibrate/  conformal/  explain/  evaluate/
 │  ├─ datasets/              # metropt3, azure_pdm, cmapss loaders
 │  └─ experiments/           # E1–E5, ablation runners, report generators
-├─ frontend/src/
-│  ├─ engine/                # framework-agnostic TwinEngine (no React imports)
-│  ├─ dashboard/             # React components
-│  └─ api/                   # REST + WS client
+├─ frontend/
+│  ├─ dev.html               # full-screen 3D twin dev page (uv run poe frontend → /dev.html)
+│  ├─ scripts/               # screenshots.mjs (uv run poe screenshots)
+│  └─ src/
+│     ├─ engine/             # framework-agnostic TwinEngine (no React imports); __fixtures__/ generated
+│     ├─ dashboard/          # React components
+│     ├─ api/                # REST + WS client; openapi.json + schema.gen.ts generated (poe api-docs)
+│     └─ dev/                # dev page entry and synthetic data mode
 ├─ data/                     # sim/, external/ (gitignored)
 ├─ experiments/results/      # generated reports and plots only
 ├─ tests/                    # cross-package integration / e2e tests
 └─ docs/
    ├─ PROGRESS.md            # updated at end of every phase
-   ├─ architecture.md  api.md  simulator.md  experiments.md  setup.md
+   ├─ architecture.md  api.md  frontend.md  simulator.md  experiments.md  setup.md
    └─ adr/                   # architecture decision records (NNNN-title.md)
 ```
 

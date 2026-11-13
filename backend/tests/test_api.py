@@ -25,6 +25,7 @@ from twin_backend.api.app import create_app
 from twin_backend.api.auth import Authenticator, StartupRefusedError, is_loopback
 from twin_backend.api.server import ServerHandle
 from twin_backend.api.ws import CLOSE_UNAUTHORIZED
+from twin_backend.api.ws_models import SERVER_ADAPTER
 from twin_backend.storage.base import Stream
 from twin_backend.storage.export import order_readings, readings_to_csv
 from twin_backend.testing import SimExport, file_runtime, settings_for
@@ -284,6 +285,7 @@ async def test_sources_alerts_stubs_metrics_cors(sim_export: SimExport, tmp_path
 # ---------------------------------------------------------------- WebSocket
 async def _recv(ws: Any, timeout: float = 10.0) -> dict[str, Any]:
     msg: dict[str, Any] = json.loads(await asyncio.wait_for(ws.recv(), timeout))
+    SERVER_ADAPTER.validate_python(msg)  # every frame matches the published schema
     return msg
 
 

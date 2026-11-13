@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LineTwin 3D (dev)</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #1d2229;
+        color: #e8edf2;
+        font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      #twin {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+      }
+      .hud {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        z-index: 12;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        pointer-events: none;
+      }
+      .pill {
+        align-self: flex-start;
+        padding: 3px 10px;
+        border-radius: 999px;
+        background: rgba(20, 24, 29, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+      .pill[data-status="live"] {
+        border-color: #43a047;
+      }
+      .pill[data-status="reconnecting"],
+      .pill[data-status="connecting"],
+      .pill[data-status="waiting"] {
+        border-color: #f5c518;
+      }
+      .pill[data-status="unauthorized"],
+      .pill[data-status="error"] {
+        border-color: #e53935;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="twin"></div>
+    <div class="hud">
+      <div id="status" class="pill" data-status="connecting">starting…</div>
+      <div id="selection" class="pill" hidden></div>
+    </div>
+    <script type="module" src="/src/dev/main.ts"></script>
+  </body>
+</html>

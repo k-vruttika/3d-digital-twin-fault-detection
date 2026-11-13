@@ -1,0 +1,69 @@
+{
+  "buffers": [],
+  "lineId": "line1_single",
+  "machines": [
+    {
+      "id": "CNV-01",
+      "kind": "CONVEYOR",
+      "layout": null,
+      "name": "Infeed conveyor",
+      "parts": [
+        "belt",
+        "motor",
+        "bearing"
+      ],
+      "sensorParts": {
+        "current": "motor",
+        "load": "belt",
+        "speed": "belt",
+        "temp": "motor",
+        "vib": "bearing"
+      },
+      "sensors": [
+        "speed",
+        "temp",
+        "vib",
+        "load",
+        "current"
+      ]
+    }
+  ],
+  "sensors": {
+    "current": {
+      "max": 100.0,
+      "min": 0.0,
+      "unit": "A"
+    },
+    "load": {
+      "max": 130.0,
+      "min": 0.0,
+      "unit": "%"
+    },
+    "speed": {
+      "max": 15000.0,
+      "min": 0.0,
+      "unit": "RPM"
+    },
+    "temp": {
+      "max": 150.0,
+      "min": -20.0,
+      "unit": "degC"
+    },
+    "vib": {
+      "max": 50.0,
+      "min": 0.0,
+      "unit": "mm/s"
+    }
+  },
+  "topology": {
+    "downstream": {
+      "CNV-01": null
+    },
+    "order": [
+      "CNV-01"
+    ],
+    "upstream": {
+      "CNV-01": null
+    }
+  }
+}

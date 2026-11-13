@@ -14,7 +14,7 @@ import pytest
 import yaml
 
 from twin_backend import devstack
-from twin_backend.api.docs import BEGIN, END, build_app, render, splice
+from twin_backend.api.docs import BEGIN, END, build_app, generated_files, render, splice
 from twin_backend.testing import REPO_ROOT, free_port
 from twin_common.config import TwinSettings, load_sources_config
 from twin_common.enums import AdapterKind
@@ -27,6 +27,15 @@ def test_api_md_is_up_to_date() -> None:
     assert END in current
     expected = splice(current, render(build_app()))
     assert current == expected, "docs/api.md is stale: run `uv run poe api-docs`"
+
+
+def test_frontend_inputs_are_up_to_date() -> None:
+    """openapi.json (types are generated from it) and the line fixtures match the code."""
+    for rel, expected in generated_files(build_app()).items():
+        path = REPO_ROOT / rel
+        assert path.exists(), f"{rel} is missing: run `uv run poe api-docs`"
+        current = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+        assert current == expected, f"{rel} is stale: run `uv run poe api-docs`"
 
 
 def test_generated_reference_lists_every_route_with_its_role() -> None:

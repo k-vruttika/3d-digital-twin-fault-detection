@@ -1,0 +1,172 @@
+{
+  "buffers": [
+    {
+      "capacity": 10,
+      "from": "CNV-01",
+      "id": "B1",
+      "to": "CNC-01"
+    },
+    {
+      "capacity": 8,
+      "from": "CNC-01",
+      "id": "B2",
+      "to": "INSP-01"
+    },
+    {
+      "capacity": 10,
+      "from": "INSP-01",
+      "id": "B3",
+      "to": "CNV-02"
+    }
+  ],
+  "lineId": "line1",
+  "machines": [
+    {
+      "id": "CNV-01",
+      "kind": "CONVEYOR",
+      "layout": null,
+      "name": "Infeed conveyor",
+      "parts": [
+        "belt",
+        "motor",
+        "bearing"
+      ],
+      "sensorParts": {
+        "current": "motor",
+        "load": "belt",
+        "speed": "belt",
+        "temp": "motor",
+        "vib": "bearing"
+      },
+      "sensors": [
+        "speed",
+        "temp",
+        "vib",
+        "load",
+        "current"
+      ]
+    },
+    {
+      "id": "CNC-01",
+      "kind": "CNC",
+      "layout": null,
+      "name": "CNC machining station",
+      "parts": [
+        "spindle",
+        "spindle_motor",
+        "spindle_bearing"
+      ],
+      "sensorParts": {
+        "current": "spindle_motor",
+        "load": "spindle",
+        "speed": "spindle",
+        "temp": "spindle_motor",
+        "vib": "spindle_bearing"
+      },
+      "sensors": [
+        "speed",
+        "temp",
+        "vib",
+        "load",
+        "current"
+      ]
+    },
+    {
+      "id": "INSP-01",
+      "kind": "INSPECTION",
+      "layout": null,
+      "name": "Inspection station",
+      "parts": [
+        "indexer",
+        "motor",
+        "bearing"
+      ],
+      "sensorParts": {
+        "current": "motor",
+        "load": "indexer",
+        "speed": "indexer",
+        "temp": "motor",
+        "vib": "bearing"
+      },
+      "sensors": [
+        "speed",
+        "temp",
+        "vib",
+        "load",
+        "current"
+      ]
+    },
+    {
+      "id": "CNV-02",
+      "kind": "CONVEYOR",
+      "layout": null,
+      "name": "Outfeed conveyor",
+      "parts": [
+        "belt",
+        "motor",
+        "bearing"
+      ],
+      "sensorParts": {
+        "current": "motor",
+        "load": "belt",
+        "speed": "belt",
+        "temp": "motor",
+        "vib": "bearing"
+      },
+      "sensors": [
+        "speed",
+        "temp",
+        "vib",
+        "load",
+        "current"
+      ]
+    }
+  ],
+  "sensors": {
+    "current": {
+      "max": 100.0,
+      "min": 0.0,
+      "unit": "A"
+    },
+    "load": {
+      "max": 130.0,
+      "min": 0.0,
+      "unit": "%"
+    },
+    "speed": {
+      "max": 15000.0,
+      "min": 0.0,
+      "unit": "RPM"
+    },
+    "temp": {
+      "max": 150.0,
+      "min": -20.0,
+      "unit": "degC"
+    },
+    "vib": {
+      "max": 50.0,
+      "min": 0.0,
+      "unit": "mm/s"
+    }
+  },
+  "topology": {
+    "downstream": {
+      "CNC-01": "INSP-01",
+      "CNV-01": "CNC-01",
+      "CNV-02": null,
+      "INSP-01": "CNV-02"
+    },
+    "order": [
+      "CNV-01",
+      "CNC-01",
+      "INSP-01",
+      "CNV-02"
+    ],
+    "upstream": {
+      "CNC-01": "CNV-01",
+      "CNV-01": null,
+      "CNV-02": "INSP-01",
+      "INSP-01": "CNC-01"
+    }
+  }
+}

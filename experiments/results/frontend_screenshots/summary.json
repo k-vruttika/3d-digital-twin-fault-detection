@@ -1,0 +1,22 @@
+{
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "freezeS": 10,
+  "screenshots": [
+    "line_running",
+    "tooltip_cnc",
+    "states_overview",
+    "state_warning",
+    "state_fault",
+    "state_blocked",
+    "state_starved",
+    "state_maintenance",
+    "state_stale",
+    "state_offline",
+    "line_single",
+    "line_20_machines"
+  ],
+  "problems": []
+}

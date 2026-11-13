@@ -1,9 +1,11 @@
-/** Placeholder shell. The 3D TwinEngine and dashboard arrive in later phases. */
+/** Placeholder shell. The React dashboard arrives in a later phase. */
 export function App() {
   return (
     <main>
       <h1>LineTwin</h1>
-      <p>Phase 0 skeleton: 3D twin and dashboard coming in later phases.</p>
+      <p>
+        The dashboard arrives in a later phase. The 3D twin runs on the <a href="/dev.html">dev page</a>.
+      </p>
     </main>
   );
 }

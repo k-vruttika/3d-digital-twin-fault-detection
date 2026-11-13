@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections import Counter
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -30,6 +31,27 @@ class SensorSpec(ConfigModel):
         return self
 
 
+class MachineLayout(ConfigModel):
+    """Optional 3D placement override for one machine (frontend twin, Phase 5).
+
+    Machines without an override are laid out automatically along the material flow. ``position``
+    is ``[x, y, z]`` in metres with y up; ``rotation_deg`` turns the machine about the vertical
+    axis. Either may be given alone.
+    """
+
+    position: tuple[float, float, float] | None = None
+    rotation_deg: float | None = None
+
+    @model_validator(mode="after")
+    def _finite(self) -> MachineLayout:
+        values = list(self.position or ())
+        if self.rotation_deg is not None:
+            values.append(self.rotation_deg)
+        if not all(math.isfinite(v) for v in values):
+            raise ValueError("layout values must be finite numbers")
+        return self
+
+
 class MachineConfig(ConfigModel):
     id: str = Field(min_length=1)
     kind: MachineKind
@@ -37,6 +59,7 @@ class MachineConfig(ConfigModel):
     sensors: list[str] = Field(min_length=1)
     parts: list[str] = Field(min_length=1)
     sensor_parts: dict[str, str] = Field(description="sensor -> part, for 3D highlighting")
+    layout: MachineLayout | None = Field(default=None, description="3D placement override")
 
     @model_validator(mode="after")
     def _consistent(self) -> MachineConfig:

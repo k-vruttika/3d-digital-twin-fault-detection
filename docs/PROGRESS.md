@@ -1,5 +1,153 @@
 # LineTwin progress
 
+## Backlog (not scheduled)
+
+- **Buffer telemetry:** a BufferLevel event (buffer id, level, capacity, ts) published by the simulator publishers, consumed by the adapters, stored as an event stream and sent on the WebSocket. Until then the 3D twin shows buffers as FULL / EMPTY / FLOWING / UNKNOWN, inferred from the neighbours' states (ADR 0016). The simulator already records `buffer_in` / `buffer_out`, but only as dataset label columns.
+
+## Phase 5: 3D twin engine, frontend (done, 2026-11-14)
+
+Delivered in two parts:
+
+- **Part A:** API client, `GET /line`, layout, geometry, state visuals, dev page.
+- **Part B:** interaction, performance, highlight API, dispose, screenshots, docs.
+
+Picking, the tooltip and the FPS counter were written with the engine in part A; part B added their tests and refinements.
+
+### What was built
+
+- **Backend:**
+  - **`GET /line`** (`api/routes/line.py`, viewer) returns the loaded line config: machines (kind, name, sensors, parts, `sensorParts`, `layout`), buffers, the sensor catalog, and `topology` from `Topology.from_line`, the same one the engine uses for root causes.
+  - **`MachineLayout`** (`twin_common.config.line`): an optional per-machine `layout: {position: [x, y, z], rotation_deg}` in the line YAML. The simulator ignores it.
+  - **WebSocket frames as Pydantic models** (`api/ws_models.py`, [ADR 0017](adr/0017-generated-api-types.md)): `WsClientMessage` / `WsServerMessage` discriminated unions. The hub builds its control frames through them, and they are merged into the OpenAPI components.
+  - **`api/docs.py`** also writes `frontend/src/api/openapi.json` and the `GET /line` fixtures for both shipped configs (`frontend/src/engine/__fixtures__/`).
+  - **`serve --loop/--no-loop`:** overrides the file source's `loop` (the shipped `sources.yaml` loops), so a replay can end and the twin shows the machines going STALE and OFFLINE.
+- **Frontend engine** (`frontend/src/engine/`, [ADR 0016](adr/0016-3d-twin-engine.md)): **`TwinEngine`**, Three.js used directly, no React.
+  - **Pure modules:** `topology.ts` (flow order, branch, merge and cycle handling), `layout.ts` (serpentine auto layout plus overrides), `visuals.ts` (state → visual, labels, buffer inference, animation rate) and `tooltip.ts`.
+  - **Procedural geometry** (`geometry/`):
+    - conveyor: frame, instanced rollers, scrolling `DataTexture` belt, drums, motor;
+    - CNC: bed, column, rotating spindle, glass enclosure;
+    - inspection: rotating indexer, gantry with a sweeping camera head.
+    
+    Every config part is a named group with its own materials; unknown parts get a generic housing.
+  - **State visuals:**
+    - RUNNING animated at speed / reference RPM, IDLE stopped;
+    - WARNING: orange inverted-hull outline on the at-risk part (top attribution, else the whole machine);
+    - FAULT: red flash;
+    - STARVED / BLOCKED: yellow beacon; MAINTENANCE: blue beacon and tint;
+    - STALE semi-transparent, OFFLINE grey, link lost semi-transparent;
+    - data quality DEGRADED: a floor halo; active alerts: a severity marker;
+    - camera-facing text labels for every state ("BLOCKED by CNC-01"), turned off with `labels.enabled`.
+  - **Buffers:** inferred FULL / EMPTY / FLOWING / UNKNOWN, never a made-up count. Parts on conveyors move with the belt and are hidden on STARVED, STALE or OFFLINE conveyors.
+  - **Interaction:** orbit controls, click to select (a drag does not count), hover tooltip in plain DOM (text only). One invisible pick box per machine and buffer.
+  - **Public API:** `loadLayout`, `applySnapshot`, `applyReading`, `applyStateChange`, `setPrediction`, `highlightParts`, `setMode`, `on('select' | 'hover')`, `resize`, `dispose`. Added: `applyDataQuality`, `applyAlert`, `applyLine`, `setConnected`, plus diagnostics (`resourceCounts`, `pickAt`, `screenPosition`, `focus`).
+  - **Disposal and FPS:** `ResourceTracker` and `ListenerRegistry` make `dispose()` checkable. `FpsCounter` / `FpsMeter` provide the dev FPS overlay.
+- **API client** (`frontend/src/api/`):
+  - typed `RestClient`;
+  - `StreamClient`: auth first frame, subscribe after the auth reply, snapshot. It reconnects with seeded exponential backoff after any close except 4401 (4408 included), re-subscribes and delivers a fresh snapshot, and has an optional heartbeat;
+  - `bindStream`: re-fetches `/line` on reconnect and reloads the scene only if it changed; replay mode ignores live data.
+- **Generated types:** `openapi.json` → `schema.gen.ts` (openapi-typescript), aliased in `types.ts`.
+- **Dev page** (`frontend/dev.html`, `src/dev/`):
+  - full-screen engine against `VITE_LINETWIN_API_URL`, with an optional `VITE_LINETWIN_API_KEY` from `frontend/.env.local`;
+  - status pill; a clear message when the backend needs a key;
+  - `?fps`; `?synthetic=20|line|single|states`; `&freeze=<s>`.
+- **poe tasks:**
+  - `frontend`: the Vite dev server;
+  - `screenshots`: Playwright Chromium install plus `npm run screenshots`;
+  - `api-docs` now also regenerates `openapi.json`, the fixtures and `schema.gen.ts`;
+  - `minimal-data-check` also runs `tests/test_phase5_frontend_contract.py`.
+- **Docs:**
+  - new `docs/frontend.md`;
+  - ADRs 0016 and 0017;
+  - `setup.md` §5 (backend and frontend together);
+  - `api.md` (`GET /line`, WS schema note, regenerated reference);
+  - `architecture.md`;
+  - CLAUDE.md §4 and §5.
+
+### How to run
+
+```text
+uv run poe sim-quick; uv run poe minimal          # terminal 1 (add --no-loop to let the replay end)
+uv run poe frontend                               # terminal 2 -> http://127.0.0.1:5173/dev.html
+uv run poe up; uv run poe dev --source mock       # live simulator instead (commands work)
+uv run poe screenshots                            # PNGs -> experiments/results/frontend_screenshots/
+```
+
+### Tests
+
+pytest runs 683 tests (671 before this phase) and Vitest 92 in 10 files (none before). The most important new ones:
+
+- **Frontend contract in minimal mode** (`tests/test_phase5_frontend_contract.py`, fresh process, `--no-loop`):
+  - `GET /line` equals the committed fixture;
+  - every WebSocket frame validates against `WsServerMessage`;
+  - after the replay ends, every machine goes STALE (3 s) and then OFFLINE (5 s after its last reading), within 2.5 s of slack.
+- **`GET /line`** for `line.yaml` and `line_single.yaml`; an added machine with a layout override appears with its topology; `MachineLayout` validation. All frames in the existing WebSocket tests now validate against the schema.
+- **Staleness:** `openapi.json` and the fixtures match the code (pytest); `schema.gen.ts` equals openapi-typescript's output (Vitest); every REST client endpoint exists in the schema.
+- **Pure functions:**
+  - layout: flow order, gaps, single station, added machine, overrides, 20 machines in a serpentine without overlaps, unknown kind;
+  - topology: reordered config, cycle fallback, branch / merge warnings;
+  - visuals: one test per state; DQ and alert overlays; link lost; labels including "BLOCKED by CNC-01", "(unknown)" and turned off; attribution vs whole machine; animation rate; buffer status for 10 neighbour combinations;
+  - tooltip: units, `–` for null, absent and NaN values.
+- **WebSocket client** (fake socket, fake timers):
+  - auth is the first frame and subscribe waits for the auth reply;
+  - backoff 100 / 200 / 400 / 800 ms, then success with re-auth, re-subscribe with the changed selection and a fresh snapshot (`reconnect: true`);
+  - 4408 reconnects, 4401 does not;
+  - backoff reset; heartbeat timeout; `close()` leaves no timers.
+- **Engine on a fake renderer:**
+  - every config part of both fixtures is an addressable group with its own material;
+  - readings and StateChanges map onto materials (OFFLINE desaturated, STALE transparent), the beacon and labels;
+  - attributed WARNING outline; FAULT flash; DQ halo; alert marker cleared on resolve; buffers FULL / EMPTY / FLOWING / UNKNOWN; items hidden while the link is down;
+  - picking of machines and buffers; click vs drag; one hover event per target with a tooltip; `highlightParts` (clamping, unknown parts, FAULT precedence); `setMode`.
+- **`dispose()`:**
+  - every geometry, material and texture reachable from the scene receives its dispose event;
+  - every resource and listener count is 0, and no frame is pending;
+  - renderer, controls and context are released, and the canvas is removed;
+  - it is re-entrant, and repeated `loadLayout` does not grow the counts.
+
+### Verified here (Windows 11, Docker services up)
+
+| Check | Result |
+|---|---|
+| `uv run poe lint` | passes |
+| `LINETWIN_REQUIRE_SERVICES=1 uv run poe test` | pytest 683 passed, 0 skipped; Vitest 92 passed |
+| `uv run poe build-frontend` | builds (chunk-size warning, see limitations) |
+| `uv run poe minimal-data-check` | 14 passed (incl. the Phase 5 contract test) |
+| `uv run poe screenshots` | 12 PNGs, WebGL via SwiftShader, no page errors; reviewed by eye (below) |
+| Dev page live against `serve --mode minimal --no-loop` (60 s file at 2x), headless Chromium | all machines RUNNING; at ~31 s all STALE (semi-transparent), ~2 s later all OFFLINE (grey, offline alert markers, DQ halos, buffers UNKNOWN); no page errors |
+| Dev page live against `devstack --source mock` (TimescaleDB), STOP CNC-01 via `POST /commands` with a temporary operator key | ack EXECUTED; CNC-01 IDLE at once, then `BLOCKED by CNC-01` on CNV-01 (yellow beacon, buffer FULL) and `STARVED by CNC-01` on INSP-01 and CNV-02 (buffers EMPTY), all within ~19 s; START restored the line |
+
+**Screenshot review.** I looked at each PNG and fixed what was wrong:
+
+- the CNC roof was an opaque slab hiding the spindle; it is now glass with a frame;
+- labels were hidden behind enclosure posts; they now draw on top;
+- the close-ups cropped labels;
+- the overview cut off the 20-machine line; the camera distance is now fitted to both fields of view;
+- the belts were too dark;
+- the inspection station could not be hovered in its open centre; found by the picking test, fixed with pick boxes.
+
+The final images show every state with its label, the WARNING outline on the spindle head, the red FAULT spindle, beacons, the DQ halo, alert markers, all four buffer states, the single-station line, the 20-machine serpentine and the tooltip with units.
+
+### Known limitations
+
+- **FPS not measured:** the 60 fps target (4 machines) and the 20-machine smoothness were not measured on a GPU here; headless Chromium uses software rendering. Check `dev.html?synthetic=20&fps`.
+- **Buffers are qualitative** (see the backlog); a FLOWING buffer may be nearly full or nearly empty.
+- **Reading age** in the tooltip uses the wall clock, which matches event time only for live sources (a replay at speed ≠ 1 or an old export shows large ages).
+- **Replay mode** is only a visual cue plus the live-data gate in `bindStream`; driving the engine from `/replay?t=` belongs to the dashboard phase.
+- **Bundle size:** one chunk of about 600 kB (three.js); Vite warns. Code splitting is left to the dashboard phase.
+- **Vitest under this tool's shell:** Vitest fails on every test file, even a trivial one, when it is started with a lower-case drive letter in the working directory (`c:\dev\...`), which is how this session's shell starts; with `C:\` (any normal terminal, PowerShell, CI) it passes. It looks like two Vitest module instances when the path case differs. Not a project issue; noted in case it shows up elsewhere.
+- **Not run:** the CI matrix (there is no remote).
+
+### Deviations from the plan / CLAUDE.md
+
+- **New dependencies:**
+  - `three` 0.187.0 and `@types/three` (in the CLAUDE.md stack, newly installed);
+  - dev: `openapi-typescript` 7.13.0 (approved in planning; npm `overrides` lets it use TypeScript 6) and `playwright` 1.64.1 (approved; 1.65.0 was under two weeks old).
+- **Contract and config:** `MachineConfig.layout` (optional); the WebSocket frame models are new types in the OpenAPI schema, not in CLAUDE.md §6, since they are API envelopes, not domain contracts.
+- **New CLI option** `serve --loop/--no-loop`, needed to end a replay in minimal mode (`sources.yaml` loops by default).
+- **New files outside the CLAUDE.md layout** (§5 updated): `frontend/dev.html`, `frontend/scripts/`, `frontend/src/dev/`, `frontend/src/test/`, `backend/twin_backend/api/ws_models.py`, `api/routes/line.py`.
+- **Engine API additions:** `applyDataQuality`, `applyAlert`, `applyLine`, `setConnected` and diagnostics. Picking uses invisible pick boxes rather than the meshes.
+- **WebSocket subscribe validation:** unknown channels and machines are now checked on the raw message before typed validation. The error frame is unchanged.
+- **Synthetic mode** (`?synthetic=`) generates data in the browser for the performance check and screenshots only; it never reaches the backend or any experiment.
+
 ## Phase 4: Twin engine, API and bidirectional commands (done, 2026-11-13)
 
 Delivered in two parts: part A (engine, alerts, API, WebSocket stream, auth, minimal mode) and part B (commands end to end over all adapters, scenario injection, dev launcher, docs). A review fix between the parts makes restored alerts wait for fresh data after a restart.

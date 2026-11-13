@@ -106,6 +106,13 @@ FastAPI, started with `uvicorn.Server.serve()` inside `twin_common.aio.run()` ([
 
 Reference: [api.md](api.md) (generated from OpenAPI, plus the WebSocket protocol).
 
+## 3D twin engine (Phase 5)
+
+- **`TwinEngine`** (`frontend/src/engine/`): a framework-agnostic Three.js renderer ([ADR 0016](adr/0016-3d-twin-engine.md)). It lays the line out from `GET /line`, builds procedural machines with addressable parts, and maps states to visuals through one pure function. It infers buffer states from neighbours (the line reports no buffer levels) and frees every resource on `dispose()`.
+- **API client** (`frontend/src/api/`): a typed REST client and a WebSocket client (auth first, re-subscribe and fresh snapshot after every reconnect, backoff also after 4408). `bindStream` feeds the engine.
+- **Types:** generated from the backend's OpenAPI schema, which also carries the WebSocket frame models ([ADR 0017](adr/0017-generated-api-types.md)).
+- **Dev page:** `frontend/dev.html` (`uv run poe frontend`), with synthetic modes for performance checks and screenshots. See [frontend.md](frontend.md).
+
 ## Command path
 
 ```mermaid

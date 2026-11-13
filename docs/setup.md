@@ -143,6 +143,21 @@ uv run poe up; uv run poe dev              # dev: simulator publisher for source
 
 The API listens on `http://127.0.0.1:8000` (`config/api.yaml`). `GET /health` needs no key. For anything else set API keys in `.env` and send `X-API-Key`; without keys the API is read-only. `uv run poe dev` checks that the services are reachable and stops the simulator publisher on exit (Ctrl+C). See [api.md](api.md).
 
-## 5. Minimal mode reminder
+## 5. Running backend and frontend together
+
+The 3D twin's dev page needs the backend running. Use two terminals:
+
+```text
+# terminal 1: a backend (either one)
+uv run poe sim-quick; uv run poe minimal     # file replay, no Docker
+uv run poe up; uv run poe dev --source mock  # live simulator, commands work
+
+# terminal 2: the Vite dev server
+uv run poe frontend                          # open http://127.0.0.1:5173/dev.html
+```
+
+If `.env` configures API keys, put a viewer key in `frontend/.env.local` as `VITE_LINETWIN_API_KEY=...` (gitignored). Without keys the backend serves anonymous read access on loopback and the page needs nothing. `uv run poe screenshots` renders the dev page headless (Playwright downloads its Chromium on the first run). Details: [frontend.md](frontend.md).
+
+## 6. Minimal mode reminder
 
 None of sections 2 and 3 is needed to run the twin from a JSON/CSV file or the mock server. `config/sources.yaml` ships with `active: file` and `config/storage.yaml` with `backend: sqlite`, and minimal mode never requires Docker (CLAUDE.md §1 and §7). `uv run poe minimal` is the entry point.

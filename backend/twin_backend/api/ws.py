@@ -33,6 +33,23 @@ from pydantic import BaseModel, ValidationError
 from starlette.websockets import WebSocket, WebSocketDisconnect, WebSocketState
 
 from twin_backend.api.auth import Authenticator, Principal
+from twin_backend.api.ws_models import (
+    CHANNELS,
+    WsAuthInfo,
+    WsAuthMessage,
+    WsDroppedInfo,
+    WsDroppedMessage,
+    WsEmpty,
+    WsErrorInfo,
+    WsErrorMessage,
+    WsPongMessage,
+    WsSnapshotData,
+    WsSnapshotMessage,
+    WsSubscribedInfo,
+    WsSubscribedMessage,
+    WsSubscribeRequest,
+    frame,
+)
 from twin_backend.bus.base import EventBus, Subscription, Topic
 from twin_backend.engine.data_quality import DataQualityReport
 from twin_backend.engine.twin import TwinEngine
@@ -45,7 +62,8 @@ log = get_logger(__name__)
 CLOSE_UNAUTHORIZED = 4401
 CLOSE_TOO_SLOW = 4408
 
-CHANNELS = ("readings", "states", "line", "dataQuality", "alerts", "commands", "predictions")
+__all__ = ["CHANNELS", "CLOSE_TOO_SLOW", "CLOSE_UNAUTHORIZED", "Client", "Outbox", "WsHub"]
+
 COALESCED = frozenset({"readings", "line", "dataQuality"})
 HUB_TOPICS = (Topic.READINGS, Topic.STATES, Topic.PREDICTIONS, Topic.COMMANDS, Topic.ALERTS)
 
@@ -67,7 +85,12 @@ def _channel_and_type(message: BaseModel) -> tuple[str, str] | None:
 
 
 def envelope(msg_type: str, data: Any) -> str:
+    """A streamed frame: ``data`` is an already dumped contract model (see ws_models)."""
     return json.dumps({"type": msg_type, "data": data}, separators=(",", ":"))
+
+
+def error_frame(reason: str, **extra: list[str]) -> str:
+    return frame(WsErrorMessage(type="error", data=WsErrorInfo(reason=reason, **extra)))
 
 
 class Outbox:
@@ -103,7 +126,8 @@ class Outbox:
         """Everything queued now: a ``dropped`` notice, ordered messages, then latest values."""
         out: list[str] = []
         if self.dropped > self._reported_dropped:
-            out.append(envelope("dropped", {"count": self.dropped - self._reported_dropped}))
+            count = self.dropped - self._reported_dropped
+            out.append(frame(WsDroppedMessage(type="dropped", data=WsDroppedInfo(count=count))))
             self._reported_dropped = self.dropped
         out.extend(self._ordered)
         out.extend(self._latest.values())
@@ -129,12 +153,6 @@ class Client:
         if channel not in self.channels:
             return False
         return self.machines is None or machine_id is None or machine_id in self.machines
-
-
-class SubscribeMessage(BaseModel):
-    type: str
-    machines: list[str] | None = None
-    channels: list[str] = list(CHANNELS)
 
 
 class HubMetrics:
@@ -265,7 +283,7 @@ class WsHub:
         except TimeoutError:
             if self.auth.anonymous_read:
                 principal = self.auth.resolve(None)
-                await ws.send_text(envelope("auth", self._auth_info(principal)))
+                await ws.send_text(self._auth_frame(principal))
                 return principal
             await self._refuse(ws, 'authentication required: send {"type": "auth", ...} first')
             return None
@@ -283,89 +301,74 @@ class WsHub:
         if principal is None:
             await self._refuse(ws, "invalid or missing API key")
             return None
-        await ws.send_text(envelope("auth", self._auth_info(principal)))
+        await ws.send_text(self._auth_frame(principal))
         return principal
 
     @staticmethod
-    def _auth_info(principal: Principal | None) -> dict[str, Any]:
+    def _auth_frame(principal: Principal | None) -> str:
         assert principal is not None
-        return {"principal": principal.name, "role": principal.role.value}
+        info = WsAuthInfo(principal=principal.name, role=principal.role)
+        return frame(WsAuthMessage(type="auth", data=info))
 
     @staticmethod
     async def _refuse(ws: WebSocket, reason: str) -> None:
         with contextlib.suppress(Exception):
-            await ws.send_text(envelope("error", {"reason": reason}))
+            await ws.send_text(error_frame(reason))
             await ws.close(code=CLOSE_UNAUTHORIZED, reason="unauthorized")
 
     async def _handle(self, client: Client, raw: str) -> None:
         try:
             data = json.loads(raw)
         except json.JSONDecodeError:
-            client.outbox.put(envelope("error", {"reason": "invalid JSON"}))
+            client.outbox.put(error_frame("invalid JSON"))
             return
         msg_type = data.get("type") if isinstance(data, dict) else None
         if msg_type == "ping":
-            client.outbox.put(envelope("pong", {}))
+            client.outbox.put(frame(WsPongMessage(type="pong", data=WsEmpty())))
             return
         if msg_type == "auth":
-            client.outbox.put(envelope("error", {"reason": "already authenticated"}))
+            client.outbox.put(error_frame("already authenticated"))
             return
         if msg_type != "subscribe":
-            client.outbox.put(envelope("error", {"reason": f"unknown message type {msg_type!r}"}))
+            client.outbox.put(error_frame(f"unknown message type {msg_type!r}"))
             return
-        try:
-            sub = SubscribeMessage.model_validate(data)
-        except ValidationError as exc:
-            client.outbox.put(envelope("error", {"reason": str(exc)}))
-            return
-        unknown_ch = sorted(set(sub.channels) - set(CHANNELS))
-        unknown_m = sorted(set(sub.machines or ()) - set(self.engine.machine_ids))
-        if unknown_ch or unknown_m:
-            client.outbox.put(
-                envelope(
-                    "error",
-                    {
-                        "reason": "unknown channels/machines",
-                        "channels": unknown_ch,
-                        "machines": unknown_m,
-                    },
+        # Unknown names get one error listing them all, before the typed validation.
+        raw_channels = data.get("channels", list(CHANNELS))
+        raw_machines = data.get("machines")
+        if isinstance(raw_channels, list) and isinstance(raw_machines, list | None):
+            unknown_ch = sorted(set(map(str, raw_channels)) - set(CHANNELS))
+            unknown_m = sorted(set(map(str, raw_machines or ())) - set(self.engine.machine_ids))
+            if unknown_ch or unknown_m:
+                client.outbox.put(
+                    error_frame(
+                        "unknown channels/machines", channels=unknown_ch, machines=unknown_m
+                    )
                 )
-            )
+                return
+        try:
+            sub = WsSubscribeRequest.model_validate(data)
+        except ValidationError as exc:
+            client.outbox.put(error_frame(str(exc)))
             return
         client.machines = frozenset(sub.machines) if sub.machines is not None else None
         client.channels = frozenset(sub.channels)
-        client.outbox.put(
-            envelope(
-                "subscribed",
-                {"machines": sub.machines, "channels": sorted(client.channels)},
-            )
-        )
-        client.outbox.put(envelope("snapshot", self._snapshot(client)))
+        info = WsSubscribedInfo(machines=sub.machines, channels=sorted(set(sub.channels)))
+        client.outbox.put(frame(WsSubscribedMessage(type="subscribed", data=info)))
+        snapshot = WsSnapshotMessage(type="snapshot", data=self._snapshot(client))
+        client.outbox.put(frame(snapshot))
 
-    def _snapshot(self, client: Client) -> dict[str, Any]:
+    def _snapshot(self, client: Client) -> WsSnapshotData:
+        def wanted(machine_id: str) -> bool:
+            return client.machines is None or machine_id in client.machines
+
         state = self.engine.snapshot()
-        machines = {
-            m: v.model_dump(mode="json")
-            for m, v in state.machines.items()
-            if client.machines is None or m in client.machines
-        }
-        dq = {
-            m: r.model_dump(mode="json")
-            for m, r in self.engine.data_quality_all().items()
-            if client.machines is None or m in client.machines
-        }
-        alerts = [
-            a.model_dump(mode="json")
-            for a in self.engine.alerts.current()
-            if client.machines is None or a.machine_id in client.machines
-        ]
-        return {
-            "asOf": state.as_of.isoformat() if state.as_of else None,
-            "machines": machines,
-            "line": self.engine.line_model().model_dump(mode="json"),
-            "dataQuality": dq,
-            "alerts": alerts,
-        }
+        return WsSnapshotData(
+            as_of=state.as_of,
+            machines={m: v for m, v in state.machines.items() if wanted(m)},
+            line=self.engine.line_model(),
+            data_quality={m: r for m, r in self.engine.data_quality_all().items() if wanted(m)},
+            alerts=[a for a in self.engine.alerts.current() if wanted(a.machine_id)],
+        )
 
     async def _send_loop(self, client: Client) -> None:
         try:

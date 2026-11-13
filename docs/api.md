@@ -67,6 +67,19 @@ The server answers `{"type": "auth", "data": {"principal": "victor", "role": "vi
 
 Clients may also send `{"type": "ping"}` (answer `pong`).
 
+**Schema:** every frame is a Pydantic model (`twin_backend.api.ws_models`). Both directions are published as the discriminated unions `WsClientMessage` and `WsServerMessage` in the OpenAPI components (see Schemas below), and the frontend's TypeScript types are generated from them ([ADR 0017](adr/0017-generated-api-types.md)).
+
+### Line layout (`GET /line`, Phase 5)
+
+The loaded line config, as the 3D twin lays it out:
+
+- machines with kind, parts and the sensor → part map;
+- buffers;
+- the sensor catalog (units, ranges);
+- `topology` (`order`, `upstream`, `downstream`; `null` = SOURCE / SINK), the same one the twin engine uses for root causes.
+
+A machine's optional `layout` (`position` `[x, y, z]` in metres, `rotationDeg`) comes from `layout:` in the line YAML; `null` means automatic placement. See [frontend.md](frontend.md).
+
 **Backpressure:** the server never waits for a client. Each client has its own buffer: coalesced channels keep only the newest value per machine until the client takes it, ordered channels keep at most `ws.client_queue_size` (256) messages and drop the oldest, reported with `dropped`. A client whose send takes longer than `ws.send_timeout_s` (5 s) is closed with code **4408**. A slow client therefore never slows down other clients or ingestion (tested in `backend/tests/test_api_ws_backpressure.py`).
 
 ### Commands
@@ -250,6 +263,16 @@ Line state at event time t (snapshot + replay, equals reconstruct(t)). Role: **v
 |---|---|---|
 | 200 | Successful Response | [LineState](#linestate) |
 | 422 | Validation Error | [HTTPValidationError](#httpvalidationerror) |
+
+#### line
+
+##### `GET /line`
+
+Line layout: machines, kinds, parts, buffers and topology from the line config. Role: **viewer**.
+
+| Status | Description | Body |
+|---|---|---|
+| 200 | Successful Response | [LineResponse](#lineresponse) |
 
 #### machines
 
@@ -588,6 +611,37 @@ One of: `NORMAL`, `WARNING`, `FAULT`
 | `readings` | array of [Reading](#reading) \| null | no |  |
 | `buckets` | array of [HistoryBucketModel](#historybucketmodel) \| null | no |  |
 
+##### LineBufferModel
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+| `from` | string | yes |  |
+| `to` | string | yes |  |
+| `capacity` | integer | yes |  |
+
+##### LineMachineModel
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes |  |
+| `kind` | [MachineKind](#machinekind) | yes |  |
+| `name` | string | yes |  |
+| `sensors` | array of string | yes |  |
+| `parts` | array of string | yes |  |
+| `sensorParts` | map of string | yes | sensor -> part it is highlighted on |
+| `layout` | [MachineLayoutModel](#machinelayoutmodel) \| null | no | placement override; null = automatic layout |
+
+##### LineResponse
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `lineId` | string | yes |  |
+| `sensors` | map of [SensorSpecModel](#sensorspecmodel) | yes |  |
+| `machines` | array of [LineMachineModel](#linemachinemodel) | yes |  |
+| `buffers` | array of [LineBufferModel](#linebuffermodel) | yes |  |
+| `topology` | [TopologyModel](#topologymodel) | yes |  |
+
 ##### LineState
 
 Full line state. ``as_of`` is set by whoever built it (reconstruct time, live watermark).
@@ -615,6 +669,13 @@ Serialisable line view (API ``/machines``, WS channel ``line``).
 ##### MachineKind
 
 One of: `CONVEYOR`, `CNC`, `INSPECTION`
+
+##### MachineLayoutModel
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `position` | array of any \| null | no | [x, y, z] in metres, y up |
+| `rotationDeg` | number \| null | no | about the vertical axis |
 
 ##### MachineState
 
@@ -707,6 +768,12 @@ One telemetry sample from one machine.  Sensor values are nullable: ``null`` (or
 
 One of: `OK`, `DEGRADED`
 
+##### Role
+
+API roles, in increasing order of privilege.
+
+One of: `viewer`, `operator`
+
 ##### RootCauseView
 
 | Field | Type | Required | Description |
@@ -780,6 +847,14 @@ Sensor channels carried by a Reading (field names in Python and in YAML config).
 
 One of: `speed`, `temp`, `vib`, `load`, `current`
 
+##### SensorSpecModel
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `unit` | string | yes |  |
+| `min` | number | yes |  |
+| `max` | number | yes |  |
+
 ##### SensorStatsModel
 
 | Field | Type | Required | Description |
@@ -817,6 +892,14 @@ A machine's effective state changed (bus topic ``states``).  Emitted by the inge
 |---|---|---|---|
 | `kind` | [AdapterKind](#adapterkind) | yes |  |
 
+##### TopologyModel
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `order` | array of string | yes | machine ids in material-flow (config) order |
+| `upstream` | map of string \| null | yes | machine -> feeder; null = SOURCE |
+| `downstream` | map of string \| null | yes | machine -> receiver; null = SINK |
+
 ##### ValidationError
 
 | Field | Type | Required | Description |
@@ -826,6 +909,173 @@ A machine's effective state changed (bus topic ``states``).  Emitted by the inge
 | `type` | string | yes |  |
 | `input` | any | no |  |
 | `ctx` | object | no |  |
+
+##### WsAckMessage
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | `ack` | yes |  |
+| `data` | [CommandAck](#commandack) | yes |  |
+
+##### WsAlertMessage
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | `alert` | yes |  |
+| `data` | [Alert](#alert) | yes |  |
+
+##### WsAuthInfo
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `principal` | string | yes |  |
+| `role` | [Role](#role) | yes |  |
+
+##### WsAuthMessage
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | `auth` | yes |  |
+| `data` | [WsAuthInfo](#wsauthinfo) | yes |  |
+
+##### WsAuthRequest
+
+First message of every connection. ``apiKey`` may be omitted for anonymous read.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | `auth` | yes |  |
+| `apiKey` | string \| null | no |  |
+
+##### WsClientMessage
+
+##### WsCommandMessage
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | `command` | yes |  |
+| `data` | [Command](#command) | yes |  |
+
+##### WsDataQualityMessage
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | `dataQuality` | yes |  |
+| `data` | [DataQualityReport](#dataqualityreport) | yes |  |
+
+##### WsDroppedInfo
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `count` | integer | yes |  |
+
+##### WsDroppedMessage
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | `dropped` | yes |  |
+| `data` | [WsDroppedInfo](#wsdroppedinfo) | yes |  |
+
+##### WsEmpty
+
+##### WsErrorInfo
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `reason` | string | yes |  |
+| `channels` | array of string \| null | no |  |
+| `machines` | array of string \| null | no |  |
+
+##### WsErrorMessage
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | `error` | yes |  |
+| `data` | [WsErrorInfo](#wserrorinfo) | yes |  |
+
+##### WsLineMessage
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | `line` | yes |  |
+| `data` | [LineViewModel](#lineviewmodel) | yes |  |
+
+##### WsPingRequest
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | `ping` | yes |  |
+
+##### WsPongMessage
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | `pong` | yes |  |
+| `data` | [WsEmpty](#wsempty) | yes |  |
+
+##### WsPredictionMessage
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | `prediction` | yes |  |
+| `data` | [Prediction](#prediction) | yes |  |
+
+##### WsReadingMessage
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | `reading` | yes |  |
+| `data` | [Reading](#reading) | yes |  |
+
+##### WsServerMessage
+
+##### WsSnapshotData
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `asOf` | string (date-time) \| null | no |  |
+| `machines` | map of [MachineView](#machineview) | yes |  |
+| `line` | [LineViewModel](#lineviewmodel) | yes |  |
+| `dataQuality` | map of [DataQualityReport](#dataqualityreport) | yes |  |
+| `alerts` | array of [Alert](#alert) | yes |  |
+
+##### WsSnapshotMessage
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | `snapshot` | yes |  |
+| `data` | [WsSnapshotData](#wssnapshotdata) | yes |  |
+
+##### WsStateMessage
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | `state` | yes |  |
+| `data` | [StateChange](#statechange) | yes |  |
+
+##### WsSubscribeRequest
+
+Select machines (``null`` = all) and channels (default: all); repeat to change.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | `subscribe` | yes |  |
+| `machines` | array of string \| null | no |  |
+| `channels` | array of `readings` \| `states` \| `line` \| `dataQuality` \| `alerts` \| `commands` \| `predictions` | no |  |
+
+##### WsSubscribedInfo
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `machines` | array of string \| null | no |  |
+| `channels` | array of `readings` \| `states` \| `line` \| `dataQuality` \| `alerts` \| `commands` \| `predictions` | yes |  |
+
+##### WsSubscribedMessage
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | `subscribed` | yes |  |
+| `data` | [WsSubscribedInfo](#wssubscribedinfo) | yes |  |
 
 <!-- END GENERATED -->
 

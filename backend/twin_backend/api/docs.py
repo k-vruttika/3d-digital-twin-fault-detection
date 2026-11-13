@@ -4,10 +4,16 @@
 hand-written sections around it (WebSocket protocol, auth, commands, alerts) stay as they are.
 ``tests`` check that the committed file is up to date, so the reference cannot drift from the
 code. Output is deterministic (sorted, no timestamps).
+
+It also writes the frontend's inputs (ADR 0017): ``frontend/src/api/openapi.json`` (the full
+schema, including the WebSocket frame models), from which ``npm run gen:api`` generates the
+TypeScript types, and ``frontend/src/engine/__fixtures__/line*.json`` (the ``GET /line``
+response for each shipped line config), which the frontend tests use.
 """
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -20,7 +26,39 @@ from twin_backend.api.deps import get_principal, require_operator
 BEGIN = "<!-- BEGIN GENERATED: uv run poe api-docs -->"
 END = "<!-- END GENERATED -->"
 DOC_PATH = Path("docs/api.md")
+OPENAPI_PATH = Path("frontend/src/api/openapi.json")
+FIXTURE_DIR = Path("frontend/src/engine/__fixtures__")
+LINE_FIXTURES = {"line.json": "line.yaml", "line_single.json": "line_single.yaml"}
 METHOD_ORDER = {"get": 0, "post": 1, "put": 2, "delete": 3}
+
+
+def _root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
+def _json(data: Any) -> str:
+    return json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+
+
+def openapi_json(app: FastAPI) -> str:
+    return _json(app.openapi())
+
+
+def line_fixture(config_file: str) -> str:
+    """``GET /line`` for a shipped line config, as the frontend test fixture."""
+    from twin_backend.api.routes.line import line_response
+    from twin_common.config import load_line_config
+
+    line = load_line_config(_root() / "config" / config_file)
+    return _json(line_response(line).model_dump(mode="json", by_alias=True))
+
+
+def generated_files(app: FastAPI) -> dict[Path, str]:
+    """Every generated frontend input: repo-relative path -> content."""
+    out = {OPENAPI_PATH: openapi_json(app)}
+    for name, config_file in LINE_FIXTURES.items():
+        out[FIXTURE_DIR / name] = line_fixture(config_file)
+    return out
 
 
 def build_app() -> FastAPI:
@@ -29,7 +67,7 @@ def build_app() -> FastAPI:
     from twin_backend.runtime import build_runtime
     from twin_common.config import TwinSettings
 
-    root = Path(__file__).resolve().parents[3]
+    root = _root()
     settings = TwinSettings(_env_file=None, config_dir=root / "config")
     return create_app(build_runtime(settings, root=root), host="127.0.0.1", manage_runtime=False)
 
@@ -180,15 +218,23 @@ def splice(document: str, generated: str) -> str:
     return head + generated.rstrip("\n") + tail
 
 
+def _write(rel: Path, content: str) -> None:
+    path = Path.cwd() / rel
+    current = path.read_text(encoding="utf-8") if path.exists() else None
+    if current is not None and current.replace("\r\n", "\n") == content:
+        print(f"{rel.as_posix()} is up to date")
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8", newline="\n")
+    print(f"updated {rel.as_posix()}")
+
+
 def main() -> int:
-    path = Path.cwd() / DOC_PATH
-    current = path.read_text(encoding="utf-8")
-    updated = splice(current, render(build_app()))
-    if updated != current:
-        path.write_text(updated, encoding="utf-8", newline="\n")
-        print(f"updated {DOC_PATH}")
-    else:
-        print(f"{DOC_PATH} is up to date")
+    app = build_app()
+    current = (Path.cwd() / DOC_PATH).read_text(encoding="utf-8").replace("\r\n", "\n")
+    _write(DOC_PATH, splice(current, render(app)))
+    for rel, content in generated_files(app).items():
+        _write(rel, content)
     return 0
 
 
