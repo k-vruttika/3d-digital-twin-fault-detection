@@ -67,6 +67,7 @@ class MockSourceConfig(ConfigModel):
     ws_path: str = Field(min_length=1)
     history_path: str = Field(min_length=1)
     command_path: str = Field(min_length=1)
+    scenario_path: str = Field(default="/scenario", min_length=1)
     rest_poll_s: float = Field(gt=0, description="REST fallback poll period while WS is down")
     history_limit: int = Field(ge=1, description="max readings per /history request")
     mapping: FieldMapping = Field(default_factory=FieldMapping)

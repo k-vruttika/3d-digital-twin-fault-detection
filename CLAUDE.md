@@ -64,6 +64,9 @@ linetwin/
 │  ├─ line.yaml              # line layout, machines, sensors, buffers, part mappings
 │  ├─ sources.yaml           # active adapter + per-adapter settings
 │  ├─ storage.yaml           # event store backend (sqlite | timescale), writer, snapshots, policies
+│  ├─ engine.yaml            # state transitions, data-quality thresholds, alert kinds
+│  ├─ api.yaml               # bind address, CORS, WebSocket buffers
+│  ├─ commands.yaml          # safety rules (STOP always allowed), limits, idempotency
 │  ├─ mosquitto.d/           # Mosquitto settings shared by container and native fallback
 │  ├─ mosquitto.docker.conf  # Mosquitto entry config inside the container
 │  ├─ mosquitto.conf         # Mosquitto entry config for the native fallback
@@ -113,9 +116,11 @@ Sensor values (speed, temp, vib, load, current) are nullable: null = missing. Pa
 **Command:** `commandId, idempotencyKey, machineId, type (START | STOP | SET_SPEED | SET_LOAD | SCHEDULE_MAINTENANCE | RESET), params, issuedBy, ts`
 **CommandAck:** `commandId, status (ACCEPTED | REJECTED | EXECUTED | TIMEOUT), reason, ts`
 **StateChange:** `machineId, state, previousState, ts, reason` (ts on the event-time axis, ADR 0010)
-**Alert:** `alertId, machineId, ts, severity (INFO | WARNING | CRITICAL), kind, message, source`
+**Alert:** `alertId, machineId, ts, severity (INFO | WARNING | CRITICAL), kind, message, source, active, acknowledged, ackedBy, ackedAt, rev` (one append-only event per lifecycle transition, ISA-18.2; current alert = highest rev; ADR 0011)
 
-**MQTT topics:** `plant/line1/{machineId}/telemetry`, `.../state`, `.../cmd`, `.../cmd/ack`
+**ScenarioRequest / ScenarioAck** (simulation only, ADR 0015): `requestId, action (INJECT_FAULT | LOAD_SCENARIO), machineId, faultType, progressionS, scenario, seed, requestedBy, source, ts` / `requestId, status, reason, ts`
+
+**MQTT topics:** `plant/line1/{machineId}/telemetry`, `.../state`, `.../cmd`, `.../cmd/ack`; line level (simulation only): `plant/line1/scenario`, `plant/line1/scenario/ack`
 
 ML target mapping: RUNNING/IDLE/STARVED/BLOCKED/MAINTENANCE → NORMAL (machine health target); WARNING → WARNING; FAULT → FAULT. Document any change in an ADR.
 

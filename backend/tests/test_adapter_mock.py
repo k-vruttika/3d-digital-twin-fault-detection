@@ -141,7 +141,11 @@ async def test_stream_and_backfill_from_start(
     assert rig.via["backfill"] > 0
     assert rig.via["ws"] > 0
     assert rig.adapter.health().connected is False  # stopped
-    assert rig.adapter.capabilities == {Capability.COMMANDS, Capability.HISTORY}
+    assert rig.adapter.capabilities == {
+        Capability.COMMANDS,
+        Capability.HISTORY,
+        Capability.SCENARIO,
+    }
     lat = rig.pipeline.metrics.registry.get_sample_value(
         "linetwin_ingest_e2e_latency_seconds_count", {"source": "mock", "basis": "source"}
     )

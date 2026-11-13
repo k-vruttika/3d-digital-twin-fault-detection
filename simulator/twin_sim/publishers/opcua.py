@@ -20,6 +20,7 @@ miss samples or see a half-updated set. The variables are there for browsing and
 
 from __future__ import annotations
 
+import json
 import math
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -32,7 +33,13 @@ from asyncua.common.node import Node
 from asyncua.server.server import Server
 from asyncua.ua.object_ids import ObjectIds
 
-from twin_common.contracts import Command, CommandAck, ParamValue, Reading
+from twin_common.contracts import (
+    Command,
+    CommandAck,
+    ParamValue,
+    Reading,
+    ScenarioRequest,
+)
 from twin_common.enums import AckStatus, CommandType
 from twin_common.logging import get_logger
 from twin_common.opcua_names import (
@@ -40,7 +47,9 @@ from twin_common.opcua_names import (
     COMMAND_METHODS,
     FIELD_BROWSE_NAMES,
     READING_EVENT_TYPE,
+    SCENARIO_METHOD,
 )
+from twin_sim.publishers.scenario import timeout_ack
 from twin_sim.publishers.session import SimSession
 
 log = get_logger(__name__)
@@ -144,6 +153,14 @@ class OpcUaServer:
             await obj.set_event_notifier([ua.EventNotifier.SubscribeToEvents])
             events = await server.get_event_generator(etype, obj.nodeid)
             self._machines[machine_id] = _MachineNodes(obj, variables, events)
+        # Simulation only (ADR 0015): ScenarioRequest JSON in, ScenarioAck JSON out.
+        await line_obj.add_method(
+            self.ns,
+            SCENARIO_METHOD,
+            self._scenario_method(),
+            [_argument("request", ua.VariantType.String)],
+            [_argument("ack", ua.VariantType.String)],
+        )
         await server.start()
         self.session.add_listener(self._on_reading)
         log.info("opcua.started", endpoint=self.endpoint, machines=self.session.machine_ids)
@@ -172,6 +189,18 @@ class OpcUaServer:
         event.Message = ua.LocalizedText(f"{reading.machine_id} seq {reading.seq}")
         await nodes.events.trigger()  # stamps Time = now (UTC), used as sentAt
         self.events_fired += 1
+
+    def _scenario_method(self) -> Callable[..., Awaitable[str]]:
+        @uamethod  # type: ignore[untyped-decorator,unused-ignore]
+        async def handler(_parent: Any, request: str) -> str:
+            try:
+                req = ScenarioRequest.model_validate_json(request)
+            except ValueError as exc:
+                return json.dumps({"error": f"invalid ScenarioRequest: {exc}"})
+            ack = await self.session.submit_scenario(req, self.command_timeout_s)
+            return (ack if ack is not None else timeout_ack(req)).model_dump_json()
+
+        return handler  # type: ignore[no-any-return]
 
     def _method(
         self, machine_id: str, ctype: CommandType, param: str | None

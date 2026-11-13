@@ -16,6 +16,8 @@ from pathlib import Path
 from twin_backend.adapters.manager import SourceManager
 from twin_backend.bus import InMemoryEventBus
 from twin_backend.clock import Clock, SystemClock
+from twin_backend.commands.scenarios import ScenarioService
+from twin_backend.commands.service import CommandService
 from twin_backend.engine.twin import TwinEngine
 from twin_backend.ingest.metrics import IngestMetrics
 from twin_backend.storage.base import Stream
@@ -54,6 +56,8 @@ class Runtime:
     engine: TwinEngine
     clock: Clock
     root: Path
+    commands: CommandService
+    scenarios: ScenarioService
 
     async def start(self) -> None:
         """Storage, then the source, then the engine (after restoring its alerts).
@@ -65,6 +69,7 @@ class Runtime:
         if self.storage is not None:
             stored = await self.storage.store.fetch(Stream.ALERTS)
             self.engine.load_alerts([s.item for s in stored])
+            await self.commands.load()
         self.engine.start()
 
     async def stop(self) -> None:
@@ -141,6 +146,9 @@ def build_runtime(
         registry=metrics.registry,
         queue_size=sources.bus.queue_size,
     )
+    store = storage.store if storage is not None else None
+    commands = CommandService(commands_cfg, line, manager, engine, bus, clock, store)
+    scenarios = ScenarioService(manager, engine, bus, clock, store, metrics.registry)
     return Runtime(
         settings,
         line,
@@ -156,4 +164,6 @@ def build_runtime(
         engine,
         clock,
         root,
+        commands,
+        scenarios,
     )

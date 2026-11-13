@@ -53,6 +53,7 @@ class _MachineWindow:
     samples: deque[_Sample] = field(default_factory=deque)
     link_down: bool = False
     degraded: bool = False
+    seen: int = 0  # messages since startup
     last_violation: float | None = None
 
 
@@ -65,6 +66,7 @@ class DataQualityMonitor:
     def add_reading(self, reading: Reading) -> None:
         w = self._w.get(reading.machine_id)
         if w is not None:
+            w.seen += 1
             w.samples.append(
                 _Sample(
                     self.clock.monotonic(),
@@ -77,12 +79,18 @@ class DataQualityMonitor:
     def add_quarantined(self, machine_id: str | None) -> None:
         w = self._w.get(machine_id) if machine_id is not None else None
         if w is not None:
+            w.seen += 1
             w.samples.append(_Sample(self.clock.monotonic(), False))
 
     def set_link_down(self, machine_id: str, down: bool) -> None:
         w = self._w.get(machine_id)
         if w is not None:
             w.link_down = down
+
+    def seen(self, machine_id: str) -> int:
+        """Messages (readings + quarantined) attributed to the machine since startup."""
+        w = self._w.get(machine_id)
+        return w.seen if w is not None else 0
 
     def evaluate(self) -> dict[str, DataQualityReport]:
         """Current report per machine (also advances the OK/DEGRADED hysteresis)."""

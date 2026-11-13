@@ -281,3 +281,12 @@ Addresses, MQTT topic prefix and QoS, OPC UA endpoint and namespace, and the com
 - **Event loop:** the publishers run on `twin_common.aio.run`, a selector loop on Windows ([ADR 0008](adr/0008-windows-selector-event-loop.md)). uvicorn is started inside that loop.
 - **MQTT buffering:** the publisher sends readings from a bounded buffer (`--history-size` × number of machines). A short broker outage loses nothing, and the publisher reconnects with exponential backoff (`reconnect:` in `sources.yaml`).
 - **OPC UA:** each tick writes the variables and fires one `ReadingEventType` event per machine. A missing sensor value (`None`) is published as Double NaN.
+
+### Scenario injection (simulation only, Phase 4)
+
+Real equipment would not offer this. All three publishers accept scenario requests ([ADR 0015](adr/0015-scenario-injection.md)): mock `POST /scenario`, MQTT `{prefix}/scenario` with the ack on `{prefix}/scenario/ack`, and OPC UA method `InjectScenario` on the line object.
+
+- **`INJECT_FAULT`** (`machineId`, `faultType`, optional `progressionS`): `LineSimulator.inject_fault` queues the fault at the current simulation time through the normal event queue, so snapshot/restore stays exact. It is logged in `fault_log` with `planned_onset_s` = now. Rejected: unknown machine, a fault that does not apply to the machine kind, another fault active, maintenance, a jam on a machine that is not running. Gradual faults default to the fastest configured progression (`faults.progression_s` lower bound).
+- **`LOAD_SCENARIO`** (`scenario`, optional `seed`): a file named `<scenario>.yaml` in the session's scenario directory (the directory of `--scenario`). Its fault, sensor-fault and command events are scheduled relative to now (`LineSimulator.schedule_plan`); loads, thresholds and the source keep the current values.
+
+Requests run at a tick boundary (`RealtimeRunner.submit_call`, like commands), and the ack carries simulation time.

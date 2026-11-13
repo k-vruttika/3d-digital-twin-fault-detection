@@ -15,14 +15,22 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from twin_backend.api.auth import Authenticator
 from twin_backend.api.deps import API_KEY_HEADER, ApiContext
-from twin_backend.api.routes import alerts, history, machines, sources, system
+from twin_backend.api.routes import (
+    alerts,
+    commands,
+    history,
+    machines,
+    scenario,
+    sources,
+    system,
+)
 from twin_backend.api.ws import WsHub
 from twin_backend.runtime import Runtime
 
 API_VERSION = "0.4.0"
 DESCRIPTION = """\
 LineTwin backend: live state of the production-line twin, event-store queries, alerts,
-source management and (Phase 4 part B) operator commands.
+operator commands, source management and (simulation only) scenario injection.
 
 **Auth:** send an API key in the `X-API-Key` header. Viewers can read; operators can also send
 commands, switch sources and acknowledge alerts. Without configured keys the server serves
@@ -69,8 +77,9 @@ def create_app(
         allow_origins=runtime.api_cfg.cors_origins,
         allow_methods=["GET", "POST"],
         allow_headers=[API_KEY_HEADER, "Content-Type"],
+        expose_headers=["Idempotent-Replay"],
     )
-    for module in (machines, history, alerts, sources, system):
+    for module in (machines, history, commands, alerts, sources, scenario, system):
         app.include_router(module.router)
 
     @app.websocket("/stream")

@@ -17,7 +17,7 @@ from typing import Any, Protocol, runtime_checkable
 
 from twin_backend.clock import Clock
 from twin_common.config.sources import ReconnectConfig
-from twin_common.contracts import Command, CommandAck
+from twin_common.contracts import Command, CommandAck, ScenarioAck, ScenarioRequest
 from twin_common.enums import AckStatus, AdapterKind, AdapterStatus, Capability
 from twin_common.logging import get_logger
 
@@ -90,6 +90,12 @@ def unsupported_ack(cmd: Command, kind: AdapterKind, now: datetime) -> CommandAc
         reason=f"the {kind.value} adapter does not support commands",
         ts=now,
     )
+
+
+def scenario_ack(
+    req: ScenarioRequest, status: AckStatus, reason: str | None, now: datetime
+) -> ScenarioAck:
+    return ScenarioAck(request_id=req.request_id, status=status, reason=reason, ts=now)
 
 
 class Backoff:
@@ -274,3 +280,12 @@ class BaseAdapter:
 
     async def send_command(self, cmd: Command) -> CommandAck:
         return unsupported_ack(cmd, self.kind, self.clock.now())
+
+    async def send_scenario(self, req: ScenarioRequest) -> ScenarioAck:
+        """Simulation only (ADR 0015); adapters with ``Capability.SCENARIO`` override this."""
+        return scenario_ack(
+            req,
+            AckStatus.REJECTED,
+            f"the {self.kind.value} adapter does not support scenario injection",
+            self.clock.now(),
+        )

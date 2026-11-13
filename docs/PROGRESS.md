@@ -1,5 +1,125 @@
 # LineTwin progress
 
+## Phase 4: Twin engine, API and bidirectional commands (done, 2026-11-13)
+
+Delivered in two parts: part A (engine, alerts, API, WebSocket stream, auth, minimal mode) and part B (commands end to end over all adapters, scenario injection, dev launcher, docs). A review fix between the parts makes restored alerts wait for fresh data after a restart.
+
+### What was built
+
+- **Twin engine** (`backend/twin_backend/engine/`, [ADR 0012](adr/0012-twin-engine.md)). The engine observes the `LineState` fold and never changes it, so live state still equals `reconstruct(t)`.
+  - `state_machine.py`: allowed transitions for all nine states from `config/engine.yaml`. Invalid transitions are applied anyway, logged and counted (`linetwin_engine_invalid_transitions_total`).
+  - `topology.py` + `propagation.py`: root cause of every STARVED/BLOCKED machine from the line config. Buffers define the links; without buffers the machine order does (`line_single.yaml`). A neighbour whose link is down is reported with `unknown: true`.
+  - `data_quality.py`: OK / DEGRADED per machine from late %, quarantine %, partial-reading % (rolling wall-clock window) and link state, with `min_samples` and recovery hysteresis from config. Quarantined messages reach it on a new bus topic `quarantine`.
+  - `twin.py`: when a reading changes a machine's state, the engine publishes a StateChange with a reason (`"BLOCKED by CNC-01"`). Pipeline StateChanges are not re-emitted.
+- **Alerts** (`engine/alerts.py`, [ADR 0011](adr/0011-alert-lifecycle.md)):
+  - an ISA-18.2 lifecycle with independent `active` / `acknowledged`, plus `ackedBy`, `ackedAt` and `rev`;
+  - every transition is an append-only Alert event; deterministic ids;
+  - kinds `machine_warning`, `machine_fault`, `machine_offline`, `data_quality` and `line_stoppage` (event-time debounce);
+  - restored from the store on startup. A restored alert is re-evaluated only once its machine has fresh data since startup (the whole line for `line_stoppage`, `min_samples` messages for `data_quality`).
+- **API** (`backend/twin_backend/api/`, [ADR 0013](adr/0013-api-auth-websocket.md)):
+  - FastAPI, started with `uvicorn.Server.serve()` inside `twin_common.aio.run()`, never `uvicorn.run`. `python -m twin_backend serve --mode minimal|dev|config`.
+  - Routes: `GET /machines`, `/machines/{id}/state`, `/history` (raw / 1s / 1m / 10m), `/replay?t=`, `/export`, `POST /commands`, `GET /commands/{id}`, `GET /commands`, `GET /alerts`, `/alerts/history`, `POST /alerts/{id}/ack`, `POST /scenario`, `GET /scenario[/{id}]`, `GET /sources`, `POST /sources/switch`, `GET /predict` and `POST /whatif` (501 stubs), `GET /health`, `GET /metrics`.
+  - `WS /stream`: first-message auth, subscriptions by machines and channels, a snapshot on subscribe, per-client outboxes with coalescing (readings, line view, data quality) and drop-oldest with `dropped` notices (state changes, alerts, commands). A client whose send takes longer than `send_timeout_s` is closed (4408).
+  - CORS for the Vite dev server, configurable in `config/api.yaml`.
+- **Auth** (`api/auth.py`):
+  - API keys from `.env` (`LINETWIN_API_KEYS_OPERATOR` / `_VIEWER`, `name:key,...`; empty placeholders in `.env.example`), mapped to roles viewer < operator.
+  - Without keys: read-only and loopback only. A non-loopback bind without keys refuses to start, and a warning is logged.
+  - WebSocket keys go in the first message, never in a URL.
+  - `twin_common.logging` redacts every configured key, credential-named fields and `apiKey=` query parameters from structlog and uvicorn logs.
+- **Commands** (`backend/twin_backend/commands/`, [ADR 0014](adr/0014-command-path.md)):
+  - Pydantic validation; idempotency keys with replay (`Idempotent-Replay` header), in-flight dedup, 409 on reuse with a different request, a TTL, and reload from the store.
+  - Safety rules and limits from `config/commands.yaml`. **STOP is always allowed** (fail-safe): exempt in code, and the loader rejects any rule that names it.
+  - Capability check with a clear reason for the file source; routing via `SourceManager.route_command` with the existing timeout.
+  - Audit trail: Command, ACCEPTED and the final ack on the bus and in the store, rejected commands included, `ts` on the event-time axis.
+- **Scenario injection, simulation only** ([ADR 0015](adr/0015-scenario-injection.md)):
+  - `Capability.SCENARIO` on the mock server (`POST /scenario`), MQTT (`{prefix}/scenario` + `/scenario/ack`) and OPC UA (`InjectScenario` method). The mock, MQTT and OPC UA adapters implement `send_scenario`.
+  - Actions `INJECT_FAULT` (`LineSimulator.inject_fault`) and `LOAD_SCENARIO` (`LineSimulator.schedule_plan`), run at a tick boundary (`RealtimeRunner.submit_call`).
+  - New contracts `ScenarioRequest` / `ScenarioAck`, stored in the new table `scenario_requests` (SQLite 0003, TimescaleDB 0005), rejected requests included. Metric `linetwin_scenario_requests_total`.
+- **Storage:** alert lifecycle migrations (SQLite 0002, TimescaleDB 0004, unique `(alert_id, rev, ts)`). The TimescaleDB settings fingerprint now includes the stream list, so new tables get the configured policies.
+- **Runtime:** `build_runtime` also builds the engine, the command and scenario services, and loads `engine.yaml`, `api.yaml` and `commands.yaml`. The line file comes from `TwinSettings.line_file` (`LINETWIN_LINE_FILE`, `--line`). `SourceManager.stop(before_storage=...)` lets the engine publish its last events before the writer drains.
+- **poe tasks:** `minimal` (`serve --mode minimal`), `dev` (`python -m twin_backend.devstack`) and `api-docs`. `minimal-data-check` also runs `tests/test_phase4_minimal.py`.
+- **Dev launcher** (`devstack.py`):
+  - probes TimescaleDB (and Mosquitto for MQTT) and prints the `uv run poe up` hint;
+  - starts the matching `python -m twin_sim mock-server | mqtt | opcua` with `subprocess.Popen`: no shell, no asyncio subprocess;
+  - waits until it is ready, runs the backend in process, and stops the child in `finally`.
+- **Docs:**
+  - `docs/api.md` has hand-written sections for running, auth, the WebSocket protocol, commands, alerts and scenario injection, plus a REST reference generated from OpenAPI (`uv run poe api-docs`; a test fails when it is stale).
+  - ADRs 0011–0015; updates to architecture.md, setup.md, simulator.md and CLAUDE.md (§5 config files, §6 Alert, scenario contracts and topics).
+
+### How to run
+
+```text
+uv run poe sim-quick; uv run poe minimal      # API on http://127.0.0.1:8000, file replay + SQLite
+uv run poe up; uv run poe dev                 # simulator publisher (sources.yaml active) + TimescaleDB
+uv run poe dev --source opcua --speed 5       # other source / speed
+uv run poe api-docs                           # refresh docs/api.md after API changes
+```
+
+Writes need an operator key in `.env`: `LINETWIN_API_KEYS_OPERATOR=name:<key>`, sent as `X-API-Key`.
+
+### Tests
+
+pytest runs 671 tests (557 before this phase). The most important new ones:
+
+- **End to end** (`tests/test_phase4_e2e.py`, over **MQTT**, **OPC UA** and the **mock server**). A simulated full line runs at 20x behind the publisher; the backend runs on a real server with SQLite and API keys.
+  - STOP CNC-01 → ack EXECUTED → CNC-01 IDLE → CNV-01 BLOCKED, INSP-01 and CNV-02 STARVED, all with root cause CNC-01. The StateChanges with their reasons, the command and its acks (ACCEPTED, EXECUTED) are in the API and the store.
+  - A `line_stoppage` alert is raised; after START the line runs again and the alert clears, stays listed, is acknowledged and resolved. The store holds raise, clear and ack.
+  - A repeated idempotency key returns the original ack without a second send; reuse with a different request is 409.
+  - An injected belt jam is EXECUTED. CNV-01 goes to FAULT and a CRITICAL `machine_fault` alert appears. The stored request precedes the FAULT on the event-time axis. SET_SPEED on the faulted machine is rejected by the safety rule; STOP passes it.
+  - Measured: about 9 s (mock), 14 s (OPC UA) and 9 s (MQTT) per run.
+- **STOP fail-safe:** STOP passes the safety evaluator in every state (unit tests). Over the mock server with the publisher paused, STOP is ACCEPTED while CNC-01 is STALE and OFFLINE, and SET_SPEED is rejected ("data link is down"). An OFFLINE alert is raised.
+- **Rejections:** the file source has no command capability (REJECTED with reason, audited); viewer 403; no keys 403 with a hint; unknown machine 404; missing SET_SPEED param 422; scenario with the file source 409, stored.
+- **`/replay?t=` equals `reconstruct(t)`** at 9 times, and `/history` raw / 1m / 10m equals the store queries, on both backends.
+- **Slow WebSocket client** (`backend/tests/test_api_ws_backpressure.py`): against 160 readings/s, one client that never reads and one that reads every 0.5 s. The normal client receives every reading, ingestion keeps its pace, the tracker and writer drop nothing, and the slow clients' buffers stay bounded. Also: outbox coalescing and drop-oldest; a stalled client is closed (4408).
+- **Root cause matches the simulator:** on generated `cnc_stop`, `quick` and `quick_single` runs, the engine's root cause equals the simulator's `root_cause_machine` on every sample. I also ran the same check on 40 runs of `data/sim` by hand: 576,000 samples, 0 mismatches. The shipped transition table accepts every transition in those runs.
+- **Engine:** StateChange reasons, line stoppage debounce, fault / warning / offline alerts, data quality from quarantine, live state == reconstruct with the engine running and alerts restored after a restart (both backends).
+- **Restored alerts wait for fresh data** (review fix): a raised `machine_fault` and `line_stoppage` survive a restart through the store with the same ids. They are not cleared by the empty state, partial data or a data-quality tick, are confirmed by fresh data, and clear with the same id once the data ends the condition. Both variants fail with the gate removed.
+- **Commands unit tests:** audit order and event time, safety rejection not sent, capability, in-flight dedup, TTL, timeout, restore of idempotency keys from the store (both backends).
+- **Simulator:** `inject_fault` (jam trips, kind rules, duplicates, short gradual fault, snapshot/restore), `schedule_plan` offsets, `apply_scenario` validation, the request contract (no path traversal), `submit_call` error handling.
+- **Auth and logs:** role matrix, loopback rule, WebSocket auth (wrong key, subscribe first, missing auth, timeout → 4401, anonymous only without keys). **No key appears in any log line** (structlog, uvicorn access and error logs, a key in a query string, the WebSocket auth message).
+- **Minimal mode** (`tests/test_phase4_minimal.py`): `serve --mode minimal` in a fresh process (plain `Popen`), no keys. The API serves live state for every machine, history comes from SQLite, the WebSocket streams anonymously, writes are refused, no broker, DB driver or ML module is loaded, and on Windows the loop is a selector loop.
+- **Docs and launcher:** `docs/api.md` is up to date; launcher argument building, service probes, cleanup on exceptions, dead publisher, and a smoke run with a real mock-server child process.
+- **Config:** shipped configs load; missing states or kinds are rejected; a rule naming STOP is rejected; the line file and API key settings; `.env.example` placeholders.
+
+### Verified here (Windows 11, Docker services up)
+
+| Check | Result |
+|---|---|
+| `uv run poe lint` | passes |
+| `LINETWIN_REQUIRE_SERVICES=1 uv run poe test` | 671 passed, 0 skipped (vitest: no test files yet) |
+| `uv run poe minimal-data-check` | 12 passed |
+| e2e, WebSocket backpressure, engine and minimal tests | passed 3 runs in a row |
+| `uv run poe minimal` by hand | serves live state; `eventLoop` `_WindowsSelectorEventLoop`; no optional heavy module loaded; writes 403 without keys |
+| `uv run poe dev --source mqtt --speed 10` by hand | publisher started, backend on TimescaleDB; STOP EXECUTED; belt-jam injection EXECUTED |
+
+### Known limitations
+
+- **Hard kill of the dev launcher:** Ctrl+C stops the simulator child (cleanup in `finally`), but killing the launcher process outright leaves the child running.
+- **Audit queries are unpaged:** `GET /commands`, `GET /commands/{id}` (after a restart) and `GET /scenario` read their streams in full from the store. That is fine at operator command rates; large volumes would need indexed lookups.
+- **Live state starts empty after a restart:** only alerts are restored. Seeding the state from the store would hide a restarted file replay, whose readings are older than the stored ones.
+- **Data quality is live-only:** it uses a wall-clock window and is not stored; only its alerts are.
+- **Command `ts` before any data:** with no reading yet, audit timestamps fall back to the wall clock.
+- **WebSocket coalescing:** a slow client sees the newest reading per machine, not every reading; `/history` has them all.
+- **Not run:** the test suite with the services stopped (the MQTT e2e and TimescaleDB tests are marked `services` and skip with the start hint, as before), and the CI matrix (there is no remote).
+
+### Deviations from the plan / CLAUDE.md
+
+- **Contracts:** `Alert` gained `active`, `acknowledged`, `ackedBy`, `ackedAt` and `rev`; the unique key is `(alert_id, rev, ts)` because TimescaleDB needs `ts` in it. New contracts `ScenarioRequest` / `ScenarioAck`; new enums `DataQuality`, `Role` and `ScenarioAction`; new `Capability.SCENARIO`. CLAUDE.md §6 is updated.
+- **New bus topics** `quarantine` and `scenarios`, and the new stream `scenario_requests`.
+- **New config files** `engine.yaml`, `api.yaml` and `commands.yaml` (CLAUDE.md §5 updated). The API key header is fixed (`X-API-Key`) rather than configurable. `sources.yaml` mock gained `scenario_path`.
+- **New settings:** `TwinSettings.line_file`, `api_keys_operator` and `api_keys_viewer`.
+- **Dependencies:** `fastapi` and `uvicorn` added to `twin-backend` (already in the stack and the lockfile via the simulator).
+- **New files outside the layout:** `twin_backend/__main__.py`, `devstack.py`, `api/docs.py`, `api/routes/`, `commands/scenarios.py`, `twin_sim/publishers/scenario.py`.
+- **Additions beyond the task list:** `GET /alerts/history`, `GET /commands` (list), `GET /scenario[/{id}]`; the CLI options `--replay-speed`, `--sqlite-path`, `--file`, `--source`, `--line`.
+- **Command service:** the module is `commands/service.py`, not `bus.py` as named in the plan. `SourceManager.send_command` was split into `route_command` (no publishing) plus publishing, so the service controls the order of audit events.
+- **Simulator:** `LineSimulator.inject_fault` / `schedule_plan`, `RealtimeRunner.submit_call` (commands now go through it), `SimSession.submit_scenario`.
+- **Audit timestamps:** command and scenario audit `ts` values are on the event-time axis, and the simulator's scenario acks carry simulation time like its command acks. Neither was specified for commands; I chose this for consistency with ADR 0010.
+- **Fixes made along the way:**
+  - engine shutdown order, so the last StateChanges are folded before storage stops;
+  - uvicorn turning off access-log propagation process-wide;
+  - log redaction of non-string arguments;
+  - read-after-write lag in the audit listings (they now merge this process's in-memory records).
+
 ## Phase 3: Storage and event sourcing (done, 2026-11-12)
 
 Delivered in two parts: part A (SQLite, writer, snapshots, replay, export, wiring) and part B (TimescaleDB, test-database isolation, benchmark, docs).

@@ -6,12 +6,14 @@ import asyncio
 import contextlib
 import inspect
 from collections.abc import Awaitable, Callable
+from typing import Any, TypeVar
 
 from twin_common.contracts import Command, CommandAck, Reading
 from twin_common.logging import get_logger
 from twin_sim.line import LineSimulator
 
 ReadingCallback = Callable[[Reading], Awaitable[None] | None]
+T = TypeVar("T")
 TICK_S = 1.0
 
 log = get_logger(__name__)
@@ -32,7 +34,8 @@ class RealtimeRunner:
         self.speed = speed
         self.ticks = 0
         self._stop = asyncio.Event()
-        self._pending: list[tuple[Command, asyncio.Future[CommandAck]]] = []
+        # Calls applied to the simulator at the next tick boundary (commands, scenario requests).
+        self._pending: list[tuple[Callable[[LineSimulator], Any], asyncio.Future[Any]]] = []
 
     @property
     def period_s(self) -> float:
@@ -43,8 +46,12 @@ class RealtimeRunner:
 
     def submit(self, cmd: Command) -> asyncio.Future[CommandAck]:
         """Queue a command; the future resolves with the ack at the next tick."""
-        fut: asyncio.Future[CommandAck] = asyncio.get_running_loop().create_future()
-        self._pending.append((cmd, fut))
+        return self.submit_call(lambda sim: sim.apply_command(cmd))
+
+    def submit_call(self, fn: Callable[[LineSimulator], T]) -> asyncio.Future[T]:
+        """Run ``fn(sim)`` at the next tick boundary; the future resolves with its result."""
+        fut: asyncio.Future[T] = asyncio.get_running_loop().create_future()
+        self._pending.append((fn, fut))
         return fut
 
     async def run(self, max_ticks: int | None = None) -> int:
@@ -55,9 +62,12 @@ class RealtimeRunner:
         while not self._stop.is_set() and (max_ticks is None or self.ticks < max_ticks):
             next_deadline += self.period_s
             pending, self._pending = self._pending, []
-            for cmd, fut in pending:
+            for fn, fut in pending:
                 if not fut.done():
-                    fut.set_result(self.sim.apply_command(cmd))
+                    try:
+                        fut.set_result(fn(self.sim))
+                    except Exception as exc:  # a bad request must not stop the simulation
+                        fut.set_exception(exc)
             frame = self.sim.step(TICK_S)
             for reading in self.sim.readings(frame):
                 result = self.on_reading(reading)

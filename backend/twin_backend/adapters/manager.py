@@ -27,7 +27,7 @@ from twin_backend.ingest.pipeline import IngestPipeline
 from twin_backend.ingest.quarantine import BusQuarantine, QuarantineSink, build_quarantine
 from twin_common.config.line import LineConfig
 from twin_common.config.sources import SourcesConfig
-from twin_common.contracts import Command, CommandAck
+from twin_common.contracts import Command, CommandAck, ScenarioAck, ScenarioRequest
 from twin_common.enums import AckStatus, AdapterKind, AdapterStatus, Capability
 from twin_common.logging import get_logger
 
@@ -181,28 +181,66 @@ class SourceManager:
             await self.pipeline.tick()
 
     # -- commands ----------------------------------------------------------------------------
-    async def send_command(self, cmd: Command) -> CommandAck:
+    async def route_command(self, cmd: Command) -> CommandAck:
+        """Send a command to the active adapter and wait for its ack (no bus publishing).
+
+        A source without the commands capability answers REJECTED with a clear reason; no ack
+        within ``command_timeout_s`` gives TIMEOUT.
+        """
         adapter = self._adapter
-        await self.bus.publish(Topic.COMMANDS, cmd)
         if adapter is None or Capability.COMMANDS not in adapter.capabilities:
             kind = adapter.kind.value if adapter is not None else "no"
-            ack = CommandAck(
+            return CommandAck(
                 command_id=cmd.command_id,
                 status=AckStatus.REJECTED,
                 reason=f"the active source ({kind} adapter) does not accept commands",
                 ts=self.clock.now(),
             )
-        else:
-            try:
-                ack = await asyncio.wait_for(
-                    adapter.send_command(cmd), timeout=self.sources.command_timeout_s
-                )
-            except TimeoutError:
-                ack = CommandAck(
-                    command_id=cmd.command_id,
-                    status=AckStatus.TIMEOUT,
-                    reason=f"no ack within {self.sources.command_timeout_s:g} s",
-                    ts=self.clock.now(),
-                )
+        try:
+            return await asyncio.wait_for(
+                adapter.send_command(cmd), timeout=self.sources.command_timeout_s
+            )
+        except TimeoutError:
+            return CommandAck(
+                command_id=cmd.command_id,
+                status=AckStatus.TIMEOUT,
+                reason=f"no ack within {self.sources.command_timeout_s:g} s",
+                ts=self.clock.now(),
+            )
+
+    async def send_command(self, cmd: Command) -> CommandAck:
+        """Route a command and publish it and its ack on the bus (``Topic.COMMANDS``)."""
+        await self.bus.publish(Topic.COMMANDS, cmd)
+        ack = await self.route_command(cmd)
         await self.bus.publish(Topic.COMMANDS, ack)
+        return ack
+
+    def supports(self, capability: Capability) -> bool:
+        adapter = self._adapter
+        return adapter is not None and capability in adapter.capabilities
+
+    async def send_scenario(self, req: ScenarioRequest) -> ScenarioAck:
+        """Simulation only (ADR 0015): forward to the active adapter (no bus publishing)."""
+        adapter = self._adapter
+        send = getattr(adapter, "send_scenario", None)
+        if adapter is None or send is None or Capability.SCENARIO not in adapter.capabilities:
+            kind = adapter.kind.value if adapter is not None else "no"
+            return ScenarioAck(
+                request_id=req.request_id,
+                status=AckStatus.REJECTED,
+                reason=f"the active source ({kind} adapter) does not support scenario injection "
+                "(a simulation-only capability)",
+                ts=self.clock.now(),
+            )
+        try:
+            ack: ScenarioAck = await asyncio.wait_for(
+                send(req), timeout=self.sources.command_timeout_s
+            )
+        except TimeoutError:
+            ack = ScenarioAck(
+                request_id=req.request_id,
+                status=AckStatus.TIMEOUT,
+                reason=f"no ack within {self.sources.command_timeout_s:g} s",
+                ts=self.clock.now(),
+            )
         return ack

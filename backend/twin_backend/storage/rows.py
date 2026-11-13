@@ -13,7 +13,16 @@ from typing import Any
 
 from twin_backend.ingest.quarantine import QuarantineRecord
 from twin_backend.storage.base import Stored, Stream
-from twin_common.contracts import Alert, Command, CommandAck, Prediction, Reading, StateChange
+from twin_common.contracts import (
+    Alert,
+    Command,
+    CommandAck,
+    Prediction,
+    Reading,
+    ScenarioAck,
+    ScenarioRequest,
+    StateChange,
+)
 
 COLUMNS: dict[Stream, tuple[str, ...]] = {
     Stream.READINGS: (
@@ -83,6 +92,16 @@ COLUMNS: dict[Stream, tuple[str, ...]] = {
         "meta",
         "ingested_at",
     ),
+    Stream.SCENARIO_REQUESTS: (
+        "ts",
+        "request_id",
+        "kind",
+        "action",
+        "machine_id",
+        "status",
+        "payload",
+        "ingested_at",
+    ),
 }
 
 # Natural keys: duplicates on these are skipped (idempotent inserts). Quarantine has none.
@@ -93,6 +112,7 @@ UNIQUE_KEYS: dict[Stream, tuple[str, ...]] = {
     Stream.COMMANDS: ("command_id", "ts"),
     Stream.COMMAND_ACKS: ("command_id", "status", "ts"),
     Stream.ALERTS: ("alert_id", "rev", "ts"),
+    Stream.SCENARIO_REQUESTS: ("request_id", "kind", "ts"),
 }
 
 # Deterministic fetch order.
@@ -104,6 +124,7 @@ ORDER_BY: dict[Stream, tuple[str, ...]] = {
     Stream.COMMAND_ACKS: ("ts", "command_id", "status"),
     Stream.ALERTS: ("ts", "alert_id", "rev"),
     Stream.QUARANTINE: ("ts", "ingested_at", "source", "reason", "detail"),
+    Stream.SCENARIO_REQUESTS: ("ts", "request_id", "kind"),
 }
 
 
@@ -170,6 +191,29 @@ def encode(stream: Stream, stored: Stored[Any], ts_out: TsOut) -> tuple[Any, ...
             al.acked_by,
             ts_out(al.acked_at) if al.acked_at is not None else None,
             al.rev,
+            ing,
+        )
+    if stream is Stream.SCENARIO_REQUESTS:
+        if isinstance(item, ScenarioRequest):
+            return (
+                ts_out(item.ts),
+                item.request_id,
+                "request",
+                item.action.value,
+                item.machine_id,
+                None,
+                item.model_dump_json(),
+                ing,
+            )
+        sa: ScenarioAck = item
+        return (
+            ts_out(sa.ts),
+            sa.request_id,
+            "ack",
+            None,
+            None,
+            sa.status.value,
+            sa.model_dump_json(),
             ing,
         )
     q: QuarantineRecord = item
@@ -243,6 +287,11 @@ def decode(stream: Stream, row: Mapping[str, Any], ts_in: TsIn) -> Stored[Any]:
                 "rev": row["rev"],
             }
         )
+    elif stream is Stream.SCENARIO_REQUESTS:
+        model: type[ScenarioRequest] | type[ScenarioAck] = (
+            ScenarioRequest if row["kind"] == "request" else ScenarioAck
+        )
+        item = model.model_validate_json(row["payload"])
     else:
         item = QuarantineRecord(
             ts=ts,

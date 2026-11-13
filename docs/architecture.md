@@ -83,16 +83,39 @@ flowchart LR
 - **Never blocking:** the writer reads from its own bus subscriptions. When it falls behind, the oldest rows are dropped and counted (`linetwin_storage_dropped_writes_total`). Ingestion never waits for the database.
 - **One time axis:** every stored event carries its event time `ts`. Staleness state changes are stamped on the same axis (scaled by the replay speed). `ingested_at` (wall clock) is metadata only.
 - **Time travel:** `reconstruct(t)` folds snapshot + events with the same order-independent reducer the live tracker uses, so it equals the live state for the same data. LATE readings are stored but never applied.
-- **Metrics:** the storage metrics share the ingest metrics registry (served at `/metrics` from Phase 4).
+- **Metrics:** the storage metrics share the ingest metrics registry, served at `/metrics`.
 - **Measured write throughput:** see `experiments/results/storage_bench.md` (`uv run poe storage-bench`).
+
+## Twin engine (Phase 4)
+
+`TwinEngine` observes the line-state fold and never changes it, so live state still equals `reconstruct(t)` ([ADR 0012](adr/0012-twin-engine.md)):
+
+- **State machine:** allowed transitions from `config/engine.yaml`; invalid ones are logged and counted, never rejected.
+- **Propagation:** the root cause of every STARVED/BLOCKED machine, from the line topology (buffers, or machine order for `line_single.yaml`). It is the simulator's rule, checked sample by sample against generated runs.
+- **Data quality:** OK / DEGRADED per machine, from late %, quarantine %, partial-reading % and link state.
+- **Alerts:** an ISA-18.2 lifecycle (raise, clear, acknowledge), stored as append-only events ([ADR 0011](adr/0011-alert-lifecycle.md)).
+- **Engine StateChanges:** when a reading changes a machine's state, the engine publishes a StateChange with a reason (`"BLOCKED by CNC-01"`).
+
+## API (Phase 4)
+
+FastAPI, started with `uvicorn.Server.serve()` inside `twin_common.aio.run()` ([ADR 0013](adr/0013-api-auth-websocket.md)):
+
+- **REST:** machine state, history, replay, export, alerts, sources, commands, scenario, health and metrics.
+- **WebSocket `/stream`:** a first-message auth, subscriptions by machine and channel, and per-client bounded outboxes with coalescing and drop-oldest, so a slow client never slows ingestion or other clients.
+- **Auth:** API keys from `.env`, mapped to roles viewer and operator. Without keys the API is read-only and binds to loopback only.
+
+Reference: [api.md](api.md) (generated from OpenAPI, plus the WebSocket protocol).
 
 ## Command path
 
 ```mermaid
 flowchart LR
-    D["Dashboard"] -->|POST /commands| S["Safety rules"] --> CB["Command bus"] --> A["Active adapter<br/>send_command"] --> M["Machine"]
-    M -->|CommandAck| CB
+    D["Dashboard"] -->|POST /commands| I["Idempotency"] --> S["Safety rules<br/>(STOP always allowed)"] --> C["Capability check"] --> A["Active adapter<br/>send_command"] --> M["Machine"]
+    M -->|CommandAck| A
+    S -.->|"Command, ACCEPTED,<br/>final ack"| B["Bus → event store<br/>(audit trail)"]
 ```
+
+See [ADR 0014](adr/0014-command-path.md). Scenario injection (simulation only, [ADR 0015](adr/0015-scenario-injection.md)) takes the same route, with `POST /scenario` → active adapter `send_scenario` → simulator, and has its own audit table `scenario_requests`.
 
 ## What-if path
 
@@ -103,7 +126,7 @@ flowchart LR
 
 ## Minimal mode
 
-The minimal path is `File export` or `Mock server` → adapter → ingest → bus → twin engine → WS gateway → frontend, with the SQLite event store (`config/storage.yaml` ships with `backend: sqlite`) and no broker, TimescaleDB, Docker or ML. It must keep working in every phase (CLAUDE.md section 1).
+The minimal path is `File export` or `Mock server` → adapter → ingest → bus → twin engine → API / WS gateway → frontend, with the SQLite event store (`config/storage.yaml` ships with `backend: sqlite`) and no broker, TimescaleDB, Docker or ML. `uv run poe minimal` runs it (`serve --mode minimal`). It must keep working in every phase (CLAUDE.md section 1); `tests/test_phase4_minimal.py` starts the server in a fresh process and checks that no broker, database driver or ML module is loaded.
 
 ## Shared contracts
 
@@ -115,8 +138,9 @@ All wire formats are defined once in `common/twin_common/contracts.py`:
 - `Attribution`
 - `Command`
 - `CommandAck`
-- `Alert` (bus topic `alerts`; stored from Phase 3, produced from the inference phases)
+- `Alert` (bus topic `alerts`; one event per lifecycle transition: `active`, `acknowledged`, `rev`, ADR 0011)
+- `ScenarioRequest` / `ScenarioAck` (bus topic `scenarios`; simulation only, ADR 0015)
 
 JSON is camelCase and Python attributes are snake_case. Timestamps must be timezone-aware and are normalized to UTC. Unknown fields are rejected.
 
-Line layout, data sources and storage come from `config/line.yaml`, `config/sources.yaml` and `config/storage.yaml`, which are validated by `twin_common.config`.
+Line layout, data sources, storage, the engine, the API and commands come from `config/line.yaml` (or `line_single.yaml`, via `LINETWIN_LINE_FILE` / `--line`), `sources.yaml`, `storage.yaml`, `engine.yaml`, `api.yaml` and `commands.yaml`, all validated by `twin_common.config`.

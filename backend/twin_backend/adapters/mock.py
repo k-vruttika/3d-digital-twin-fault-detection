@@ -7,6 +7,7 @@
 - **While the WebSocket is down:** ``/history`` is polled every ``rest_poll_s`` until the next
   reconnect attempt (exponential backoff).
 - **Commands:** ``POST {command_path}``.
+- **Scenario injection** (simulation only, ADR 0015): ``POST {scenario_path}``.
 
 Machine ids come from the loaded line config.
 """
@@ -22,11 +23,11 @@ import httpx
 from websockets.asyncio.client import connect
 from websockets.exceptions import WebSocketException
 
-from twin_backend.adapters.base import BaseAdapter
+from twin_backend.adapters.base import BaseAdapter, scenario_ack
 from twin_backend.clock import Clock
 from twin_common.config.line import LineConfig
 from twin_common.config.sources import MockSourceConfig, ReconnectConfig
-from twin_common.contracts import Command, CommandAck
+from twin_common.contracts import Command, CommandAck, ScenarioAck, ScenarioRequest
 from twin_common.enums import AckStatus, AdapterKind, Capability
 from twin_common.logging import get_logger
 
@@ -43,7 +44,7 @@ def _ws_url(base_url: str, path: str) -> str:
 
 class MockServerAdapter(BaseAdapter):
     kind = AdapterKind.MOCK
-    capabilities = frozenset({Capability.COMMANDS, Capability.HISTORY})
+    capabilities = frozenset({Capability.COMMANDS, Capability.HISTORY, Capability.SCENARIO})
 
     def __init__(
         self,
@@ -184,3 +185,24 @@ class MockServerAdapter(BaseAdapter):
                 reason=f"command transport failed: {type(exc).__name__}: {exc}",
                 ts=self.clock.now(),
             )
+
+    async def send_scenario(self, req: ScenarioRequest) -> ScenarioAck:
+        now = self.clock.now
+        if self._http is None:
+            return scenario_ack(req, AckStatus.REJECTED, "mock adapter is not started", now())
+        try:
+            resp = await self._http.post(
+                self.cfg.scenario_path,
+                content=req.model_dump_json(),
+                headers={"content-type": "application/json"},
+                timeout=self.command_timeout_s,
+            )
+            resp.raise_for_status()
+            return ScenarioAck.model_validate(resp.json())
+        except httpx.TimeoutException:
+            return scenario_ack(
+                req, AckStatus.TIMEOUT, f"no ack within {self.command_timeout_s:g} s", now()
+            )
+        except (httpx.HTTPError, ValueError) as exc:
+            reason = f"scenario transport failed: {type(exc).__name__}: {exc}"
+            return scenario_ack(req, AckStatus.REJECTED, reason, now())

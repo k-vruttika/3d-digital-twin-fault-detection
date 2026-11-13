@@ -5,6 +5,8 @@
 - ``GET /history?machineId=&sinceSeq=&limit=``: Readings with seq > sinceSeq, oldest first
 - ``WS /stream``: every Reading as ``{"reading": {...}, "sentAt": "<wall-clock ISO>"}``
 - ``POST /command``: a ``Command``; responds with the simulator's ``CommandAck``
+- ``POST /scenario``: a ``ScenarioRequest`` (simulation only, ADR 0015); responds with a
+  ``ScenarioAck``
 
 A WebSocket client that cannot keep up loses messages from its queue; it can fill the gap
 from ``/history`` (the backend MockServerAdapter does so after every reconnect).
@@ -21,9 +23,10 @@ from typing import Annotated, Any
 
 from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
 
-from twin_common.contracts import Command, CommandAck, Reading
+from twin_common.contracts import Command, CommandAck, Reading, ScenarioAck, ScenarioRequest
 from twin_common.enums import AckStatus
 from twin_common.logging import get_logger
+from twin_sim.publishers.scenario import timeout_ack
 from twin_sim.publishers.session import SimSession
 
 log = get_logger(__name__)
@@ -85,6 +88,11 @@ def create_app(
                 ts=datetime.now(UTC),
             )
         return ack
+
+    @app.post("/scenario")
+    async def scenario(req: ScenarioRequest) -> ScenarioAck:
+        ack = await session.submit_scenario(req, command_timeout_s)
+        return ack if ack is not None else timeout_ack(req)
 
     @app.websocket("/stream")
     async def stream(ws: WebSocket) -> None:

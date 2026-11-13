@@ -79,8 +79,12 @@ sequence = [
 ]
 
 [tool.poe.tasks.dev]
-help = "Full stack: backend + frontend (Phase 2+)"
-cmd = """python -c "import sys; sys.exit('dev is not implemented yet; it needs the backend and frontend (Phase 2+).')" """
+help = "Simulator publisher for the active source + backend with TimescaleDB (run `up` first); extra args pass through"
+cmd = "python -m twin_backend.devstack"
+
+[tool.poe.tasks.api-docs]
+help = "Regenerate the generated part of docs/api.md from the OpenAPI schema"
+cmd = "python -m twin_backend.api.docs"
 
 [tool.poe.tasks.minimal]
 help = "Backend API from the replay file + SQLite, no Docker/broker/ML (run sim-quick first); extra args pass through"

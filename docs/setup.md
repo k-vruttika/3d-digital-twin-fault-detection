@@ -45,6 +45,8 @@ The defaults work without any configuration. To change credentials or the databa
 |---|---|---|
 | `LINETWIN_PG_DB` / `LINETWIN_PG_USER` / `LINETWIN_PG_PASSWORD` | `linetwin` / `linetwin` / `linetwin-dev` | database created on first start (local development values only) |
 | `LINETWIN_PG_PORT` | `5432` | host port of TimescaleDB. Change it, e.g. to `5433`, if a native PostgreSQL already uses 5432. |
+| `LINETWIN_API_KEYS_OPERATOR` / `LINETWIN_API_KEYS_VIEWER` | empty | backend API keys, `name:key,name2:key2`. Empty: read-only API, loopback only. Generate keys with `uv run python -c "import secrets; print(secrets.token_urlsafe(32))"`. |
+| `LINETWIN_LINE_FILE` | `line.yaml` | line layout in `config/` (`line_single.yaml` for the single station) |
 
 The MQTT port is fixed at **1883**, to match `config/sources.yaml`. Every port is published on **127.0.0.1** only, so nothing is reachable from the network.
 
@@ -131,6 +133,16 @@ Anonymous access is enabled only because the listener is bound to loopback. Do n
 
 A native PostgreSQL on 5432 and the Docker TimescaleDB cannot both use 5432. Set `LINETWIN_PG_PORT` in `.env` to choose which one the code connects to.
 
-## 4. Minimal mode reminder
+## 4. Running the backend
 
-None of sections 2 and 3 is needed to run the 3D twin from a JSON/CSV file or the mock server. `config/sources.yaml` ships with `active: file` and `config/storage.yaml` with `backend: sqlite`, and minimal mode never requires Docker (CLAUDE.md §1 and §7).
+```text
+uv run poe sim-quick; uv run poe minimal   # minimal mode: replay file + SQLite, nothing else
+uv run poe up; uv run poe dev              # dev: simulator publisher for sources.yaml `active`
+                                           # + backend with TimescaleDB (Mosquitto for mqtt)
+```
+
+The API listens on `http://127.0.0.1:8000` (`config/api.yaml`). `GET /health` needs no key. For anything else set API keys in `.env` and send `X-API-Key`; without keys the API is read-only. `uv run poe dev` checks that the services are reachable and stops the simulator publisher on exit (Ctrl+C). See [api.md](api.md).
+
+## 5. Minimal mode reminder
+
+None of sections 2 and 3 is needed to run the twin from a JSON/CSV file or the mock server. `config/sources.yaml` ships with `active: file` and `config/storage.yaml` with `backend: sqlite`, and minimal mode never requires Docker (CLAUDE.md §1 and §7). `uv run poe minimal` is the entry point.

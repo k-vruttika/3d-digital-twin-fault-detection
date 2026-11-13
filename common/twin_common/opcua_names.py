@@ -35,3 +35,7 @@ COMMAND_METHODS: dict[CommandType, tuple[str, str | None]] = {
 
 # String arguments every command method takes before its optional numeric value.
 COMMAND_ARGS: tuple[str, ...] = ("commandId", "idempotencyKey", "issuedBy")
+
+# Line-level method (simulation only, ADR 0015): one String argument with the ScenarioRequest
+# JSON; returns the ScenarioAck JSON.
+SCENARIO_METHOD = "InjectScenario"

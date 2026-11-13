@@ -263,6 +263,91 @@ class LineSimulator:
         self.event_counter += 1
         self.events.sort(key=lambda e: (e.t, e.order))
 
+    # ------------------------------------------------------------------ scenario injection
+
+    def inject_fault(
+        self, machine_id: str, fault: FaultType, progression_s: float | None = None
+    ) -> tuple[AckStatus, str | None]:
+        """Start ``fault`` on a machine now (simulation only, ADR 0015).
+
+        The fault goes through the event queue like a planned one (so snapshot/restore stays
+        exact) and starts at the next substep. Gradual faults default to the fastest configured
+        progression time.
+        """
+        rejected = AckStatus.REJECTED
+        if machine_id not in self._index:
+            return rejected, f"unknown machine '{machine_id}'"
+        i = self._index[machine_id]
+        m, kind = self.machines[i], self.line.machines[i].kind
+        if not self.cfg.faults.applicable(fault, kind):
+            return rejected, f"fault '{fault.value}' does not apply to a {kind.value} machine"
+        if m.fault is not None or m.fault_latched:
+            return rejected, "another fault is active on this machine"
+        if m.maintenance_until is not None:
+            return rejected, "machine is in maintenance"
+        if fault is FaultType.BELT_JAM:
+            if not m.active:
+                return rejected, "a jam needs the machine running"
+            progression: float | None = None
+        else:
+            progression = (
+                progression_s if progression_s is not None else self.cfg.faults.progression_s[0]
+            )
+        self._push_event(
+            self.t,
+            "fault",
+            machine_id,
+            {"type": fault.value, "progression_s": progression, "log": len(self.fault_log)},
+        )
+        self.fault_log.append(
+            FaultLogEntry(machine=machine_id, type=fault.value, planned_onset_s=self.t)
+        )
+        return AckStatus.EXECUTED, None
+
+    def schedule_plan(self, plan: RunPlan) -> int:
+        """Schedule a plan's fault, sensor-fault and command events relative to now (ADR 0015).
+
+        Only the events are taken; loads, thresholds and the source keep the current run's
+        values. Returns the number of events scheduled.
+        """
+        t0, n = self.t, 0
+        for fe in plan.fault_events:
+            self._push_event(
+                t0 + fe.onset_s,
+                "fault",
+                fe.machine,
+                {
+                    "type": fe.type.value,
+                    "progression_s": fe.progression_s,
+                    "log": len(self.fault_log),
+                },
+            )
+            self.fault_log.append(
+                FaultLogEntry(
+                    machine=fe.machine, type=fe.type.value, planned_onset_s=t0 + fe.onset_s
+                )
+            )
+            n += 1
+        for se in plan.sensor_fault_events:
+            self._push_event(
+                t0 + se.onset_s,
+                "sensor_fault",
+                se.machine,
+                {
+                    "type": se.type.value,
+                    "sensor": se.sensor.value if se.sensor else None,
+                    "duration_s": se.duration_s,
+                    "drift_rate": se.drift_rate_per_s,
+                },
+            )
+            n += 1
+        for c in plan.commands:
+            self._push_event(
+                t0 + c.at_s, "command", c.machine, {"type": c.type.value, "params": dict(c.params)}
+            )
+            n += 1
+        return n
+
     # ------------------------------------------------------------------ public API
 
     def step(self, dt: float = 1.0) -> StepFrame:

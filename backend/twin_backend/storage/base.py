@@ -25,7 +25,16 @@ from typing import Any, Generic, Literal, Protocol, TypeVar
 from pydantic import BaseModel
 
 from twin_backend.ingest.quarantine import QuarantineRecord
-from twin_common.contracts import Alert, Command, CommandAck, Prediction, Reading, StateChange
+from twin_common.contracts import (
+    Alert,
+    Command,
+    CommandAck,
+    Prediction,
+    Reading,
+    ScenarioAck,
+    ScenarioRequest,
+    StateChange,
+)
 from twin_common.enums import SensorName
 
 
@@ -39,6 +48,8 @@ class Stream(StrEnum):
     COMMAND_ACKS = "command_acks"
     ALERTS = "alerts"
     QUARANTINE = "quarantine"
+    # Scenario requests and their acks (simulation only, ADR 0015); one table, two row kinds.
+    SCENARIO_REQUESTS = "scenario_requests"
 
 
 STREAM_TYPES: dict[Stream, type[BaseModel]] = {
@@ -49,6 +60,7 @@ STREAM_TYPES: dict[Stream, type[BaseModel]] = {
     Stream.COMMAND_ACKS: CommandAck,
     Stream.ALERTS: Alert,
     Stream.QUARANTINE: QuarantineRecord,
+    Stream.SCENARIO_REQUESTS: ScenarioRequest,  # rows are ScenarioRequest | ScenarioAck
 }
 
 # Streams folded into the line state by reconstruct (the others are history, not state).
@@ -188,3 +200,5 @@ def sort_key(stored: Stored[Any]) -> tuple[datetime, int, str]:
 
 
 _REPLAY_RANK: dict[type[BaseModel], int] = {Reading: 0, StateChange: 1, Prediction: 2}
+
+SCENARIO_ROW_TYPES: tuple[type[BaseModel], ...] = (ScenarioRequest, ScenarioAck)

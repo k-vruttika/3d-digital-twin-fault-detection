@@ -5,12 +5,13 @@ from __future__ import annotations
 
 from datetime import timedelta
 from pathlib import Path
+from typing import Any
 
 from twin_backend.bus import InMemoryEventBus, Topic
 from twin_backend.clock import FakeClock
 from twin_backend.engine.twin import TwinEngine
 from twin_backend.ingest.quarantine import QuarantineRecord
-from twin_backend.storage.base import Stream
+from twin_backend.storage.base import Stored, Stream
 from twin_backend.testing import REPO_ROOT, SimExport, drain_readings, file_runtime
 from twin_common.config import load_engine_config, load_line_config
 from twin_common.config.engine import AlertKind
@@ -48,6 +49,17 @@ class Rig:
             )
             await self.bus.publish(Topic.READINGS, r)
         self.t += 1
+        await self.engine.drain()
+
+    async def one(self, machine_id: str, state: MachineState) -> None:
+        """One reading of one machine at the current second (does not advance time)."""
+        r = sample_reading(
+            machine_id=machine_id,
+            seq=self.seq,
+            ts=SAMPLE_TS + timedelta(seconds=self.t),
+            state=state,
+        )
+        await self.bus.publish(Topic.READINGS, r)
         await self.engine.drain()
 
     def state_changes(self) -> list[StateChange]:
@@ -219,3 +231,85 @@ async def test_live_engine_state_equals_reconstruct_and_alerts_survive_restart(
     rt2.engine.load_alerts(stored_alerts)
     assert rt2.engine.alerts.current() == unresolved
     assert all(isinstance(r, Reading) for r in [live.machines["CNC-01"].last_reading])
+
+
+async def _raise_fault_and_stoppage() -> tuple[Rig, dict[str, Alert]]:
+    rig = Rig()
+    await rig.second(R, R, R, R)
+    debounce = int(ENGINE.alerts.kinds[AlertKind.LINE_STOPPAGE].raise_after_s)
+    for _ in range(debounce + 1):
+        await rig.second(B, MachineState.FAULT, S, S)
+    raised = {a.kind: a for a in rig.alert_events() if a.machine_id == "CNC-01"}
+    assert set(raised) == {"machine_fault", "line_stoppage"}
+    assert all(a.active for a in raised.values())
+    return rig, raised
+
+
+async def _restart(rig: Rig, store: Any) -> Rig:
+    """A new engine (as after a backend restart) restored from the stored alert events."""
+    events = rig.alert_events()  # nothing new, but keep the subscription drained
+    assert events == []
+    fresh = Rig()
+    fresh.t, fresh.seq = rig.t, rig.seq + 1
+    fresh.engine.load_alerts([s.item for s in await store.fetch(Stream.ALERTS)])
+    return fresh
+
+
+async def test_restored_alerts_wait_for_fresh_state_then_stay_active(event_store: Any) -> None:
+    rig, raised = await _raise_fault_and_stoppage()
+    await event_store.insert(Stream.ALERTS, [Stored(a, a.ts) for a in raised.values()])
+    fresh = await _restart(rig, event_store)
+    ids = {a.kind: a.alert_id for a in fresh.engine.alerts.current()}
+    assert ids == {k: a.alert_id for k, a in raised.items()}
+
+    # empty state after the restart: neither the DQ tick nor partial data may clear anything
+    fresh.engine.tick()
+    await fresh.engine.flush()
+    # CNC-01 first, its neighbours unknown: the empty impacted set must not clear the stoppage
+    await fresh.one("CNC-01", MachineState.FAULT)
+    assert fresh.alert_events() == []
+    await fresh.one("CNV-01", B)  # only CNV-01 known: CNC-01 alerts are not evaluated
+    fresh.engine.tick()
+    await fresh.engine.flush()
+    assert fresh.alert_events() == []
+    await fresh.one("INSP-01", S)
+    assert fresh.alert_events() == []
+    assert fresh.alert_events() == []
+    await fresh.one("CNV-02", S)  # whole line known: the stoppage is confirmed, not re-raised
+    assert fresh.alert_events() == []
+    current = {a.kind: a for a in fresh.engine.alerts.current()}
+    assert {k: a.alert_id for k, a in current.items()} == ids
+    assert all(a.active and a.rev == 0 for a in current.values())
+
+    # fresh data ends the conditions: the same alerts clear
+    fresh.t += 1
+    await fresh.second(R, R, R, R)
+    cleared = {a.kind: a for a in fresh.alert_events()}
+    assert {k: (a.alert_id, a.active, a.rev) for k, a in cleared.items()} == {
+        k: (ids[k], False, 1) for k in ids
+    }
+
+
+async def test_restored_alerts_clear_on_fresh_data_without_the_condition(
+    event_store: Any,
+) -> None:
+    rig, raised = await _raise_fault_and_stoppage()
+    await event_store.insert(Stream.ALERTS, [Stored(a, a.ts) for a in raised.values()])
+    fresh = await _restart(rig, event_store)
+    ids = {k: a.alert_id for k, a in raised.items()}
+    await fresh.one("CNV-01", R)
+    assert fresh.alert_events() == []  # CNC-01 still unknown
+    await fresh.one("CNC-01", R)  # the fault is over: cleared with the same id
+    [fault] = fresh.alert_events()
+    assert (fault.kind, fault.alert_id, fault.active) == (
+        "machine_fault",
+        ids["machine_fault"],
+        False,
+    )
+    await fresh.one("INSP-01", R)
+    assert fresh.alert_events() == []  # the stoppage waits for the whole line
+    await fresh.one("CNV-02", R)
+    [stop] = fresh.alert_events()
+    assert (stop.kind, stop.alert_id, stop.active) == ("line_stoppage", ids["line_stoppage"], False)
+    # cleared but not acknowledged: still listed
+    assert {a.alert_id for a in fresh.engine.alerts.current()} == set(ids.values())

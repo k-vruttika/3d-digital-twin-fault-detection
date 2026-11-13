@@ -28,14 +28,19 @@ from asyncua.common.subscription import OpcEvent, StatusChangeEvent
 from asyncua.ua.object_ids import ObjectIds
 from asyncua.ua.uaerrors import UaError
 
-from twin_backend.adapters.base import BaseAdapter
+from twin_backend.adapters.base import BaseAdapter, scenario_ack
 from twin_backend.clock import Clock
 from twin_common.config.line import LineConfig
 from twin_common.config.sources import OpcUaSourceConfig, ReconnectConfig
-from twin_common.contracts import Command, CommandAck
+from twin_common.contracts import Command, CommandAck, ScenarioAck, ScenarioRequest
 from twin_common.enums import AckStatus, AdapterKind, Capability
 from twin_common.logging import get_logger
-from twin_common.opcua_names import COMMAND_METHODS, FIELD_BROWSE_NAMES, READING_EVENT_TYPE
+from twin_common.opcua_names import (
+    COMMAND_METHODS,
+    FIELD_BROWSE_NAMES,
+    READING_EVENT_TYPE,
+    SCENARIO_METHOD,
+)
 
 log = get_logger(__name__)
 
@@ -51,7 +56,7 @@ def _aware(ts: Any) -> datetime | None:
 
 class OpcUaAdapter(BaseAdapter):
     kind = AdapterKind.OPCUA
-    capabilities = frozenset({Capability.COMMANDS})
+    capabilities = frozenset({Capability.COMMANDS, Capability.SCENARIO})
 
     def __init__(
         self,
@@ -69,12 +74,14 @@ class OpcUaAdapter(BaseAdapter):
         self.command_timeout_s = command_timeout_s
         self._client: Client | None = None
         self._machines: dict[str, Node] = {}
+        self._line_node: Node | None = None
         self._ns = 0
 
     async def _discover(self, client: Client) -> Node:
         self._ns = await client.get_namespace_index(self.cfg.namespace)
         ns = self._ns
         line_node = await client.nodes.objects.get_child(f"{ns}:{self.line_id}")
+        self._line_node = line_node
         self._machines = {mid: await line_node.get_child(f"{ns}:{mid}") for mid in self.machine_ids}
         base_event = client.get_node(ObjectIds.BaseEventType)
         return await base_event.get_child(f"{ns}:{READING_EVENT_TYPE}")
@@ -162,3 +169,25 @@ class OpcUaAdapter(BaseAdapter):
         except ValueError:
             return self._ack(cmd, AckStatus.REJECTED, f"unexpected method result {result!r}")
         return self._ack(cmd, ack_status, reason or None)
+
+    async def send_scenario(self, req: ScenarioRequest) -> ScenarioAck:
+        node = self._line_node if self._client is not None else None
+        now = self.clock.now
+        if node is None:
+            return scenario_ack(req, AckStatus.REJECTED, "OPC UA adapter is not connected", now())
+        try:
+            result = await asyncio.wait_for(
+                node.call_method(f"{self._ns}:{SCENARIO_METHOD}", req.model_dump_json()),
+                self.command_timeout_s,
+            )
+        except TimeoutError:
+            return scenario_ack(
+                req, AckStatus.TIMEOUT, f"no ack within {self.command_timeout_s:g} s", now()
+            )
+        except (OSError, ConnectionError, UaError) as exc:
+            return scenario_ack(req, AckStatus.REJECTED, f"method call failed: {exc}", now())
+        try:
+            return ScenarioAck.model_validate_json(result)
+        except ValueError:
+            reason = f"unexpected method result {str(result)[:200]!r}"
+            return scenario_ack(req, AckStatus.REJECTED, reason, now())

@@ -27,6 +27,8 @@ class Topic(StrEnum):
     # Quarantined messages (QuarantineRecord), for the engine's data-quality status. The store
     # gets them through its quarantine sink, not from this topic.
     QUARANTINE = "quarantine"
+    # ScenarioRequest / ScenarioAck (simulation only, ADR 0015), stored for audit.
+    SCENARIOS = "scenarios"
 
 
 class Subscription(Protocol):

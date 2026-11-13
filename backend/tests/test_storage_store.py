@@ -113,7 +113,19 @@ EVERY_STREAM: dict[Stream, list[Any]] = {
         sample_command(command_id="cmd-2", type=CommandType.STOP, params={}),
     ],
     Stream.COMMAND_ACKS: [sample_ack(), sample_ack(status=AckStatus.REJECTED, reason="no")],
-    Stream.ALERTS: [sample_alert(), sample_alert(alert_id="alert-2", ts=at(5))],
+    Stream.ALERTS: [
+        sample_alert(),
+        sample_alert(alert_id="alert-2", ts=at(5)),
+        sample_alert(
+            alert_id="alert-2",
+            ts=at(6),
+            active=False,
+            acknowledged=True,
+            acked_by="alice",
+            acked_at=at(100),
+            rev=1,
+        ),
+    ],
     Stream.QUARANTINE: [
         QUARANTINE,
         QUARANTINE.model_copy(update={"payload": "\x00garbage", "machine_id": None}),

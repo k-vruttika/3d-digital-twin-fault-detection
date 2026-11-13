@@ -163,7 +163,9 @@ class TimescaleEventStore:
         return done
 
     def settings_fingerprint(self) -> str:
-        return hashlib.sha256(self.cfg.model_dump_json().encode("utf-8")).hexdigest()
+        # The stream list is part of it: a table added by a migration gets the settings too.
+        text = self.cfg.model_dump_json() + "|" + ",".join(s.value for s in Stream)
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
     async def _apply_settings(self, conn: asyncpg.Connection) -> None:
         """Chunk intervals and policies from config (only when the config changed)."""

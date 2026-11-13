@@ -1,4 +1,5 @@
-"""MQTT topic helpers: ``{prefix}/{machineId}/telemetry|state|cmd|cmd/ack``."""
+"""MQTT topic helpers: ``{prefix}/{machineId}/telemetry|state|cmd|cmd/ack`` and the line-level
+``{prefix}/scenario`` + ``{prefix}/scenario/ack`` (simulation only, ADR 0015)."""
 
 from __future__ import annotations
 
@@ -31,3 +32,11 @@ def cmd_topic(machine_id: str, prefix: str = DEFAULT_TOPIC_PREFIX) -> str:
 
 def cmd_ack_topic(machine_id: str, prefix: str = DEFAULT_TOPIC_PREFIX) -> str:
     return f"{_base(prefix, machine_id)}/cmd/ack"
+
+
+def scenario_topic(prefix: str = DEFAULT_TOPIC_PREFIX) -> str:
+    return f"{prefix.rstrip('/')}/scenario"
+
+
+def scenario_ack_topic(prefix: str = DEFAULT_TOPIC_PREFIX) -> str:
+    return f"{prefix.rstrip('/')}/scenario/ack"

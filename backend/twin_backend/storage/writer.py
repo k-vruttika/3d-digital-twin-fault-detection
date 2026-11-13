@@ -33,7 +33,16 @@ from twin_backend.ingest.quarantine import QuarantineRecord
 from twin_backend.storage.base import EventStore, Stored, Stream
 from twin_backend.storage.metrics import StorageMetrics
 from twin_common.config.storage import WriterConfig
-from twin_common.contracts import Alert, Command, CommandAck, Prediction, Reading, StateChange
+from twin_common.contracts import (
+    Alert,
+    Command,
+    CommandAck,
+    Prediction,
+    Reading,
+    ScenarioAck,
+    ScenarioRequest,
+    StateChange,
+)
 from twin_common.logging import get_logger
 
 log = get_logger(__name__)
@@ -45,6 +54,7 @@ TOPIC_LABEL: dict[Topic, Stream] = {
     Topic.PREDICTIONS: Stream.PREDICTIONS,
     Topic.COMMANDS: Stream.COMMANDS,
     Topic.ALERTS: Stream.ALERTS,
+    Topic.SCENARIOS: Stream.SCENARIO_REQUESTS,
 }
 
 _TYPE_STREAM: dict[type[BaseModel], Stream] = {
@@ -54,6 +64,8 @@ _TYPE_STREAM: dict[type[BaseModel], Stream] = {
     Command: Stream.COMMANDS,
     CommandAck: Stream.COMMAND_ACKS,
     Alert: Stream.ALERTS,
+    ScenarioRequest: Stream.SCENARIO_REQUESTS,
+    ScenarioAck: Stream.SCENARIO_REQUESTS,
 }
 
 OnCommitted = Callable[[Stream, Sequence[Stored[Any]]], Awaitable[None]]

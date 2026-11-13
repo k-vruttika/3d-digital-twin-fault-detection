@@ -28,6 +28,7 @@ from twin_common.enums import (
     MachineState,
     Quality,
     Reliability,
+    ScenarioAction,
     SensorName,
 )
 
@@ -235,3 +236,51 @@ class Alert(ContractModel):
         if not self.acknowledged and (self.acked_by is not None or self.acked_at is not None):
             raise ValueError("ackedBy/ackedAt are only set on an acknowledged alert")
         return self
+
+
+# Scenario names are file stems in the simulator's scenario directory: no paths.
+ScenarioName = Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{1,64}$")]
+
+
+class ScenarioRequest(ContractModel):
+    """A simulation-only request to inject a fault or load a scenario (ADR 0015).
+
+    Stored in the event store (stream ``scenario_requests``) so injected faults can be told
+    apart from real ones in replay and experiments. ``ts`` is on the event-time axis (the
+    source's watermark when the request was made). ``faultType`` names a simulator fault
+    (e.g. ``bearing_wear``); the simulator validates it.
+    """
+
+    request_id: NonEmptyStr
+    action: ScenarioAction
+    machine_id: NonEmptyStr | None = None
+    fault_type: NonEmptyStr | None = None
+    progression_s: float | None = Field(default=None, gt=0)
+    scenario: ScenarioName | None = None
+    seed: int | None = Field(default=None, ge=0)
+    requested_by: NonEmptyStr
+    source: NonEmptyStr
+    ts: UtcDatetime
+
+    @model_validator(mode="after")
+    def _action_fields(self) -> ScenarioRequest:
+        if self.action is ScenarioAction.INJECT_FAULT:
+            if self.machine_id is None or self.fault_type is None:
+                raise ValueError("INJECT_FAULT requires machineId and faultType")
+            if self.scenario is not None:
+                raise ValueError("INJECT_FAULT takes no scenario")
+        else:
+            if self.scenario is None:
+                raise ValueError("LOAD_SCENARIO requires scenario")
+            if self.fault_type is not None or self.progression_s is not None:
+                raise ValueError("LOAD_SCENARIO takes no faultType / progressionS")
+        return self
+
+
+class ScenarioAck(ContractModel):
+    """The simulator's answer to a ScenarioRequest (status EXECUTED / REJECTED / TIMEOUT)."""
+
+    request_id: NonEmptyStr
+    status: AckStatus
+    reason: str | None = None
+    ts: UtcDatetime

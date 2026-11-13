@@ -139,6 +139,9 @@ class TwinEngine:
         self._dq: dict[str, DataQualityReport] = {
             m: DataQualityReport(machine_id=m) for m in self.machine_ids
         }
+        # Machines with a reading or StateChange since this engine started. Alert conditions
+        # (including clearing a restored alert) are only evaluated on fresh state.
+        self._known: set[str] = set()
 
     # -- views -------------------------------------------------------------------------------
     @property
@@ -263,6 +266,8 @@ class TwinEngine:
         machine_id = event.machine_id
         if isinstance(event, Reading):
             self.dq.add_reading(event)
+        if isinstance(event, Reading | StateChange) and machine_id in self.machine_ids:
+            self._known.add(machine_id)
         view = state.machines.get(machine_id)
         if view is None:
             return
@@ -296,11 +301,19 @@ class TwinEngine:
         return "reported by source"
 
     def _evaluate_alerts(self, state: LineState) -> None:
+        """Re-evaluate the state-based alert conditions on fresh state only.
+
+        A machine's own alerts wait until that machine's state is known since startup. A line
+        stoppage depends on the neighbours along the propagation chain, so it waits until every
+        machine's state is known. This keeps alerts restored after a restart (ADR 0011) active,
+        with the same id, until fresh data confirms or ends their condition.
+        """
         events: list[Alert] = []
         watermark = state.as_of
+        line_known = self._known.issuperset(self.machine_ids)
         for m in self.machine_ids:
             view = state.machines[m]
-            if view.state is None or view.state_ts is None:
+            if m not in self._known or view.state is None or view.state_ts is None:
                 continue
             for kind, alert_state in _STATE_ALERTS.items():
                 events += self.alerts.update(
@@ -311,7 +324,7 @@ class TwinEngine:
                     f"{m} is {alert_state.value}",
                 )
             impacted = self._line.impacted.get(m, [])
-            if watermark is not None:
+            if line_known and watermark is not None:
                 events += self.alerts.update(
                     m,
                     AlertKind.LINE_STOPPAGE,
@@ -349,7 +362,10 @@ class TwinEngine:
             degraded = report.status is DataQuality.DEGRADED
             self.metrics.degraded.labels(machine=m).set(1 if degraded else 0)
             ts = self.machine_watermark(m)
-            if ts is None:
+            # Judge only once enough fresh data was seen since startup: right after a restart
+            # the empty window reads "OK" and must not clear a restored data-quality alert.
+            judgeable = report.link_down or self.dq.seen(m) >= self.cfg.data_quality.min_samples
+            if m not in self._known or ts is None or not (judgeable or degraded):
                 continue
             events += self.alerts.update(
                 m,
@@ -369,6 +385,10 @@ class TwinEngine:
         if result.changed and result.alert is not None:
             self._publish_alerts([result.alert], "ack")
         return result
+
+    def is_known(self, machine_id: str) -> bool:
+        """True once the machine has had a reading or StateChange since startup."""
+        return machine_id in self._known
 
     def debug_counts(self) -> dict[str, Any]:
         return {

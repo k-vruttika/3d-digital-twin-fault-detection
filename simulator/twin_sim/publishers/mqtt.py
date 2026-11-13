@@ -6,6 +6,8 @@
   change, retained, so a new subscriber sees the current state at once.
 - ``{prefix}/+/cmd``: Commands are applied through the RealtimeRunner and acknowledged on
   ``{prefix}/{machineId}/cmd/ack``.
+- ``{prefix}/scenario``: ScenarioRequests (simulation only, ADR 0015), acknowledged with a
+  ScenarioAck on ``{prefix}/scenario/ack``.
 
 Readings pass through a bounded queue drained by one task: simulation ticks never wait for the
 broker, publish order is kept, and readings survive a short broker outage (the publisher
@@ -29,10 +31,17 @@ from pydantic import ValidationError
 
 from twin_common.aio import require_selector_loop
 from twin_common.config.sources import ReconnectConfig
-from twin_common.contracts import Command, CommandAck, Reading
+from twin_common.contracts import Command, CommandAck, Reading, ScenarioRequest
 from twin_common.enums import AckStatus, MachineState
 from twin_common.logging import get_logger
-from twin_common.topics import cmd_ack_topic, state_topic, telemetry_topic
+from twin_common.topics import (
+    cmd_ack_topic,
+    scenario_ack_topic,
+    scenario_topic,
+    state_topic,
+    telemetry_topic,
+)
+from twin_sim.publishers.scenario import timeout_ack
 from twin_sim.publishers.session import SimSession
 
 log = get_logger(__name__)
@@ -105,6 +114,7 @@ class MqttPublisher:
                 ) as client:
                     attempt = 0
                     await client.subscribe(f"{self.opts.topic_prefix.rstrip('/')}/+/cmd", CMD_QOS)
+                    await client.subscribe(scenario_topic(self.opts.topic_prefix), CMD_QOS)
                     self.connected.set()
                     log.info("mqtt_pub.connected", host=self.opts.host, port=self.opts.port)
                     await self._serve(client)
@@ -189,11 +199,28 @@ class MqttPublisher:
                 await self._wakeup.wait()
 
     async def _command_loop(self, client: aiomqtt.Client) -> None:
+        scenario = scenario_topic(self.opts.topic_prefix)
         async for message in client.messages:
             payload = message.payload
             if not isinstance(payload, bytes | str):
                 continue
-            await self._handle_command(client, payload)
+            if message.topic.matches(scenario):
+                await self._handle_scenario(client, payload)
+            else:
+                await self._handle_command(client, payload)
+
+    async def _handle_scenario(self, client: aiomqtt.Client, payload: bytes | str) -> None:
+        try:
+            req = ScenarioRequest.model_validate_json(payload)
+        except ValidationError as exc:
+            log.warning("mqtt_pub.bad_scenario", error=str(exc).splitlines()[0])
+            return
+        ack = await self.session.submit_scenario(req, self.opts.command_timeout_s)
+        await client.publish(
+            scenario_ack_topic(self.opts.topic_prefix),
+            (ack if ack is not None else timeout_ack(req)).model_dump_json(),
+            qos=CMD_QOS,
+        )
 
     async def _handle_command(self, client: aiomqtt.Client, payload: bytes | str) -> None:
         try:

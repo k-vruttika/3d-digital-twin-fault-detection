@@ -22,15 +22,15 @@ import aiomqtt
 from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.properties import Properties
 
-from twin_backend.adapters.base import BaseAdapter
+from twin_backend.adapters.base import BaseAdapter, scenario_ack
 from twin_backend.clock import Clock
 from twin_common.aio import require_selector_loop
 from twin_common.config.line import LineConfig
 from twin_common.config.sources import MqttSourceConfig, ReconnectConfig
-from twin_common.contracts import Command, CommandAck
+from twin_common.contracts import Command, CommandAck, ScenarioAck, ScenarioRequest
 from twin_common.enums import AckStatus, AdapterKind, Capability
 from twin_common.logging import get_logger
-from twin_common.topics import cmd_topic
+from twin_common.topics import cmd_topic, scenario_ack_topic, scenario_topic
 
 log = get_logger(__name__)
 
@@ -50,7 +50,7 @@ def _sent_at(properties: Any) -> datetime | None:
 
 class MqttAdapter(BaseAdapter):
     kind = AdapterKind.MQTT
-    capabilities = frozenset({Capability.COMMANDS})
+    capabilities = frozenset({Capability.COMMANDS, Capability.SCENARIO})
 
     def __init__(
         self,
@@ -68,8 +68,10 @@ class MqttAdapter(BaseAdapter):
         prefix = cfg.topic_prefix.rstrip("/")
         self.telemetry_filter = f"{prefix}/+/telemetry"
         self.ack_filter = f"{prefix}/+/cmd/ack"
+        self.scenario_ack = scenario_ack_topic(prefix)
         self._client: aiomqtt.Client | None = None
         self._pending: dict[str, asyncio.Future[CommandAck]] = {}
+        self._pending_scenarios: dict[str, asyncio.Future[ScenarioAck]] = {}
 
     async def _prepare(self) -> None:
         require_selector_loop("MQTT adapter (aiomqtt)")
@@ -93,6 +95,7 @@ class MqttAdapter(BaseAdapter):
                 async with self._make_client() as client:
                     await client.subscribe(self.telemetry_filter, self.cfg.qos)
                     await client.subscribe(self.ack_filter, CMD_QOS)
+                    await client.subscribe(self.scenario_ack, CMD_QOS)
                     self._client = client
                     self._mark_connected()
                     log.info("mqtt.connected", host=self.cfg.host, port=self.cfg.port)
@@ -112,6 +115,9 @@ class MqttAdapter(BaseAdapter):
         if message.topic.matches(self.ack_filter):
             self._resolve_ack(payload)
             return
+        if message.topic.matches(self.scenario_ack):
+            self._resolve_scenario_ack(payload)
+            return
         await self._emit(
             payload,
             sent_at=_sent_at(message.properties),
@@ -127,6 +133,36 @@ class MqttAdapter(BaseAdapter):
         fut = self._pending.pop(ack.command_id, None)
         if fut is not None and not fut.done():
             fut.set_result(ack)
+
+    def _resolve_scenario_ack(self, payload: bytes | str) -> None:
+        try:
+            ack = ScenarioAck.model_validate_json(payload)
+        except ValueError:
+            log.warning("mqtt.bad_scenario_ack", payload=str(payload)[:200])
+            return
+        fut = self._pending_scenarios.pop(ack.request_id, None)
+        if fut is not None and not fut.done():
+            fut.set_result(ack)
+
+    async def send_scenario(self, req: ScenarioRequest) -> ScenarioAck:
+        client, now = self._client, self.clock.now
+        if client is None:
+            return scenario_ack(req, AckStatus.REJECTED, "MQTT adapter is not connected", now())
+        fut: asyncio.Future[ScenarioAck] = asyncio.get_running_loop().create_future()
+        self._pending_scenarios[req.request_id] = fut
+        try:
+            await client.publish(
+                scenario_topic(self.cfg.topic_prefix), req.model_dump_json(), qos=CMD_QOS
+            )
+            return await asyncio.wait_for(fut, timeout=self.command_timeout_s)
+        except TimeoutError:
+            return scenario_ack(
+                req, AckStatus.TIMEOUT, f"no ack within {self.command_timeout_s:g} s", now()
+            )
+        except aiomqtt.MqttError as exc:
+            return scenario_ack(req, AckStatus.REJECTED, f"scenario transport failed: {exc}", now())
+        finally:
+            self._pending_scenarios.pop(req.request_id, None)
 
     async def send_command(self, cmd: Command) -> CommandAck:
         client = self._client

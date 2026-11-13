@@ -2,7 +2,8 @@
 
 It wraps a :class:`~twin_sim.runner.RealtimeRunner`, keeps a bounded per-machine history
 (the mock server's ``GET /history`` and gap backfill) and fans each Reading out to listeners.
-Commands go through ``RealtimeRunner.submit`` and are applied at the next tick.
+Commands go through ``RealtimeRunner.submit`` and are applied at the next tick, as are
+scenario requests (simulation only, ADR 0015) through ``submit_scenario``.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from pathlib import Path
 
 from twin_common.config import load_line_config
 from twin_common.config.line import LineConfig
-from twin_common.contracts import Command, CommandAck, Reading
+from twin_common.contracts import Command, CommandAck, Reading, ScenarioAck, ScenarioRequest
 from twin_common.logging import get_logger
 from twin_sim.config import (
     ScenarioConfig,
@@ -27,10 +28,14 @@ from twin_sim.config import (
     load_sim_config,
 )
 from twin_sim.line import LineSimulator
+from twin_sim.publishers.scenario import apply_scenario
 from twin_sim.runner import RealtimeRunner
 from twin_sim.scenario import make_run_plan
 
 log = get_logger(__name__)
+
+# Scenario files LOAD_SCENARIO may name (overridden by the session's --scenario directory).
+DEFAULT_SCENARIO_DIR = Path("config/scenarios")
 
 Listener = Callable[[Reading], Awaitable[None] | None]
 
@@ -97,6 +102,8 @@ class SimSession:
         self._listeners: list[Listener] = []
         self._task: asyncio.Task[int] | None = None
         self.max_ticks: int | None = None
+        self.scenario_dir = DEFAULT_SCENARIO_DIR
+        self.scenario_requests = 0
 
     @classmethod
     def from_options(cls, opts: SessionOptions) -> SimSession:
@@ -105,6 +112,7 @@ class SimSession:
         scenario = load_scenario(opts.scenario_path)
         sim = build_simulator(line, sim_cfg, scenario, opts.seed, opts.run_index)
         session = cls(sim, opts.speed, opts.history_size)
+        session.scenario_dir = opts.scenario_path.parent
         duration = opts.duration_s if opts.duration_s is not None else sim.plan.duration_s
         session.max_ticks = round(duration)
         return session
@@ -148,6 +156,19 @@ class SimSession:
         if not self.running:
             return None
         fut = self.runner.submit(cmd)
+        try:
+            return await asyncio.wait_for(fut, timeout=timeout_s)
+        except TimeoutError:
+            fut.cancel()
+            return None
+
+    async def submit_scenario(self, req: ScenarioRequest, timeout_s: float) -> ScenarioAck | None:
+        """Apply a scenario request at the next tick; None if the runner did not take it."""
+        if not self.running:
+            return None
+        self.scenario_requests += 1
+        scenario_dir = self.scenario_dir
+        fut = self.runner.submit_call(lambda sim: apply_scenario(sim, req, scenario_dir))
         try:
             return await asyncio.wait_for(fut, timeout=timeout_s)
         except TimeoutError:

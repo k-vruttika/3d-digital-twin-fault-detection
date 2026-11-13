@@ -100,6 +100,13 @@ class AdapterStatus(StrEnum):
     FAILED = "FAILED"
 
 
+class ScenarioAction(StrEnum):
+    """Simulation-only scenario injection (ADR 0015). Real equipment would not offer this."""
+
+    INJECT_FAULT = "INJECT_FAULT"  # start a fault on one machine now
+    LOAD_SCENARIO = "LOAD_SCENARIO"  # schedule a scenario file's events from now on
+
+
 class DataQuality(StrEnum):
     """Per-machine data-quality status derived by the twin engine (late, quarantine, partial
     readings, staleness). Separate from ``Reliability``, which describes model output."""
