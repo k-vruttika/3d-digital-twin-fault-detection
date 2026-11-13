@@ -47,7 +47,7 @@ class ExportResult:
     paths: dict[Stream, Path] = field(default_factory=dict)
 
 
-def _ordered(rows: list[Stored[Any]], machine_order: Sequence[str] | None) -> list[Reading]:
+def order_readings(rows: list[Stored[Any]], machine_order: Sequence[str] | None) -> list[Reading]:
     rank = {m: i for i, m in enumerate(machine_order or ())}
     readings: list[Reading] = [r.item for r in rows]
     readings.sort(key=lambda r: (r.ts, rank.get(r.machine_id, len(rank)), r.machine_id, r.seq))
@@ -88,7 +88,7 @@ async def export_range(
 ) -> ExportResult:
     """Write readings with ``t0 <= ts < t1`` to ``out`` (and other streams if requested)."""
     out.parent.mkdir(parents=True, exist_ok=True)
-    readings = _ordered(await store.fetch(Stream.READINGS, t0, t1), machine_order)
+    readings = order_readings(await store.fetch(Stream.READINGS, t0, t1), machine_order)
     text = readings_to_csv(readings) if fmt == "csv" else readings_to_jsonl(readings)
     out.write_text(text, encoding="utf-8", newline="")
     result = ExportResult(out, {Stream.READINGS: len(readings)}, {Stream.READINGS: out})

@@ -7,9 +7,11 @@ dependencies = [
     "aiomqtt>=2.5.1",
     "asyncpg>=0.32.0",
     "asyncua>=2.1.0",
+    "fastapi>=0.162.5",
     "httpx>=0.28.1",
     "prometheus-client>=0.26.0",
     "twin-common",
+    "uvicorn>=0.54.0",
     "websockets>=17.4",
 ]
 

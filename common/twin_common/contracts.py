@@ -198,11 +198,17 @@ class StateChange(ContractModel):
 
 
 class Alert(ContractModel):
-    """An operator-facing alert (bus topic ``alerts``).
+    """One lifecycle event of an operator-facing alert (bus topic ``alerts``, ADR 0011).
 
-    Produced by the inference service and the twin engine in later phases; Phase 3 only stores
-    them. ``kind`` is a short machine-readable code (e.g. ``fault_predicted``), ``source`` names
-    the producer (e.g. ``inference``).
+    Alarm states follow ISA-18.2: ``active`` (the condition is present) and ``acknowledged``
+    (an operator has seen it) are independent. Every transition (raise, clear, acknowledge,
+    re-raise) is a new append-only event with the same ``alertId`` and the next ``rev``; the
+    current alert is the event with the highest ``rev``. An alert is resolved (no longer shown)
+    once it is both cleared and acknowledged.
+
+    ``ts`` is on the event-time axis (ADR 0010); ``ackedAt`` is the wall-clock time of the
+    acknowledgement. ``kind`` is a short machine-readable code (e.g. ``machine_fault``),
+    ``source`` names the producer (e.g. ``engine``).
     """
 
     alert_id: NonEmptyStr
@@ -212,3 +218,20 @@ class Alert(ContractModel):
     kind: NonEmptyStr
     message: str
     source: NonEmptyStr
+    active: bool = True
+    acknowledged: bool = False
+    acked_by: str | None = None
+    acked_at: UtcDatetime | None = None
+    rev: int = Field(default=0, ge=0, description="per-alert revision, +1 per transition")
+
+    @property
+    def resolved(self) -> bool:
+        return not self.active and self.acknowledged
+
+    @model_validator(mode="after")
+    def _ack_fields(self) -> Alert:
+        if self.acknowledged and (self.acked_by is None or self.acked_at is None):
+            raise ValueError("an acknowledged alert needs ackedBy and ackedAt")
+        if not self.acknowledged and (self.acked_by is not None or self.acked_at is not None):
+            raise ValueError("ackedBy/ackedAt are only set on an acknowledged alert")
+        return self

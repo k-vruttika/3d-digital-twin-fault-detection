@@ -52,7 +52,7 @@ from twin_common.logging import get_logger
 log = get_logger(__name__)
 
 AGGREGATES: dict[str, str] = {"1m": "readings_1m", "10m": "readings_10m"}
-_NUMERIC_COLUMNS = {"ts", "ingested_at", "seq", "horizon_s", "schema_version"}
+_NUMERIC_COLUMNS = {"ts", "ingested_at", "seq", "horizon_s", "schema_version", "rev"}
 _TEN_MIN_US = 600 * 1_000_000
 
 

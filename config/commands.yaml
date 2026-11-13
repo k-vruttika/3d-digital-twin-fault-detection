@@ -1,0 +1,26 @@
+# Operator commands (Phase 4). Validated by twin_common.config.CommandsConfig.
+# STOP is always allowed, in every state (fail-safe principle, ADR 0014). The loader rejects
+# any rule that lists STOP.
+
+idempotency_ttl_s: 86400            # a repeated idempotency key returns the original ack
+idempotency_max_entries: 10000
+
+# Parameter limits per machine kind (the simulator's speed_max_rpm / max_load_pct).
+limits:
+  CONVEYOR:   { speed_rpm: { min: 1.0, max: 1750.0 },  load_pct: { min: 0.0, max: 120.0 } }
+  CNC:        { speed_rpm: { min: 1.0, max: 12000.0 }, load_pct: { min: 0.0, max: 120.0 } }
+  INSPECTION: { speed_rpm: { min: 1.0, max: 900.0 },   load_pct: { min: 0.0, max: 120.0 } }
+
+rules:
+  - types: [START, SET_SPEED, SET_LOAD, SCHEDULE_MAINTENANCE, RESET]
+    forbidden_states: [OFFLINE, STALE]
+    reason: the machine's data link is down; only STOP is allowed until it recovers
+  - types: [SET_SPEED, SET_LOAD]
+    forbidden_states: [FAULT, MAINTENANCE]
+    reason: setpoints cannot change while the machine is faulted or in maintenance
+  - types: [START]
+    forbidden_states: [FAULT]
+    reason: the machine is faulted; RESET it first
+  - types: [SCHEDULE_MAINTENANCE]
+    required_states: [IDLE, FAULT]
+    reason: maintenance requires the machine to be stopped (IDLE or FAULT); STOP it first

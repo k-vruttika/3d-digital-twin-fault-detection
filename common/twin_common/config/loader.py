@@ -8,6 +8,9 @@ from typing import Any, TypeVar
 import yaml
 from pydantic import BaseModel, ValidationError
 
+from twin_common.config.api import ApiConfig
+from twin_common.config.commands import CommandsConfig
+from twin_common.config.engine import EngineConfig
 from twin_common.config.line import LineConfig
 from twin_common.config.sources import SourcesConfig
 from twin_common.config.storage import StorageConfig
@@ -71,3 +74,15 @@ def load_sources_config(path: str | Path) -> SourcesConfig:
 
 def load_storage_config(path: str | Path) -> StorageConfig:
     return load_model(path, StorageConfig)
+
+
+def load_engine_config(path: str | Path) -> EngineConfig:
+    return load_model(path, EngineConfig)
+
+
+def load_api_config(path: str | Path) -> ApiConfig:
+    return load_model(path, ApiConfig)
+
+
+def load_commands_config(path: str | Path) -> CommandsConfig:
+    return load_model(path, CommandsConfig)

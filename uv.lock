@@ -980,9 +980,11 @@ dependencies = [
     { name = "aiomqtt" },
     { name = "asyncpg" },
     { name = "asyncua" },
+    { name = "fastapi" },
     { name = "httpx" },
     { name = "prometheus-client" },
     { name = "twin-common" },
+    { name = "uvicorn" },
     { name = "websockets" },
 ]
 
@@ -991,9 +993,11 @@ requires-dist = [
     { name = "aiomqtt", specifier = ">=2.5.1" },
     { name = "asyncpg", specifier = ">=0.32.0" },
     { name = "asyncua", specifier = ">=2.1.0" },
+    { name = "fastapi", specifier = ">=0.162.5" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "prometheus-client", specifier = ">=0.26.0" },
     { name = "twin-common", editable = "common" },
+    { name = "uvicorn", specifier = ">=0.54.0" },
     { name = "websockets", specifier = ">=17.4" },
 ]
 

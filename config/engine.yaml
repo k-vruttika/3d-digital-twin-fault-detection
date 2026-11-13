@@ -1,0 +1,40 @@
+# Twin engine (Phase 4). Validated by twin_common.config.EngineConfig.
+
+# Allowed state transitions per machine, as seen at the 1 Hz reading resolution (an operator's
+# RESET + START within one sample shows as FAULT -> RUNNING). Transitions not listed are still
+# applied (the data is the truth) but logged and counted in
+# linetwin_engine_invalid_transitions_total. OFFLINE/STALE describe the data link: any state
+# can lose its link, and a recovering link can resume in any state.
+transitions:
+  RUNNING:     [IDLE, WARNING, FAULT, STARVED, BLOCKED, MAINTENANCE, OFFLINE, STALE]
+  IDLE:        [RUNNING, WARNING, STARVED, BLOCKED, MAINTENANCE, OFFLINE, STALE]   # a stopped machine cannot trip
+  WARNING:     [RUNNING, IDLE, FAULT, STARVED, BLOCKED, MAINTENANCE, OFFLINE, STALE]
+  FAULT:       [IDLE, RUNNING, STARVED, BLOCKED, MAINTENANCE, OFFLINE, STALE]       # exits via RESET or maintenance
+  STARVED:     [RUNNING, IDLE, WARNING, FAULT, BLOCKED, MAINTENANCE, OFFLINE, STALE]
+  BLOCKED:     [RUNNING, IDLE, WARNING, FAULT, STARVED, MAINTENANCE, OFFLINE, STALE]
+  MAINTENANCE: [RUNNING, IDLE, STARVED, BLOCKED, OFFLINE, STALE]                    # maintenance clears faults
+  OFFLINE:     [RUNNING, IDLE, WARNING, FAULT, STARVED, BLOCKED, MAINTENANCE]       # STALE always comes before OFFLINE
+  STALE:       [RUNNING, IDLE, WARNING, FAULT, STARVED, BLOCKED, MAINTENANCE, OFFLINE]
+
+# Per-machine data-quality status (OK | DEGRADED) over a rolling wall-clock window.
+data_quality:
+  window_s: 60.0
+  min_samples: 10                   # fewer messages in the window: rates are not judged
+  max_late_pct: 5.0                 # LATE readings / all readings
+  max_quarantine_pct: 5.0           # quarantined messages / (readings + quarantined)
+  max_partial_pct: 10.0             # readings with a missing sensor value / all readings
+  stale_is_degraded: true           # STALE or OFFLINE -> DEGRADED
+  recover_after_s: 10.0             # back to OK only after this long without a violation
+  evaluate_every_s: 1.0
+
+# Engine alerts (ISA-18.2 lifecycle, ADR 0011). raise_after_s debounces on event time.
+alerts:
+  source: engine
+  kinds:
+    machine_warning: { enabled: true, severity: WARNING }
+    machine_fault:   { enabled: true, severity: CRITICAL }
+    machine_offline: { enabled: true, severity: CRITICAL }
+    data_quality:    { enabled: true, severity: WARNING }
+    # The root-cause machine of STARVED/BLOCKED neighbours. Short buffer hiccups are normal,
+    # so the stoppage must last this long before it is raised.
+    line_stoppage:   { enabled: true, severity: WARNING, raise_after_s: 10.0 }

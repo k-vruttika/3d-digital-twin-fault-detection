@@ -32,7 +32,9 @@ from twin_common.contracts import Prediction, Reading, StateChange
 from twin_common.enums import MachineState, Quality
 
 
-class _StateModel(BaseModel):
+class StateModel(BaseModel):
+    """camelCase JSON models for engine and API views (mutable, unlike wire contracts)."""
+
     model_config = ConfigDict(
         alias_generator=to_camel,
         validate_by_name=True,
@@ -42,7 +44,7 @@ class _StateModel(BaseModel):
     )
 
 
-class MachineView(_StateModel):
+class MachineView(StateModel):
     machine_id: str
     state: MachineState | None = None
     state_ts: datetime | None = None
@@ -51,7 +53,7 @@ class MachineView(_StateModel):
     last_state_change: StateChange | None = None
 
 
-class LineState(_StateModel):
+class LineState(StateModel):
     """Full line state. ``as_of`` is set by whoever built it (reconstruct time, live watermark)."""
 
     as_of: datetime | None = None

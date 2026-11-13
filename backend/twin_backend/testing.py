@@ -476,3 +476,84 @@ async def event_store(store_factory: Any, tmp_path: Path) -> Any:
         yield store
     finally:
         await store.close()
+
+
+# ---------------------------------------------------------------- Phase 4: runtime / API fixtures
+def settings_for(dsn: str | None = None, **overrides: Any) -> Any:
+    """TwinSettings that ignore the local .env; ``dsn`` points the TimescaleDB store at it."""
+    from urllib.parse import urlparse
+
+    from twin_common.config.settings import TwinSettings
+
+    fields: dict[str, Any] = {"config_dir": REPO_ROOT / "config"}
+    if dsn is not None:
+        u = urlparse(dsn)
+        fields |= {
+            "pg_host": u.hostname or "",
+            "pg_port": u.port or 5432,
+            "pg_db": u.path.lstrip("/"),
+            "pg_user": u.username or "",
+            "pg_password": u.password or "",
+        }
+    return TwinSettings(_env_file=None, **(fields | overrides))
+
+
+def file_runtime(
+    export: SimExport,
+    tmp: Path,
+    backend: str = "sqlite",
+    dsn: str | None = None,
+    *,
+    replay_speed: float = 1e6,
+    loop: bool = False,
+    settings: Any = None,
+    **build_kw: Any,
+) -> Any:
+    """A Runtime replaying ``export`` (JSONL) through the file adapter into ``backend``."""
+    from twin_backend.runtime import build_runtime
+    from twin_common.config.sources import FieldMapping
+
+    sources = load_sources_config(REPO_ROOT / "config" / "sources.yaml")
+    assert sources.file is not None
+    file_cfg = sources.file.model_copy(
+        update={
+            "path": str(export.jsonl),
+            "format": "jsonl",
+            "loop": loop,
+            "replay_speed": replay_speed,
+            "mapping": FieldMapping(),
+        }
+    )
+    ingest = sources.ingest.model_copy(update={"tick_s": 0.01, "lateness_window_s": 0.05})
+    sources = sources.model_copy(update={"file": file_cfg, "ingest": ingest})
+    base = storage_config()
+    st = base.model_copy(
+        update={
+            "backend": backend,
+            "sqlite": base.sqlite.model_copy(update={"path": str(tmp / "store.sqlite")}),
+            "snapshots": base.snapshots.model_copy(update={"settle_s": 0.6}),
+        }
+    )
+    return build_runtime(
+        settings if settings is not None else settings_for(dsn),
+        root=REPO_ROOT,
+        sources=sources,
+        storage_cfg=st,
+        **build_kw,
+    )
+
+
+@pytest.fixture
+def runtime_dsn(store_backend: str, request: pytest.FixtureRequest) -> str | None:
+    """The test database DSN for the timescale backend (None for sqlite). The database is
+    emptied first. Resolved in a sync fixture, outside the test's event loop."""
+    if store_backend != "timescale":
+        return None
+    dsn: str = request.getfixturevalue("timescale_test_db").dsn
+
+    async def empty() -> None:
+        store = await open_store("timescale", REPO_ROOT, dsn=dsn)
+        await store.close()
+
+    run_in_thread(empty())
+    return dsn

@@ -1,0 +1,17 @@
+# Backend HTTP API and WebSocket stream (Phase 4). Validated by twin_common.config.ApiConfig.
+# API keys come from .env (LINETWIN_API_KEYS_OPERATOR / _VIEWER), never from this file.
+
+# Keep the loopback default: without API keys the server only starts on a loopback address.
+host: 127.0.0.1
+port: 8000
+# The Vite dev server (frontend). Add origins here when serving the frontend elsewhere.
+cors_origins:
+  - http://localhost:5173
+  - http://127.0.0.1:5173
+max_history_rows: 100000            # raw /history and /export row limit per request
+
+ws:
+  client_queue_size: 256            # ordered messages kept per client; oldest dropped beyond
+  send_timeout_s: 5.0               # a client that cannot take one message this long is closed
+  auth_timeout_s: 2.0               # first message must be {"type": "auth", ...} within this
+  hub_queue_size: 10000             # the hub's bus subscriptions

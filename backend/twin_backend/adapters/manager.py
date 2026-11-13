@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -24,7 +24,7 @@ from twin_backend.bus.base import EventBus, Topic
 from twin_backend.clock import Clock, SystemClock
 from twin_backend.ingest.metrics import IngestMetrics
 from twin_backend.ingest.pipeline import IngestPipeline
-from twin_backend.ingest.quarantine import QuarantineSink, build_quarantine
+from twin_backend.ingest.quarantine import BusQuarantine, QuarantineSink, build_quarantine
 from twin_common.config.line import LineConfig
 from twin_common.config.sources import SourcesConfig
 from twin_common.contracts import Command, CommandAck
@@ -65,9 +65,9 @@ class SourceManager:
             if quarantine is not None
             else build_quarantine(sources.ingest.quarantine, root)
         )
-        self.quarantine: QuarantineSink = (
-            storage.quarantine_sink(sink) if storage is not None else sink
-        )
+        stored: QuarantineSink = storage.quarantine_sink(sink) if storage is not None else sink
+        # The engine's data-quality status needs quarantined messages too.
+        self.quarantine: QuarantineSink = BusQuarantine(stored, bus)
         self.pipeline = IngestPipeline(
             line,
             sources.ingest,
@@ -109,7 +109,13 @@ class SourceManager:
             if self._run_ticker and self._ticker is None:
                 self._ticker = asyncio.create_task(self._tick_loop(), name="ingest-ticker")
 
-    async def stop(self) -> None:
+    async def stop(self, *, before_storage: Callable[[], Awaitable[None]] | None = None) -> None:
+        """Stop the adapter, publish what the reorder buffer holds, then stop storage.
+
+        ``before_storage`` runs after the last readings were published and before the writer
+        drains, so consumers (the twin engine) can publish their final events and have them
+        stored.
+        """
         async with self._lock:
             await self._detach()
             if self._ticker is not None:
@@ -119,6 +125,9 @@ class SourceManager:
                 self._ticker = None
             if self.storage is not None:
                 await self.pipeline.flush()
+            if before_storage is not None:
+                await before_storage()
+            if self.storage is not None:
                 await self.storage.stop()
 
     async def wait_idle(self) -> None:

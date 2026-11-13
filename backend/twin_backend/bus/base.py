@@ -24,6 +24,9 @@ class Topic(StrEnum):
     PREDICTIONS = "predictions"
     COMMANDS = "commands"
     ALERTS = "alerts"
+    # Quarantined messages (QuarantineRecord), for the engine's data-quality status. The store
+    # gets them through its quarantine sink, not from this topic.
+    QUARANTINE = "quarantine"
 
 
 class Subscription(Protocol):

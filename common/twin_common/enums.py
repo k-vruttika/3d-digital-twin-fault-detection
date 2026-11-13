@@ -86,6 +86,7 @@ class Capability(StrEnum):
     COMMANDS = "commands"
     WHATIF = "whatif"
     HISTORY = "history"
+    SCENARIO = "scenario"  # simulation only: inject faults / load scenario events
 
 
 class AdapterStatus(StrEnum):
@@ -97,6 +98,21 @@ class AdapterStatus(StrEnum):
     EOF = "EOF"
     STOPPED = "STOPPED"
     FAILED = "FAILED"
+
+
+class DataQuality(StrEnum):
+    """Per-machine data-quality status derived by the twin engine (late, quarantine, partial
+    readings, staleness). Separate from ``Reliability``, which describes model output."""
+
+    OK = "OK"
+    DEGRADED = "DEGRADED"
+
+
+class Role(StrEnum):
+    """API roles, in increasing order of privilege."""
+
+    VIEWER = "viewer"
+    OPERATOR = "operator"
 
 
 class AlertSeverity(StrEnum):

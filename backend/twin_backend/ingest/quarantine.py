@@ -17,6 +17,7 @@ from typing import Any, Protocol
 from pydantic import BaseModel, ConfigDict
 
 from twin_backend.adapters.base import Payload
+from twin_backend.bus.base import EventBus, Topic
 from twin_common.config.sources import QuarantineConfig
 from twin_common.enums import AdapterKind, QuarantineReason
 
@@ -75,6 +76,20 @@ class JsonlQuarantine:
     async def put(self, record: QuarantineRecord) -> None:
         async with self._lock:
             await asyncio.to_thread(self._append, record.model_dump_json())
+
+
+class BusQuarantine:
+    """Keeps the inner sink and also publishes every record on the bus (``Topic.QUARANTINE``)."""
+
+    def __init__(self, inner: QuarantineSink, bus: EventBus) -> None:
+        self.inner = inner
+        self.bus = bus
+        self.total = 0
+
+    async def put(self, record: QuarantineRecord) -> None:
+        await self.inner.put(record)
+        await self.bus.publish(Topic.QUARANTINE, record)
+        self.total += 1
 
 
 def build_quarantine(cfg: QuarantineConfig, root: Path) -> MemoryQuarantine | JsonlQuarantine:

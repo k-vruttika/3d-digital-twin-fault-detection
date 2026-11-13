@@ -57,7 +57,7 @@ async def test_fresh_database_then_rerun_is_a_no_op(tmp_path: Path) -> None:
     path = tmp_path / "m.sqlite"
     store = SqliteEventStore(path)
     await store.connect()
-    assert await store.migrate() == ["0001_init"]
+    assert await store.migrate() == ["0001_init", "0002_alert_lifecycle"]
     assert await store.migrate() == []
     await store.close()
     # Reopening the file finds the recorded version and applies nothing.
@@ -69,7 +69,7 @@ async def test_fresh_database_then_rerun_is_a_no_op(tmp_path: Path) -> None:
         rows = conn.execute("SELECT version, name FROM schema_migrations").fetchall()
         tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     conn.close()
-    assert rows == [(1, "init")]
+    assert rows == [(1, "init"), (2, "alert_lifecycle")]
     assert {"readings", "state_changes", "predictions", "commands", "command_acks"} <= tables
     assert {"alerts", "quarantine", "snapshots"} <= tables
 

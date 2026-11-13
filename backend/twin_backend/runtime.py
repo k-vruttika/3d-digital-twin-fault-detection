@@ -1,9 +1,11 @@
-"""Build the backend runtime from config: event bus, storage, source manager.
+"""Build the backend runtime from config: event bus, storage, source manager, twin engine.
 
-``build_runtime`` loads ``line.yaml``, ``sources.yaml`` and ``storage.yaml`` from the config
-directory and wires everything together. The Phase 4 ``minimal`` and ``dev`` entry points use
-it. With ``storage.backend: sqlite`` (the default) nothing beyond the standard library is
-needed for persistence, so minimal mode keeps running without Docker, broker or ML.
+``build_runtime`` loads the line file (``TwinSettings.line_file``, default ``line.yaml``),
+``sources.yaml``, ``storage.yaml``, ``engine.yaml``, ``api.yaml`` and ``commands.yaml`` from
+the config directory and wires everything together. The ``minimal`` and ``dev`` entry points
+(``python -m twin_backend serve``) use it. With ``storage.backend: sqlite`` (the default)
+nothing beyond the standard library is needed for persistence, so minimal mode keeps running
+without Docker, broker or ML.
 """
 
 from __future__ import annotations
@@ -14,12 +16,20 @@ from pathlib import Path
 from twin_backend.adapters.manager import SourceManager
 from twin_backend.bus import InMemoryEventBus
 from twin_backend.clock import Clock, SystemClock
+from twin_backend.engine.twin import TwinEngine
 from twin_backend.ingest.metrics import IngestMetrics
+from twin_backend.storage.base import Stream
 from twin_backend.storage.service import StorageService, build_storage
 from twin_common.config import (
+    ApiConfig,
+    CommandsConfig,
+    EngineConfig,
     LineConfig,
     SourcesConfig,
     StorageConfig,
+    load_api_config,
+    load_commands_config,
+    load_engine_config,
     load_line_config,
     load_sources_config,
     load_storage_config,
@@ -38,12 +48,27 @@ class Runtime:
     metrics: IngestMetrics
     storage: StorageService | None
     manager: SourceManager
+    engine_cfg: EngineConfig
+    api_cfg: ApiConfig
+    commands_cfg: CommandsConfig
+    engine: TwinEngine
+    clock: Clock
+    root: Path
 
     async def start(self) -> None:
+        """Storage, then the source, then the engine (after restoring its alerts).
+
+        The engine subscribed to the bus when it was built, so nothing published in between
+        is lost; it is applied once the engine starts.
+        """
         await self.manager.start()
+        if self.storage is not None:
+            stored = await self.storage.store.fetch(Stream.ALERTS)
+            self.engine.load_alerts([s.item for s in stored])
+        self.engine.start()
 
     async def stop(self) -> None:
-        await self.manager.stop()
+        await self.manager.stop(before_storage=self.engine.stop)
 
 
 def check_storage_against_ingest(storage: StorageConfig, sources: SourcesConfig) -> None:
@@ -64,6 +89,9 @@ def build_runtime(
     line: LineConfig | None = None,
     sources: SourcesConfig | None = None,
     storage_cfg: StorageConfig | None = None,
+    engine_cfg: EngineConfig | None = None,
+    api_cfg: ApiConfig | None = None,
+    commands_cfg: CommandsConfig | None = None,
     with_storage: bool = True,
 ) -> Runtime:
     settings = settings if settings is not None else TwinSettings()
@@ -71,10 +99,19 @@ def build_runtime(
     config_dir = (
         settings.config_dir if settings.config_dir.is_absolute() else root / settings.config_dir
     )
-    line = line if line is not None else load_line_config(config_dir / "line.yaml")
+    line = line if line is not None else load_line_config(config_dir / settings.line_file)
     sources = sources if sources is not None else load_sources_config(config_dir / "sources.yaml")
     storage_cfg = (
         storage_cfg if storage_cfg is not None else load_storage_config(config_dir / "storage.yaml")
+    )
+    engine_cfg = (
+        engine_cfg if engine_cfg is not None else load_engine_config(config_dir / "engine.yaml")
+    )
+    api_cfg = api_cfg if api_cfg is not None else load_api_config(config_dir / "api.yaml")
+    commands_cfg = (
+        commands_cfg
+        if commands_cfg is not None
+        else load_commands_config(config_dir / "commands.yaml")
     )
     check_storage_against_ingest(storage_cfg, sources)
     clock = clock if clock is not None else SystemClock()
@@ -96,4 +133,27 @@ def build_runtime(
     manager = SourceManager(
         sources, line, bus, root=root, clock=clock, metrics=metrics, storage=storage
     )
-    return Runtime(settings, line, sources, storage_cfg, bus, metrics, storage, manager)
+    engine = TwinEngine(
+        line,
+        engine_cfg,
+        bus,
+        clock,
+        registry=metrics.registry,
+        queue_size=sources.bus.queue_size,
+    )
+    return Runtime(
+        settings,
+        line,
+        sources,
+        storage_cfg,
+        bus,
+        metrics,
+        storage,
+        manager,
+        engine_cfg,
+        api_cfg,
+        commands_cfg,
+        engine,
+        clock,
+        root,
+    )

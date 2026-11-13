@@ -65,6 +65,11 @@ COLUMNS: dict[Stream, tuple[str, ...]] = {
         "kind",
         "message",
         "source",
+        "active",
+        "acknowledged",
+        "acked_by",
+        "acked_at",
+        "rev",
         "ingested_at",
     ),
     Stream.QUARANTINE: (
@@ -87,7 +92,7 @@ UNIQUE_KEYS: dict[Stream, tuple[str, ...]] = {
     Stream.PREDICTIONS: ("machine_id", "ts", "horizon_s", "model_version"),
     Stream.COMMANDS: ("command_id", "ts"),
     Stream.COMMAND_ACKS: ("command_id", "status", "ts"),
-    Stream.ALERTS: ("alert_id", "ts"),
+    Stream.ALERTS: ("alert_id", "rev", "ts"),
 }
 
 # Deterministic fetch order.
@@ -97,7 +102,7 @@ ORDER_BY: dict[Stream, tuple[str, ...]] = {
     Stream.PREDICTIONS: ("ts", "machine_id", "horizon_s", "model_version"),
     Stream.COMMANDS: ("ts", "command_id"),
     Stream.COMMAND_ACKS: ("ts", "command_id", "status"),
-    Stream.ALERTS: ("ts", "alert_id"),
+    Stream.ALERTS: ("ts", "alert_id", "rev"),
     Stream.QUARANTINE: ("ts", "ingested_at", "source", "reason", "detail"),
 }
 
@@ -160,6 +165,11 @@ def encode(stream: Stream, stored: Stored[Any], ts_out: TsOut) -> tuple[Any, ...
             al.kind,
             al.message,
             al.source,
+            al.active,
+            al.acknowledged,
+            al.acked_by,
+            ts_out(al.acked_at) if al.acked_at is not None else None,
+            al.rev,
             ing,
         )
     q: QuarantineRecord = item
@@ -226,6 +236,11 @@ def decode(stream: Stream, row: Mapping[str, Any], ts_in: TsIn) -> Stored[Any]:
                 "kind": row["kind"],
                 "message": row["message"],
                 "source": row["source"],
+                "active": bool(row["active"]),
+                "acknowledged": bool(row["acknowledged"]),
+                "acked_by": row["acked_by"],
+                "acked_at": ts_in(row["acked_at"]) if row["acked_at"] is not None else None,
+                "rev": row["rev"],
             }
         )
     else:
