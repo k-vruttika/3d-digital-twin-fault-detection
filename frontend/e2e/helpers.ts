@@ -71,3 +71,15 @@ export async function applyKey(page: Page, key: string): Promise<void> {
   await expect(page.getByTestId("role")).toContainText("operator", { timeout: 30_000 });
   await expect(page.getByTestId("connection-pill")).toContainText("Connected", { timeout: 30_000 });
 }
+
+/** The chart (canvas, with its axis labels) lies fully inside the bottom panel's visible area. */
+export async function expectChartInsidePanel(page: Page, testId: string): Promise<void> {
+  const canvas = page.getByTestId(testId).locator("canvas");
+  await expect(canvas).toBeVisible();
+  const panel = await page.locator("section.bottom").boundingBox();
+  const box = await canvas.boundingBox();
+  if (panel === null || box === null) throw new Error("no layout box");
+  expect(box.height, `${testId} has room to draw`).toBeGreaterThanOrEqual(120);
+  expect(box.y + box.height, `${testId} bottom (axis labels) inside the panel`).toBeLessThanOrEqual(panel.y + panel.height + 0.5);
+  expect(box.x + box.width).toBeLessThanOrEqual(panel.x + panel.width + 0.5);
+}

@@ -29,7 +29,7 @@ import type { StreamStatus } from "../../api/ws.ts";
 import type { SnapshotLike } from "../../engine/TwinEngine.ts";
 import type { LabelMode } from "../../engine/labelPolicy.ts";
 import { DASHBOARD_CONFIG, type DashboardConfig } from "../config.ts";
-import { applyAlertEvent } from "./alerts.ts";
+import { applyAlertEvent, mergeAlertEvents } from "./alerts.ts";
 import { INITIAL_AUTH, type AuthState } from "./auth.ts";
 import { connectionView, type ConnectionView } from "./connection.ts";
 import { createStore, type Store } from "./store.ts";
@@ -72,6 +72,8 @@ export class DashboardModel implements EngineSink {
   readonly machines: Store<Record<string, MachineInfo>> = createStore<Record<string, MachineInfo>>({});
   readonly lineView: Store<LineViewModel | null> = createStore<LineViewModel | null>(null);
   readonly alerts: Store<ReadonlyMap<string, Alert>> = createStore<ReadonlyMap<string, Alert>>(new Map());
+  /** Every lifecycle event seen per alert id (raise / clear / ack times; alerts.ts alertTimes). */
+  readonly alertEvents: Store<ReadonlyMap<string, readonly Alert[]>> = createStore<ReadonlyMap<string, readonly Alert[]>>(new Map());
   readonly connection: Store<ConnectionView>;
   readonly auth: Store<AuthState> = createStore<AuthState>(INITIAL_AUTH);
   readonly selection: Store<string | null> = createStore<string | null>(null);
@@ -154,6 +156,7 @@ export class DashboardModel implements EngineSink {
 
   applyAlert(alert: Alert): void {
     this.alerts.set(applyAlertEvent(this.alerts.get(), alert));
+    this.addAlertEvents([alert]);
     this.engine?.applyAlert(alert);
   }
 
@@ -253,6 +256,11 @@ export class DashboardModel implements EngineSink {
   }
 
   // ------------------------------------------------------------------ listeners
+  /** Add lifecycle events (stream, snapshot, /alerts/history backfill). */
+  addAlertEvents(events: readonly Alert[]): void {
+    if (events.length > 0) this.alertEvents.set(mergeAlertEvents(this.alertEvents.get(), events));
+  }
+
   onReading(listener: ReadingListener): () => void {
     this.readingListeners.add(listener);
     return () => this.readingListeners.delete(listener);
@@ -348,6 +356,7 @@ export class DashboardModel implements EngineSink {
       let alerts: Map<string, Alert> = new Map();
       for (const a of snapshot.alerts) alerts = applyAlertEvent(alerts, a);
       this.alerts.set(alerts);
+      this.addAlertEvents(snapshot.alerts);
     }
   }
 }

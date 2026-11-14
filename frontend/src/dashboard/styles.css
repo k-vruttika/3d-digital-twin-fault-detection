@@ -234,10 +234,41 @@ select {
   color: var(--muted);
 }
 
+/* The bottom panel is a column: tab strip, then the active panel filling the rest. Charts that
+   fill (History) size to it, so their axis labels always stay inside the panel. */
 .bottom {
   flex: 1 1 45%;
   min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.bottom .tabs {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bottom .tabpanel:not([hidden]) {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.history-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart.chart-fill {
+  flex: 1 1 auto;
+  min-height: 140px;
 }
 
 .panel {
@@ -687,7 +718,25 @@ dialog::backdrop {
 }
 
 table.alerts td:nth-child(2),
-table.alerts td:nth-child(5),
-table.alerts td:nth-child(7) {
+table.alerts td:nth-child(6) {
+  white-space: nowrap;
+}
+
+/* Replay cue on the 3D view: an amber frame and a soft vignette over the scene (no tint of the
+   scene itself in the light theme). */
+.twin[data-mode="replay"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: var(--radius);
+  box-shadow:
+    inset 0 0 0 3px var(--warning),
+    inset 0 0 48px color-mix(in srgb, var(--warning) 28%, transparent);
+  z-index: 5;
+}
+
+/* "raised 00:12:57" never breaks inside a part; whole parts wrap. */
+.alert-times > span {
   white-space: nowrap;
 }

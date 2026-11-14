@@ -16,6 +16,7 @@ export function TwinView() {
   const [error, setError] = useState<string | null>(null);
   const ready = useStore(model.engineReady);
   const theme = useTheme();
+  const mode = useStore(model.modeStore);
 
   useEffect(() => {
     const el = ref.current;
@@ -58,7 +59,7 @@ export function TwinView() {
   }, [theme]);
 
   return (
-    <div className="twin" ref={ref} data-testid="twin-view" aria-label="3D view of the line" role="region">
+    <div className="twin" ref={ref} data-testid="twin-view" data-mode={mode} aria-label="3D view of the line" role="region">
       {!ready && error === null && <div className="twin-overlay">Loading 3D view…</div>}
       {error !== null && (
         <div className="twin-overlay error" role="alert">

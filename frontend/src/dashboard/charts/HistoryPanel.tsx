@@ -111,7 +111,7 @@ export function HistoryPanel() {
   if (id === null || line === null) return <p className="muted">Select a machine to see its history.</p>;
   const res = range === null ? null : chooseResolution((range.to - range.from) / 1000, cfg);
   return (
-    <div data-testid="history-panel">
+    <div data-testid="history-panel" className="history-panel">
       <div className="toolbar">
         <label>
           Sensor{" "}
@@ -182,7 +182,7 @@ export function HistoryPanel() {
       {chart !== null && range !== null && (
         <SensorChart
           testId="history-chart"
-          height={220}
+          height="fill"
           data={{ ...chart, xMin: range.from, xMax: range.to }}
           onZoom={(from, to) => {
             setZoom({ from, to });

@@ -255,6 +255,7 @@ The backend URL comes from `VITE_LINETWIN_API_URL` (default `http://127.0.0.1:80
 - **History** (`charts/HistoryPanel.tsx`): one sensor at a time. Range presets (15 min, 1 h, 6 h, 24 h, all), drag across the plot to zoom, and a reset button; no zoom plugin.
   - The resolution follows the visible span: raw up to 30 min, 1-minute buckets up to 24 h, 10-minute buckets beyond. Buckets show the mean with a min–max band.
   - Ranges are anchored at the newest event time (or the replay time), never at the wall clock, and do not reach back before the first stored event.
+  - The chart fills the rest of the bottom panel (flex column), so its axis labels stay visible at 1280 and 1920 px; the e2e and screenshot specs check that the canvas lies inside the panel.
 - **Missing values are gaps, never zero** (`charts/series.ts`):
   - A missing sensor value (null, or absent from the JSON) and an empty bucket become `y: null`.
   - A time gap longer than 3 median sample intervals, or a missing bucket, inserts a null point.
@@ -271,6 +272,8 @@ The panel shows the ISA-18.2 groups (`state/alerts.ts`):
 - cleared, unacknowledged.
 
 Resolved alerts (cleared and acknowledged) leave the list. Within a group, alerts sort by severity, then newest first.
+
+- **Times:** each alert shows when it was **raised**, and when it was **cleared** and **acked** (with by whom) once those happened, in the alerts panel and in the details panel (`alertTimes` in `state/alerts.ts`). An Alert event's `ts` is the time of its latest transition, so the dashboard keeps every lifecycle event per alert. For an alert first seen at a later rev (raised before the dashboard connected, after a restart, in replay), it fetches that machine's events up to the alert's current transition from `/alerts/history`, once per alert (`useAlertBackfill.ts`). In replay only events up to the replayed rev count, so a later clear or ack never shows early.
 
 - **Filters:** machine and severity.
 - **Acknowledge** (operator, connected): `POST /alerts/{id}/ack`; the new rev arrives through the stream.
@@ -323,7 +326,8 @@ While replaying:
 - live stream data is ignored;
 - operator actions are disabled;
 - live charts pause, and the History tab centres on the replay time;
-- data quality shows as "not replayed": it is measured over a live wall-clock window, so it cannot be reconstructed for a past time.
+- data quality shows as "not replayed": it is measured over a live wall-clock window, so it cannot be reconstructed for a past time;
+- the 3D view gets an amber frame with a soft vignette. In the dark theme the scene background also turns a warmer dark; in the light theme the scene is not tinted (a warm tint over a light scene looked muddy), so the banner and the frame carry the cue.
 
 ### Prediction and what-if
 

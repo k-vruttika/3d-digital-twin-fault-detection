@@ -9,6 +9,7 @@ import { displayUnit, formatAge, formatDateTime, formatPct, formatValue } from "
 import { groupOf } from "../state/alerts.ts";
 import { rootCauseOf } from "../state/model.ts";
 import { useStore } from "../state/store.ts";
+import { AlertTimesText } from "./AlertTimesText.tsx";
 import { StateBadge } from "./StateBadge.tsx";
 
 export function DetailsPanel() {
@@ -117,8 +118,9 @@ export function DetailsPanel() {
           {machineAlerts.map((a) => (
             <li key={a.alertId}>
               <span className={`sev sev-${a.severity}`}>{a.severity}</span> {a.message}
-              {a.acknowledged ? <span className="muted"> · acknowledged</span> : null}
-              {!a.active ? <span className="muted"> · cleared</span> : null}
+              <div className="muted">
+                <AlertTimesText alert={a} />
+              </div>
             </li>
           ))}
         </ul>

@@ -48,6 +48,7 @@ export const ENDPOINTS = [
   ["get", "/replay"],
   ["get", "/alerts"],
   ["post", "/alerts/{alert_id}/ack"],
+  ["get", "/alerts/history"],
   ["post", "/commands"],
   ["get", "/health"],
   ["get", "/sources"],
@@ -159,6 +160,10 @@ export class RestClient {
 
   getAlerts(query: Query<Operation<"/alerts", "get">> = {}): Promise<AlertsResponse> {
     return this.get("/alerts", {}, query);
+  }
+
+  getAlertHistory(query: Query<Operation<"/alerts/history", "get">> = {}): Promise<AlertsResponse> {
+    return this.get("/alerts/history", {}, query);
   }
 
   ackAlert(alertId: string): Promise<Alert> {

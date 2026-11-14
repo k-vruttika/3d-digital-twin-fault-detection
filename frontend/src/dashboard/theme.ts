@@ -40,8 +40,12 @@ export function useTheme(): Theme {
   return useStore(themeStore);
 }
 
-/** 3D scene colours per theme (engine.setTheme). */
+/**
+ * 3D scene colours per theme (engine.setTheme). In the light theme the replay background equals
+ * the normal one: a warm tint over a light scene looks muddy, so replay there is shown by the
+ * REPLAY banner and an amber frame with a soft vignette around the 3D view (styles.css).
+ */
 export const ENGINE_THEME: Record<Theme, { background: number; replayBackground: number; floor: number; grid: number }> = {
   dark: { background: 0x1d2229, replayBackground: 0x2a2620, floor: 0x2b3038, grid: 0x3a414c },
-  light: { background: 0xdfe4ea, replayBackground: 0xece3d2, floor: 0xc9d0d8, grid: 0xb3bcc7 },
+  light: { background: 0xdfe4ea, replayBackground: 0xdfe4ea, floor: 0xc9d0d8, grid: 0xb3bcc7 },
 };

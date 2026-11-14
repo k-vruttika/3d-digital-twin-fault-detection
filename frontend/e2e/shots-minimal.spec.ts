@@ -5,7 +5,7 @@
  */
 import { expect, test, type Page } from "@playwright/test";
 
-import { engineLabel, moments, openDashboard, scrubTo } from "./helpers.ts";
+import { engineLabel, expectChartInsidePanel, moments, openDashboard, scrubTo } from "./helpers.ts";
 
 function shotsDir(): string {
   const dir = process.env.E2E_SHOTS_DIR;
@@ -37,6 +37,11 @@ for (const width of [1280, 1920]) {
     await page.setViewportSize({ width, height: width === 1280 ? 800 : 1080 });
     await openDashboard(page);
     await enterReplayAt(page, m.waiting.ts, m.waiting.machine, new RegExp(`^${m.waiting.state}`));
+    // the history chart fits its panel at this width (axis labels visible)
+    await page.getByTestId(`machine-item-${m.fault.machine}`).click();
+    await page.getByTestId("tab-history").click();
+    await expectChartInsidePanel(page, "history-chart");
+    await page.getByTestId(`machine-item-${m.fault.machine}`).press("Escape");
     await page.getByTestId("tab-alerts").click();
     await setTheme(page, "dark");
     await shot(page, `overview_dark_${String(width)}`);
@@ -54,7 +59,7 @@ test("machine details, alerts and replay mode", async ({ page }) => {
   await enterReplayAt(page, m.warning.ts, m.warning.machine, /^WARNING$/);
   await page.getByTestId(`machine-item-${m.warning.machine}`).click();
   await page.getByTestId("tab-history").click();
-  await expect(page.getByTestId("history-chart").locator("canvas")).toBeVisible();
+  await expectChartInsidePanel(page, "history-chart");
   await shot(page, "machine_details");
 
   // the alerts panel once the fault has stopped its neighbours

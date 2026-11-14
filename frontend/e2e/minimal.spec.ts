@@ -4,7 +4,7 @@
  */
 import { expect, test } from "@playwright/test";
 
-import { engineLabel, moments, openDashboard, scrubTo } from "./helpers.ts";
+import { engineLabel, expectChartInsidePanel, moments, openDashboard, scrubTo } from "./helpers.ts";
 
 test("dashboard on minimal mode: machines, details, chart, replay scrub", async ({ page }) => {
   const m = moments();
@@ -26,7 +26,7 @@ test("dashboard on minimal mode: machines, details, chart, replay scrub", async 
 
   // the history tab draws a chart too
   await page.getByTestId("tab-history").click();
-  await expect(page.getByTestId("history-chart").locator("canvas")).toBeVisible();
+  await expectChartInsidePanel(page, "history-chart");
 
   // replay: the 3D scene follows the scrubbed time
   await page.getByTestId("enter-replay").click();

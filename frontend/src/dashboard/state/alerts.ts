@@ -59,3 +59,56 @@ export function groupAlerts(alerts: Iterable<Alert>, filter: AlertFilter = { mac
   }
   return out;
 }
+
+export interface AlertTimes {
+  /** When the alert was raised (its rev 0); null if that event is not known. */
+  raisedAt: string | null;
+  /** When it last went from active to cleared; null while active. */
+  clearedAt: string | null;
+  /** When it was acknowledged; null if not (yet). */
+  ackedAt: string | null;
+}
+
+/**
+ * Raise, clear and ack times of one alert from its lifecycle events (any order, duplicates
+ * allowed). Each Alert event's `ts` is the time of *that* transition, so the current event alone
+ * cannot tell when the alert was raised. Only events up to `current.rev` count, so a replay at t
+ * never shows a later clear or ack.
+ */
+export function alertTimes(current: Alert, events: readonly Alert[]): AlertTimes {
+  const byRev = new Map<number, Alert>();
+  for (const e of [...events, current]) if (e.alertId === current.alertId && e.rev <= current.rev) byRev.set(e.rev, e);
+  const ordered = [...byRev.values()].sort((a, b) => a.rev - b.rev);
+  const raise = ordered.find((e) => e.rev === 0 && e.active);
+  let clearedAt: string | null = null;
+  let prevActive: boolean | null = null;
+  let firstAck: string | null = null;
+  for (const e of ordered) {
+    if (!e.active && prevActive !== false) clearedAt = e.ts;
+    if (e.active) clearedAt = null;
+    prevActive = e.active;
+    if (e.acknowledged && firstAck === null) firstAck = e.ts;
+  }
+  return {
+    raisedAt: raise?.ts ?? null,
+    clearedAt: current.active ? null : clearedAt,
+    ackedAt: current.acknowledged ? (current.ackedAt ?? firstAck) : null,
+  };
+}
+
+/** Alert events kept per alert id, merged without duplicates (by rev). */
+export function mergeAlertEvents(
+  current: ReadonlyMap<string, readonly Alert[]>,
+  events: readonly Alert[],
+): Map<string, Alert[]> {
+  const next = new Map<string, Alert[]>([...current].map(([k, v]) => [k, [...v]]));
+  for (const e of events) {
+    const list = next.get(e.alertId) ?? [];
+    if (!list.some((x) => x.rev === e.rev)) {
+      list.push(e);
+      list.sort((a, b) => a.rev - b.rev);
+    }
+    next.set(e.alertId, list);
+  }
+  return next;
+}

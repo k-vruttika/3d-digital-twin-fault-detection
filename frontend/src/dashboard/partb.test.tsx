@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Command, CommandAck, CommandLimitsResponse, SourcesResponse } from "../api/types.ts";
 import { OPERATOR, pathOf, renderDashboard, snapshot, VIEWER, type Route } from "../test/dashboard.tsx";
 import { reduceFlows, ruleHint, type CommandFlow } from "./state/commandFlow.ts";
+import { ENGINE_THEME } from "./theme.ts";
 
 afterEach(() => {
   cleanup();
@@ -314,6 +315,9 @@ describe("replay", () => {
       expect(screen.getByTestId("replay-banner")).toBeTruthy();
     });
     expect(h.engine.mode).toBe("replay");
+    // the 3D view gets the replay frame (CSS); the light theme does not tint the scene
+    expect(screen.getByTestId("twin-view").dataset.mode).toBe("replay");
+    expect(ENGINE_THEME.light.replayBackground).toBe(ENGINE_THEME.light.background);
     await waitFor(() => {
       expect(screen.getByTestId("replay-scrubber")).toBeTruthy();
     });
@@ -336,6 +340,7 @@ describe("replay", () => {
 
     fireEvent.click(screen.getByTestId("exit-replay"));
     expect(screen.queryByTestId("replay-banner")).toBeNull();
+    expect(screen.getByTestId("twin-view").dataset.mode).toBe("live");
     expect(h.engine.mode).toBe("live");
     expect(h.resubscribed.count).toBe(1); // a fresh snapshot replaces the replayed state
   });

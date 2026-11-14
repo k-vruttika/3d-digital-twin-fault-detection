@@ -19,6 +19,7 @@ import { useModel, useServices } from "./context.ts";
 import { groupAlerts } from "./state/alerts.ts";
 import { useStore } from "./state/store.ts";
 import { useTheme } from "./theme.ts";
+import { useAlertBackfill } from "./useAlertBackfill.ts";
 import { useSourcesPolling } from "./useSourcesPolling.ts";
 
 function AlertsTabLabel() {
@@ -36,6 +37,7 @@ export function App() {
   const theme = useTheme();
   const sources = useStore(model.sources);
   useSourcesPolling();
+  useAlertBackfill();
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);

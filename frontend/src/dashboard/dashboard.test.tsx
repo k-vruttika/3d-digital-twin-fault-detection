@@ -200,6 +200,58 @@ describe("alerts panel", () => {
   });
 });
 
+describe("alert times", () => {
+  const raise = alert({ alertId: "w", machineId: "INSP-01", severity: "WARNING", kind: "machine_warning", ts: "2026-01-01T00:09:10Z", rev: 0 });
+  const clear = { ...raise, ts: "2026-01-01T00:12:57Z", active: false, rev: 1 };
+
+  it("shows raised and cleared times from the stream, in the alerts panel and the details", () => {
+    const h = renderDashboard();
+    act(() => {
+      h.model.applyAlert(raise);
+      h.model.applyAlert(clear);
+      h.model.select("INSP-01");
+    });
+    fireEvent.click(screen.getByTestId("tab-alerts"));
+    const times = within(screen.getByTestId("alert-group-clearedUnacked")).getByTestId("alert-times-w");
+    expect(times.textContent).toBe("raised 00:09:10 · cleared 00:12:57");
+    expect(within(screen.getByTestId("details-panel")).getByTestId("alert-times-w").textContent).toBe(
+      "raised 00:09:10 · cleared 00:12:57",
+    );
+  });
+
+  it("shows the ack time and who acknowledged an active alert", () => {
+    const h = renderDashboard();
+    act(() => {
+      h.model.applyAlert(raise);
+      h.model.applyAlert({ ...raise, rev: 1, ts: "2026-01-01T00:10:00Z", acknowledged: true, ackedBy: "alice", ackedAt: "2026-01-01T00:10:00Z" });
+    });
+    fireEvent.click(screen.getByTestId("tab-alerts"));
+    expect(within(screen.getByTestId("alert-group-activeAcked")).getByTestId("alert-times-w").textContent).toBe(
+      "raised 00:09:10 · acked 00:10:00 by alice",
+    );
+  });
+
+  it("fetches the raise event from /alerts/history when only a later rev is known", async () => {
+    const acked = { ...clear, rev: 2, ts: "2026-01-01T00:14:00Z", acknowledged: true, ackedBy: "alice", ackedAt: "2026-01-01T00:14:00Z" };
+    const h = renderDashboard({
+      alerts: [clear],
+      routes: [(c) => (pathOf(c) === "/alerts/history" ? { body: { alerts: [raise, clear] } } : undefined)],
+    });
+    fireEvent.click(screen.getByTestId("tab-alerts"));
+    await waitFor(() => {
+      expect(screen.getByTestId("alert-times-w").textContent).toBe("raised 00:09:10 · cleared 00:12:57");
+    });
+    const req = h.calls.find((c) => pathOf(c) === "/alerts/history");
+    expect(req?.url).toContain("machine=INSP-01");
+    expect(new URL(req?.url ?? "http://x").searchParams.get("to")).toBe("2026-01-01T00:12:57.001Z");
+    act(() => {
+      h.model.applyAlert(acked);
+    });
+    // cleared + acknowledged = resolved: it leaves the list (ack times are covered in state.test.ts)
+    expect(screen.queryByTestId("alert-times-w")).toBeNull();
+  });
+});
+
 describe("live charts", () => {
   it("draws a missing sensor value as a gap (null, spanGaps false), never as zero", async () => {
     const h = renderDashboard({

@@ -198,6 +198,25 @@ pytest runs 693 tests (683 before this phase) and Vitest 155 in 17 files (92 bef
 
 **Bug found by the e2e run:** devstack's mock-server child survived the test on Windows (terminating a process there runs no cleanup) and kept the mock port, so the next run talked to a stale server. The stack now starts the mock server itself.
 
+### Follow-up fixes after review (2026-11-14)
+
+- **Alert times:**
+  - The alerts list showed each alert's latest transition time, which read like the raise time (a cleared WARNING showed the FAULT time). The alerts and details panels now show "raised", plus "cleared" and "acked … by …" when they exist. The times come from the alert's lifecycle events (`alertTimes`).
+  - For alerts first seen at a later rev, the raise event is fetched from `/alerts/history`, once per alert.
+  - Tests: unit tests for raise, clear, ack, re-raise, replay cut-off and an unknown raise; component tests for both panels, the ack time and the backfill request.
+- **History chart fit:**
+  - At 1280 px the x-axis labels were cut off. The bottom panel is now a flex column and the History chart fills the remaining height.
+  - The minimal e2e and the screenshot specs (1280 and 1920) check that the chart canvas lies inside the panel.
+- **Light-theme replay cue:**
+  - The warm scene tint looked muddy. The light theme no longer tints the 3D scene; replay is shown by the banner plus an amber frame with a soft vignette on the 3D view, in both themes.
+  - Tests check that the view gets `data-mode="replay"` and back, and that the light replay background equals the normal one.
+- **Verified:**
+  - `uv run poe lint` passes;
+  - `LINETWIN_REQUIRE_SERVICES=1 uv run poe test`: pytest 693 passed, 0 skipped; Vitest 163 passed;
+  - dashboard screenshots regenerated and reviewed.
+  
+  The first screenshot run of the dev-mode spec hit the 180 s Playwright test timeout inside `page.screenshot` (the spec normally takes 35–75 s). Two reruns passed, and the cause was not identified; a stalled software-WebGL frame under load is the likely one.
+
 ### Known limitations
 
 - **Data quality is not replayable:** it is a rolling wall-clock window. Replay shows it as "not replayed".

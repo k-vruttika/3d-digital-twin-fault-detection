@@ -7,7 +7,7 @@ import { LINE } from "../../test/fakes.ts";
 import { alert, reading, snapshot } from "../../test/dashboard.tsx";
 import { BUCKET_S, bucketsToSeries, chooseResolution, readingsToSeries, trimWindow } from "../charts/series.ts";
 import { DASHBOARD_CONFIG } from "../config.ts";
-import { applyAlertEvent, groupAlerts } from "./alerts.ts";
+import { alertTimes, applyAlertEvent, groupAlerts, mergeAlertEvents } from "./alerts.ts";
 import { loadRememberedKey, persistKey, SESSION_KEY, type KeyStorage } from "./auth.ts";
 import { connectionView } from "./connection.ts";
 import { DashboardModel } from "./model.ts";
@@ -41,6 +41,45 @@ describe("alerts", () => {
       alert({ alertId: "c2", machineId: "M", severity: "CRITICAL", ts: "2026-01-01T00:00:02Z" }),
     ]);
     expect(g.activeUnacked.map((a) => a.alertId)).toEqual(["c2", "c1", "w"]);
+  });
+});
+
+describe("alert times", () => {
+  const ev = (rev: number, ts: string, active: boolean, acknowledged = false) =>
+    alert({ alertId: "w", machineId: "INSP-01", severity: "WARNING", kind: "machine_warning", rev, ts, active, acknowledged, ackedAt: acknowledged ? ts : null, ackedBy: acknowledged ? "alice" : null });
+  const raised = ev(0, "2026-01-01T00:09:10Z", true);
+  const cleared = ev(1, "2026-01-01T00:12:57Z", false);
+  const acked = ev(2, "2026-01-01T00:14:00Z", false, true);
+
+  it("a cleared alert shows when it was raised, not its latest transition", () => {
+    expect(alertTimes(cleared, [raised, cleared])).toEqual({
+      raisedAt: "2026-01-01T00:09:10Z",
+      clearedAt: "2026-01-01T00:12:57Z",
+      ackedAt: null,
+    });
+  });
+
+  it("acked after clearing; events in any order and duplicated", () => {
+    expect(alertTimes(acked, [acked, cleared, raised, raised])).toEqual({
+      raisedAt: "2026-01-01T00:09:10Z",
+      clearedAt: "2026-01-01T00:12:57Z",
+      ackedAt: "2026-01-01T00:14:00Z",
+    });
+  });
+
+  it("only events up to the current rev count (replay), and a re-raise clears the clear time", () => {
+    expect(alertTimes(raised, [raised, cleared, acked])).toEqual({ raisedAt: raised.ts, clearedAt: null, ackedAt: null });
+    const again = ev(2, "2026-01-01T00:13:30Z", true);
+    expect(alertTimes(again, [raised, cleared, again]).clearedAt).toBeNull();
+  });
+
+  it("without the raise event the raise time is unknown", () => {
+    expect(alertTimes(cleared, []).raisedAt).toBeNull();
+  });
+
+  it("mergeAlertEvents keeps one event per rev, sorted", () => {
+    const m = mergeAlertEvents(new Map(), [cleared, raised, cleared]);
+    expect(m.get("w")?.map((e) => e.rev)).toEqual([0, 1]);
   });
 });
 

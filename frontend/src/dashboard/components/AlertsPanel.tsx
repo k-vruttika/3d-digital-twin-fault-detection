@@ -7,9 +7,9 @@ import { useMemo, useState } from "react";
 import { ApiError } from "../../api/rest.ts";
 import type { AlertSeverity } from "../../api/types.ts";
 import { useCanAct, useModel, useRest } from "../context.ts";
-import { formatDateTime } from "../format.ts";
 import { GROUP_ORDER, GROUP_TITLE, groupAlerts } from "../state/alerts.ts";
 import { useStore } from "../state/store.ts";
+import { AlertTimesText } from "./AlertTimesText.tsx";
 
 const SEVERITIES: AlertSeverity[] = ["CRITICAL", "WARNING", "INFO"];
 
@@ -119,8 +119,9 @@ export function AlertsPanel() {
                     </td>
                     <td className="kind">{a.kind}</td>
                     <td>{a.message}</td>
-                    <td className="small muted">{formatDateTime(a.ts)}</td>
-                    <td className="small muted">{a.acknowledged ? `ack by ${a.ackedBy ?? "?"}` : ""}</td>
+                    <td className="small muted">
+                      <AlertTimesText alert={a} />
+                    </td>
                     <td>
                       {operator && !a.acknowledged && (
                         <button

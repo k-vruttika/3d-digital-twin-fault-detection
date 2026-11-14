@@ -10,7 +10,8 @@ interface Props {
   data: SensorChartData;
   /** Drag across the plot to zoom to that time range (epoch ms). */
   onZoom?: (from: number, to: number) => void;
-  height?: number;
+  /** Pixel height, or "fill" to take the remaining height of a flex column. */
+  height?: number | "fill";
   testId?: string;
 }
 
@@ -72,8 +73,8 @@ export function SensorChart({ data, onZoom, height = 140, testId }: Props) {
   const zoomable = onZoom !== undefined;
   return (
     <div
-      className="chart"
-      style={{ height }}
+      className={height === "fill" ? "chart chart-fill" : "chart"}
+      style={height === "fill" ? undefined : { height }}
       data-testid={testId}
       onPointerDown={zoomable ? (e) => { const x = local(e); setDrag({ x0: x, x1: x }); } : undefined}
       onPointerMove={zoomable && drag !== null ? (e) => { setDrag({ ...drag, x1: local(e) }); } : undefined}
