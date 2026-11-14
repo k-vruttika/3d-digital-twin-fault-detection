@@ -1,0 +1,14 @@
+# End-to-end tests and dashboard screenshots (dev mode): a healthy line with no random faults,
+# no automatic recovery and no job speed changes, so every fault and command in the test is
+# the test's own (injected through POST /scenario, sent through POST /commands).
+name: e2e_quiet
+seed: 5
+duration_s: 7200
+load_ranges: [medium]
+faults:
+  random: { rate_per_machine_per_hour: 0.0 }
+  scheduled: []
+recovery:
+  auto: false
+commands: []
+speed_changes: []

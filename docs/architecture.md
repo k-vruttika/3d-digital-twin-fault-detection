@@ -111,7 +111,12 @@ Reference: [api.md](api.md) (generated from OpenAPI, plus the WebSocket protocol
 - **`TwinEngine`** (`frontend/src/engine/`): a framework-agnostic Three.js renderer ([ADR 0016](adr/0016-3d-twin-engine.md)). It lays the line out from `GET /line`, builds procedural machines with addressable parts, and maps states to visuals through one pure function. It infers buffer states from neighbours (the line reports no buffer levels) and frees every resource on `dispose()`.
 - **API client** (`frontend/src/api/`): a typed REST client and a WebSocket client (auth first, re-subscribe and fresh snapshot after every reconnect, backoff also after 4408). `bindStream` feeds the engine.
 - **Types:** generated from the backend's OpenAPI schema, which also carries the WebSocket frame models ([ADR 0017](adr/0017-generated-api-types.md)).
+- **Dashboard** (`frontend/src/dashboard/`, `index.html`, Phase 6): a React app around the engine.
+  - One `DashboardModel` is the `EngineSink` for the stream and replay. It feeds small stores for the panels and forwards everything to the engine ([ADR 0018](adr/0018-dashboard-state-auth-replay.md)).
+  - Panels: machine list, details, live and history charts (Chart.js), ISA-18.2 alerts, commands, scenario injection (simulation only), sources, replay, and Phase 11 placeholders.
+  - The engine and three.js load as their own chunks.
 - **Dev page:** `frontend/dev.html` (`uv run poe frontend`), with synthetic modes for performance checks and screenshots. See [frontend.md](frontend.md).
+- **End-to-end tests:** pytest starts the backend and Vite (`twin_backend/e2e_stack.py`) and drives the dashboard with Playwright, in minimal mode and in dev mode with the mock source.
 
 ## Command path
 

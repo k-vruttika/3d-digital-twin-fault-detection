@@ -17,6 +17,7 @@ import {
 } from "three";
 
 import type { BuildContext } from "./geometry/shared.ts";
+import { labelScreenScale, MIN_VISIBLE_OPACITY } from "./labelPolicy.ts";
 import type { LabelTextureFactory } from "./labels.ts";
 import type { BufferPlacement } from "./layout.ts";
 import { toneColor, type BufferStatus, type Tone } from "./visuals.ts";
@@ -26,6 +27,9 @@ const TRAY_LENGTH = 1.2;
 const TRAY_WIDTH = 0.8;
 const TRAY_HEIGHT = 0.55;
 const FLOWING_ITEMS = 2;
+/** Buffer labels are drawn a little smaller than machine labels. */
+const BUFFER_LABEL_SCALE = 0.8;
+const LABEL_POS = new Vector3();
 
 const STATUS_TONE: Record<BufferStatus, Tone> = {
   FULL: "waiting",
@@ -49,6 +53,7 @@ export class BufferModel {
   private readonly labelMaterial: SpriteMaterial;
   private phase = 0;
   private dirty = true;
+  private labelAspect: number | null = null;
 
   constructor(
     placement: BufferPlacement,
@@ -174,6 +179,7 @@ export class BufferModel {
     this.ctx.tracker.release(old);
     const cfg = this.ctx.cfg;
     if (!cfg.labels.enabled || this.labelFactory === null) {
+      this.labelAspect = null;
       this.label.visible = false;
       return;
     }
@@ -184,13 +190,36 @@ export class BufferModel {
       fontPx: cfg.labels.fontPx,
     });
     if (made === null) {
+      this.labelAspect = null;
       this.label.visible = false;
       return;
     }
     this.labelMaterial.map = this.ctx.tracker.track(made.texture);
     this.labelMaterial.needsUpdate = true;
-    const h = cfg.labels.height * 0.75;
-    this.label.scale.set(h * made.aspect, h, 1);
-    this.label.visible = true;
+    this.labelAspect = made.aspect;
+  }
+
+  /** Per frame, like MachineModel.updateLabel. */
+  updateLabel(cameraPosition: Vector3, fovDeg: number, viewportPx: number, show: boolean, exempt: boolean): void {
+    if (!show || this.labelAspect === null) {
+      this.label.visible = false;
+      return;
+    }
+    this.label.getWorldPosition(LABEL_POS);
+    const { worldHeight, opacity } = labelScreenScale(
+      LABEL_POS.distanceTo(cameraPosition),
+      fovDeg,
+      viewportPx,
+      this.ctx.cfg.labels,
+      exempt,
+    );
+    const h = worldHeight * BUFFER_LABEL_SCALE;
+    this.label.visible = opacity >= MIN_VISIBLE_OPACITY;
+    this.labelMaterial.opacity = opacity;
+    this.label.scale.set(h * this.labelAspect, h, 1);
+  }
+
+  get labelVisible(): boolean {
+    return this.label.visible;
   }
 }

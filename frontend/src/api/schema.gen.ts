@@ -55,6 +55,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The principal and role of the presented key (anonymous viewer without one) */
+        get: operations["auth_me_auth_me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/commands": {
         parameters: {
             query?: never;
@@ -70,6 +87,23 @@ export interface paths {
          * @description Every outcome of the command itself is a 200 with the final `CommandAck`: `EXECUTED`, `REJECTED` (safety rule, unsupported by the active source, or refused by the machine; see `reason`) or `TIMEOUT`. STOP is always allowed by the safety rules. Repeating an `idempotencyKey` with the same request returns the original ack without sending again (response header `Idempotent-Replay: true`).
          */
         post: operations["send_command_commands_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/commands/limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Parameter limits per machine kind and the safety rules (commands.yaml) */
+        get: operations["command_limits_commands_limits_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -236,8 +270,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Line state at event time t (snapshot + replay, equals reconstruct(t)) */
+        /**
+         * Line state at event time t (reconstruct(t)) with root causes and alerts as of t
+         * @description `machines` and `predictions` equal `reconstruct(t)` (snapshot + replay). `line` holds the root causes the twin engine derives from those states (same propagation as live), `alerts` the alerts that were unresolved at t (highest rev with ts <= t). Data quality uses a wall-clock window and is not replayed.
+         */
         get: operations["replay_replay_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/replay/range": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Event-time span of the stored readings and state changes (replay scrubber bounds) */
+        get: operations["replay_range_replay_range_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -261,6 +315,26 @@ export interface paths {
          * @description Simulation-only capability: asks the simulator behind the active source to start a fault now (`INJECT_FAULT`) or to schedule a scenario file's events from now on (`LOAD_SCENARIO`). The request and its ack are stored, so injected faults are distinguishable from real ones. The simulator's verdict is in the ack (`EXECUTED`, `REJECTED` with a reason, `TIMEOUT`).
          */
         post: operations["inject_scenario_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/scenario/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Injectable fault types per machine kind (from the simulator config; simulation only)
+         * @description Read from `simulator.yaml` in the config directory; empty when there is no simulator config. Whether the active source can inject at all is `GET /sources` capability `scenario`.
+         */
+        get: operations["scenario_options_scenario_options_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -453,6 +527,14 @@ export interface components {
             /** Operatorkeys */
             operatorKeys: boolean;
         };
+        /** AuthMeResponse */
+        AuthMeResponse: {
+            /** Anonymous */
+            anonymous: boolean;
+            /** Principal */
+            principal: string;
+            role: components["schemas"]["Role"];
+        };
         /**
          * Capability
          * @description Optional features a source adapter supports beyond streaming readings.
@@ -498,6 +580,26 @@ export interface components {
              * Format: date-time
              */
             ts: string;
+        };
+        /** CommandLimitsResponse */
+        CommandLimitsResponse: {
+            /**
+             * Alwaysallowed
+             * @description commands no rule can block
+             */
+            alwaysAllowed: components["schemas"]["CommandType"][];
+            /**
+             * Limits
+             * @description parameter limits per machine kind (commands.yaml)
+             */
+            limits: {
+                [key: string]: components["schemas"]["KindLimitsModel"];
+            };
+            /**
+             * Rules
+             * @description state rules; STOP is always allowed
+             */
+            rules: components["schemas"]["SafetyRuleModel"][];
         };
         /**
          * CommandRecord
@@ -580,6 +682,23 @@ export interface components {
             /** @default OK */
             status: components["schemas"]["DataQuality"];
         };
+        /** FaultOptionModel */
+        FaultOptionModel: {
+            /** Faulttype */
+            faultType: string;
+            /**
+             * Gradual
+             * @description progresses over progressionS; false = immediate (jam)
+             */
+            gradual: boolean;
+            /**
+             * Heldout
+             * @description excluded from training data (unseen-fault experiments)
+             */
+            heldOut: boolean;
+            /** Kinds */
+            kinds: components["schemas"]["MachineKind"][];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -655,6 +774,50 @@ export interface components {
              */
             start: string;
         };
+        /**
+         * IngestStatsModel
+         * @description Counters of the active source since the backend started (IngestMetrics).
+         */
+        IngestStatsModel: {
+            /** Duplicates */
+            duplicates: number;
+            /** Late */
+            late: number;
+            /** Latepct */
+            latePct?: number | null;
+            latency: components["schemas"]["LatencyModel"];
+            /** Messagesin */
+            messagesIn: number;
+            /** Partial */
+            partial: number;
+            /** Partialpct */
+            partialPct?: number | null;
+            /** Published */
+            published: number;
+            /** Quarantined */
+            quarantined: number;
+            /** Quarantinedbyreason */
+            quarantinedByReason: {
+                [key: string]: number;
+            };
+        };
+        /** KindLimitsModel */
+        KindLimitsModel: {
+            loadPct: components["schemas"]["RangeModel"];
+            speedRpm: components["schemas"]["RangeModel"];
+        };
+        /** LatencyModel */
+        LatencyModel: {
+            /** Count */
+            count: number;
+            /** Means */
+            meanS?: number | null;
+            /**
+             * P95S
+             * @description upper bound of the p95 histogram bucket
+             */
+            p95S?: number | null;
+        };
         /** LineBufferModel */
         LineBufferModel: {
             /** Capacity */
@@ -700,24 +863,6 @@ export interface components {
                 [key: string]: components["schemas"]["SensorSpecModel"];
             };
             topology: components["schemas"]["TopologyModel"];
-        };
-        /**
-         * LineState
-         * @description Full line state. ``as_of`` is set by whoever built it (reconstruct time, live watermark).
-         */
-        LineState: {
-            /** Asof */
-            asOf?: string | null;
-            /** Machines */
-            machines?: {
-                [key: string]: components["schemas"]["MachineView"];
-            };
-            /** Predictions */
-            predictions?: {
-                [key: string]: {
-                    [key: string]: components["schemas"]["Prediction"];
-                };
-            };
         };
         /**
          * LineStatus
@@ -856,6 +1001,13 @@ export interface components {
          * @enum {string}
          */
         Quality: "OK" | "FILLED" | "LATE" | "SUSPECT";
+        /** RangeModel */
+        RangeModel: {
+            /** Max */
+            max: number;
+            /** Min */
+            min: number;
+        };
         /**
          * Reading
          * @description One telemetry sample from one machine.
@@ -922,6 +1074,43 @@ export interface components {
          * @enum {string}
          */
         Reliability: "OK" | "DEGRADED";
+        /** ReplayRangeResponse */
+        ReplayRangeResponse: {
+            /**
+             * End
+             * @description newest stored reading/state ts
+             */
+            end?: string | null;
+            /**
+             * Start
+             * @description oldest stored reading/state ts
+             */
+            start?: string | null;
+        };
+        /**
+         * ReplayResponse
+         * @description ``reconstruct(t)`` plus what the twin derives from it (root causes, alerts as of t).
+         */
+        ReplayResponse: {
+            /**
+             * Alerts
+             * @description unresolved alerts as of t (highest rev <= t)
+             */
+            alerts?: components["schemas"]["Alert"][];
+            /** Asof */
+            asOf?: string | null;
+            line: components["schemas"]["LineViewModel"];
+            /** Machines */
+            machines?: {
+                [key: string]: components["schemas"]["MachineView"];
+            };
+            /** Predictions */
+            predictions?: {
+                [key: string]: {
+                    [key: string]: components["schemas"]["Prediction"];
+                };
+            };
+        };
         /**
          * Role
          * @description API roles, in increasing order of privilege.
@@ -937,6 +1126,17 @@ export interface components {
              * @default false
              */
             unknown: boolean;
+        };
+        /** SafetyRuleModel */
+        SafetyRuleModel: {
+            /** Forbiddenstates */
+            forbiddenStates?: components["schemas"]["MachineState"][] | null;
+            /** Reason */
+            reason: string;
+            /** Requiredstates */
+            requiredStates?: components["schemas"]["MachineState"][] | null;
+            /** Types */
+            types: components["schemas"]["CommandType"][];
         };
         /**
          * ScenarioAck
@@ -960,6 +1160,13 @@ export interface components {
          * @enum {string}
          */
         ScenarioAction: "INJECT_FAULT" | "LOAD_SCENARIO";
+        /** ScenarioOptionsResponse */
+        ScenarioOptionsResponse: {
+            /** Faults */
+            faults: components["schemas"]["FaultOptionModel"][];
+            /** @description configured progression range of gradual faults */
+            progressionS?: components["schemas"]["RangeModel"] | null;
+        };
         /**
          * ScenarioPayload
          * @description Body of ``POST /scenario``. The server adds requestId, requestedBy, source and ts.
@@ -1070,6 +1277,8 @@ export interface components {
             /** Configured */
             configured: components["schemas"]["AdapterKind"][];
             health?: components["schemas"]["AdapterHealthModel"] | null;
+            /** @description ingestion counters of the active source */
+            ingest?: components["schemas"]["IngestStatsModel"] | null;
             /** Switches */
             switches: number;
         };
@@ -1458,6 +1667,33 @@ export interface operations {
             };
         };
     };
+    auth_me_auth_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthMeResponse"];
+                };
+            };
+            /** @description Invalid key, or a key is required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     list_commands_commands_get: {
         parameters: {
             query?: {
@@ -1542,6 +1778,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    command_limits_commands_limits_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommandLimitsResponse"];
                 };
             };
         };
@@ -1829,7 +2085,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LineState"];
+                    "application/json": components["schemas"]["ReplayResponse"];
                 };
             };
             /** @description Validation Error */
@@ -1839,6 +2095,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replay_range_replay_range_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReplayRangeResponse"];
                 };
             };
         };
@@ -1919,6 +2195,26 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    scenario_options_scenario_options_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScenarioOptionsResponse"];
+                };
             };
         };
     };

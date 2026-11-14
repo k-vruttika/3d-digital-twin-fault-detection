@@ -11,6 +11,8 @@
  */
 import type {
   Alert,
+  Command,
+  CommandAck,
   DataQualityReport,
   LineResponse,
   LineViewModel,
@@ -33,6 +35,9 @@ export interface EngineSink {
   applyLine(view: LineViewModel): void;
   setPrediction(prediction: Prediction): void;
   setConnected(connected: boolean): void;
+  /** Command audit events (the dashboard's command panel; the 3D scene ignores them). */
+  applyCommand?(command: Command): void;
+  applyAck?(ack: CommandAck): void;
 }
 
 export interface BindOptions {
@@ -67,8 +72,14 @@ export function routeMessage(engine: EngineSink, msg: StreamMessage): void {
     case "prediction":
       engine.setPrediction(msg.data);
       return;
+    case "command":
+      engine.applyCommand?.(msg.data);
+      return;
+    case "ack":
+      engine.applyAck?.(msg.data);
+      return;
     default:
-      // command / ack / dropped / error: nothing to show in the 3D scene
+      // dropped / error: nothing to show
       return;
   }
 }

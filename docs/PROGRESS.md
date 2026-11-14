@@ -4,6 +4,238 @@
 
 - **Buffer telemetry:** a BufferLevel event (buffer id, level, capacity, ts) published by the simulator publishers, consumed by the adapters, stored as an event stream and sent on the WebSocket. Until then the 3D twin shows buffers as FULL / EMPTY / FLOWING / UNKNOWN, inferred from the neighbours' states (ADR 0016). The simulator already records `buffer_in` / `buffer_out`, but only as dataset label columns.
 
+## Company deliverable: Machine Digital Twin Dashboard (Milestone A)
+
+The original brief:
+
+> Machine Digital Twin Dashboard: A 3D conveyor or CNC station on desktop shows running, idle and fault states driven by a JSON/CSV file or mock data server. It tests architecture, data handling and connecting the engine to outside systems.
+
+| Part of the brief | Features that meet it | Where |
+|---|---|---|
+| **A 3D conveyor or CNC station** | Procedural 3D conveyor, CNC and inspection station with addressable parts, laid out from the line config. A single-station mode (one conveyor) is available, and serpentine lines up to 20 machines. | `frontend/src/engine/` (ADR 0016), `config/line.yaml`, `config/line_single.yaml` |
+| **on desktop** | A browser dashboard (React + Three.js) at 1280 and 1920 px, light and dark, with basic keyboard support | `frontend/src/dashboard/` (ADR 0018), `docs/frontend.md` |
+| **shows running, idle and fault states** | Every machine state (RUNNING, IDLE, WARNING, FAULT, STARVED / BLOCKED with root cause, MAINTENANCE, STALE, OFFLINE) in the 3D scene (motion, outlines, flashing, beacons, labels), in the machine list and in the details. Alerts follow ISA-18.2. | `engine/visuals.ts`, `engine/rootCause.ts`, dashboard panels |
+| **driven by a JSON/CSV file** | The file source replays the simulator's CSV / JSONL exports (or any mapped CSV) into the twin. Minimal mode needs no Docker, broker or ML (tested in CI). | `uv run poe minimal`, `backend/twin_backend/adapters/file.py`, `tests/test_phase6_e2e_minimal.py` |
+| **or mock data server** | The mock machine server (REST + WebSocket) drives the same twin live, accepts commands and scenario injection | `uv run poe dev --source mock`, `twin_sim mock-server` |
+| **tests architecture** | Layers: adapters → ingest → event bus → event store / twin engine → REST + WebSocket API → frontend. Everything is swappable behind interfaces (file, mock, MQTT, OPC UA; SQLite or TimescaleDB). Decisions are recorded in ADRs 0001–0018. CI runs three OSes, with services and end-to-end tests on Ubuntu. | `docs/architecture.md`, `docs/adr/` |
+| **data handling** | Validation and quarantine; dedup and reorder; missing values kept as SUSPECT and drawn as chart gaps (never zero); staleness; per-machine data quality; event store with history at raw / 1 min / 10 min; replay to any time; export | `backend/twin_backend/ingest/`, `storage/`, `/history`, `/replay`; dashboard history, sources and replay panels |
+| **connecting the engine to outside systems** | Interchangeable live sources (mock REST/WS, MQTT, OPC UA) with hot switching. Typed REST and WebSocket API with API-key roles. Bidirectional commands back to the machine (safety rules, idempotency, audit), and scenario injection into the simulator. | `docs/api.md`, dashboard command, scenario and sources panels |
+
+### How to run the demo
+
+```text
+uv run poe install                     # once: Python + frontend dependencies
+
+# 1. Minimal mode: the twin from a CSV file, no Docker
+uv run poe sim-quick                   # once: simulated runs -> data/sim_quick/
+uv run poe minimal                     # terminal 1: backend on http://127.0.0.1:8000
+uv run poe frontend                    # terminal 2: open http://127.0.0.1:5173/
+#   Select a machine (list or 3D view): state, readings with units, live charts, history.
+#   "Replay": scrub back through the stored run and watch states change in 3D.
+
+# 2. Live mode: the mock machine server, commands and fault injection
+uv run poe up                          # TimescaleDB + Mosquitto (Docker Compose)
+#   add an operator key to .env, e.g. LINETWIN_API_KEYS_OPERATOR=demo:<a long random key>
+uv run poe dev --source mock           # terminal 1
+uv run poe frontend                    # terminal 2: open http://127.0.0.1:5173/, enter the key
+#   Scenario (sim) tab: inject bearing_wear on CNC-01 -> WARNING, then FAULT and its alert.
+#   STOP (confirm) -> neighbours BLOCKED / STARVED, line_stoppage alert -> Acknowledge.
+#   Maintenance -> the machine restarts. Replay -> scrub back to watch the fault build up.
+
+uv run poe screenshots                 # screenshots of all of the above (dashboard: real backend)
+```
+
+The same two flows run automatically as the Playwright end-to-end tests (`uv run poe browsers` once, then `uv run poe test`).
+
+## Phase 6: Dashboard (done, 2026-11-14)
+
+Delivered in two parts:
+
+- **Part A:** Phase 5 follow-ups, layout, auth, machine list and details, charts and history, alerts, connection state, code split.
+- **Part B:** commands, scenarios, sources, replay, placeholders, end-to-end tests, screenshots, docs.
+
+### What was built
+
+- **Phase 5 follow-ups (engine):**
+  - **Label declutter** (`engine/labelPolicy.ts`):
+    - machine labels show only for non-normal states (anything but RUNNING / IDLE; NO DATA and LINK LOST count), buffer labels only for FULL / EMPTY / UNKNOWN;
+    - hover or selection shows a label, and `setLabelMode("all")` (dashboard toggle) shows all of them;
+    - labels keep a constant on-screen height (22 px, never below 14 px on small viewports), fade from 45 m and are hidden from 80 m; hovered and selected labels never fade.
+  - **States scene:** rebuilt from short independent segments the simulator can produce: RUNNING → WARNING → RUNNING (a WARNING machine still runs), BLOCKED → FAULT → STARVED, BLOCKED → MAINTENANCE → STARVED, and STALE / OFFLINE alone.
+    - Root causes come from `engine/rootCause.ts`, a port of the backend propagation. `uv run poe api-docs` writes `root_causes.json` (208 cases run through the backend), and a Vitest test checks the port against it.
+  - **Serpentine connection:** where a row continues into the next (or an override puts machines out of line), a transfer track with flow chevrons connects them (`layout.ts` `linkPath`, `geometry/transfer.ts`). Buffers sit halfway along each link.
+  - **Code split:**
+    - the dashboard and the dev page load the engine with a dynamic `import()`;
+    - three.js is its own chunk group, kept as two chunks along its module split, under the warning limit without raising it;
+    - Chart.js is its own chunk;
+    - the build has no chunk-size warning.
+  - New engine API: `setLabelMode`, `setTheme`.
+- **Backend additions** (small, all tested; ADR 0018):
+  - `GET /auth/me`
+  - `GET /commands/limits`
+  - `GET /replay/range`
+  - `/replay` returns `line` (root causes) and `alerts` (unresolved at t)
+  - `GET /sources` has an `ingest` block (counters + latency)
+  - `GET /scenario/options` (from `simulator.yaml`, checked against `twin_sim`)
+  - `serve --cors-origin` and `devstack --cors-origin`
+- **Dashboard** (`frontend/src/dashboard/`, `index.html`; details in [frontend.md](frontend.md#dashboard-phase-6)):
+  - **State:** one `DashboardModel` (the stream's `EngineSink`) with small typed stores read through `useSyncExternalStore`. No state library (ADR 0018).
+  - **Layout:**
+    - header (connection pill, Replay, API key and role, label toggle, theme);
+    - machine list (badges, root cause, DQ flag, alert count);
+    - 3D view, with tabs below it for Live charts, History, Alerts, Sources, Scenario (sim), Prediction and What-if;
+    - details and commands on the right.
+    
+    Responsive at 1280 and 1920 px; light and dark; skip link, listbox and tab keyboard navigation, focus-managed dialogs.
+  - **Connection:** Connected / Reconnecting… / Link lost (after 5 s) / Key rejected, with a banner. Operator buttons are disabled while not connected.
+  - **Auth:** key entry checked with `/auth/me`, the role shown, operator controls hidden for viewers. The key lives in memory or sessionStorage ("remember in this tab"), never in localStorage or a URL.
+  - **Charts (Chart.js):**
+    - live sensor charts for the selected machine (prefilled from `/history`);
+    - history with automatic resolution: raw ≤ 30 min, 1 min ≤ 24 h, 10 min beyond, with a min–max band; presets, drag to zoom, reset;
+    - missing values are gaps (`spanGaps: false`, null points at missing values and long time gaps), never zero;
+    - units on the axes;
+    - no threshold lines, because the backend provides none (stated in the UI).
+  - **Alerts:** the ISA-18.2 groups, machine / severity filters, Acknowledge (operator), click to select.
+  - **Commands:**
+    - STOP always available, with a confirmation;
+    - START / RESET / Maintenance / Set speed / Set load with the backend's limits;
+    - a new idempotency key per click;
+    - result PENDING → ACCEPTED → EXECUTED / REJECTED (reason) / TIMEOUT;
+    - recent commands from the audit trail.
+  - **Scenario:** only with the `scenario` capability, labelled SIMULATION ONLY. Fault types filtered by machine kind, optional progression time within the configured range, recent requests.
+  - **Sources:** the active adapter, health, ingestion metrics (late %, quarantined by reason, partial, duplicates, latency mean / p95), per-machine data quality, and source switching (operator, with confirmation).
+  - **Replay:**
+    - a REPLAY bar with a scrubber over `/replay/range`;
+    - the 3D scene, list, details and alerts jump to `/replay?t=` (engine replay mode);
+    - play at 1× / 5× / 20× with coalesced requests;
+    - one click back to live (resubscribe, fresh snapshot);
+    - data quality shown as "not replayed".
+  - **Prediction / What-if:** placeholders that turn the 501 into "available in Phase 11".
+- **End-to-end tooling:**
+  - **`twin_backend/e2e_stack.py`:** starts the backend and Vite on free ports and runs Playwright. In minimal mode it replays a fixed seeded file with `--no-loop`; in dev mode it starts the mock server itself and runs `devstack --no-sim` on a throw-away TimescaleDB database. It also provides `python -m twin_backend.e2e_stack screenshots`.
+  - **Playwright:** `frontend/playwright.config.ts` (retries 0, trace and screenshot on failure) and `frontend/e2e/*.spec.ts`.
+  - **Quiet scenario:** `config/scenarios/e2e_quiet.yaml` has no random faults, no auto-recovery and no speed changes.
+- **poe and CI:**
+  - new poe task `browsers` (Playwright Chromium, with system libraries on Linux);
+  - `screenshots` also takes the dashboard screenshots;
+  - new pytest marker `e2e`;
+  - CI installs the browser and runs the e2e tests on Ubuntu only. Windows and macOS keep the unit tests and the build.
+- **Docs:**
+  - [ADR 0018](adr/0018-dashboard-state-auth-replay.md);
+  - [frontend.md](frontend.md): dashboard section, labels, serpentine, bundle;
+  - [api.md](api.md): dashboard endpoints, regenerated reference;
+  - [architecture.md](architecture.md), [setup.md](setup.md), CLAUDE.md §4 and §5;
+  - the Company deliverable section above.
+
+### How to run
+
+```text
+uv run poe sim-quick; uv run poe minimal          # terminal 1 (no Docker)
+uv run poe frontend                               # terminal 2 -> http://127.0.0.1:5173/ (dashboard), /dev.html (3D only)
+uv run poe up; uv run poe dev --source mock       # live simulator instead (commands, scenario injection)
+uv run poe browsers                               # once: Chromium for the e2e tests
+uv run poe screenshots                            # dev page + dashboard PNGs (dashboard dev-mode shots need `up`)
+```
+
+### Tests
+
+pytest runs 693 tests (683 before this phase) and Vitest 155 in 17 files (92 before). The most important new ones:
+
+- **Backend** (`backend/tests/test_api_dashboard.py`):
+  - `/auth/me` for each role and anonymous;
+  - `/commands/limits` equals `commands.yaml`, with STOP never in a rule;
+  - `/replay/range` equals the store's span;
+  - `/replay` `line` and `alerts` (highest rev ≤ t, resolved alerts dropped, nothing before the first event);
+  - the `/sources` ingest block matches `IngestMetrics`;
+  - `/scenario/options` matches `twin_sim` (fault set, gradual faults, applicability per kind, progression range);
+  - `--cors-origin`.
+  
+  The existing replay test now also checks that the replay's `line` equals the live engine's at the watermark. `root_causes.json` staleness is checked with the other generated files.
+- **Engine:**
+  - label policy (states, buffers, hover / selection / mode all), constant on-screen size (the projected height is checked), fading;
+  - engine labels for non-normal machines only;
+  - the root-cause port equals the backend on all 208 fixture cases;
+  - the states scene is plausible: every state covered, no moving machine blamed, STARVED / BLOCKED neighbours stopped, the WARNING machine's neighbours running;
+  - link paths: straight in a row, one transfer path per row turn clear of all machines, override turns, midpoint;
+  - transfer tracks only at row turns, released on `dispose()`.
+- **Dashboard components** (Vitest + Testing Library, jsdom):
+  - role gating;
+  - connection banner (connected → reconnecting → link lost → connected; key rejected), operator buttons disabled;
+  - ISA-18.2 groups, filters, acknowledge, click to select;
+  - details with units and missing values as "–";
+  - missing values as chart gaps (null, `spanGaps: false`, axis unit);
+  - command flow (pending → ACCEPTED → EXECUTED, REJECTED with reason, TIMEOUT, HTTP error), STOP confirmation, Escape cancels, a fresh idempotency key per click, limits enforced, disabled while disconnected;
+  - scenario panel (capability, SIMULATION ONLY, faults filtered by kind, request body, viewers cannot inject);
+  - sources metrics;
+  - replay banner, engine replay mode, data quality not replayed, commands disabled, return to live resubscribes, play coalesces requests;
+  - 501 placeholders;
+  - session: the key in the header and the first WebSocket frame, never in a URL or localStorage, sessionStorage only when remembered, a rejected key opens no stream.
+- **End to end (Playwright, retries 0):**
+  - `tests/test_phase6_e2e_minimal.py`: dashboard on minimal mode, machines listed, details and charts, replay scrub changes the 3D labels (RUNNING → FAULT → STARVED by …);
+  - `tests/test_phase6_e2e_dev.py` (services): inject → WARNING → FAULT + alert → STOP → BLOCKED / STARVED + `line_stoppage` → acknowledge → maintenance → RUNNING → replay back through WARNING and FAULT.
+
+### Verified here (Windows 11, Docker services up)
+
+| Check | Result |
+|---|---|
+| `uv run poe lint` | passes |
+| `LINETWIN_REQUIRE_SERVICES=1 uv run poe test` | pytest 693 passed, 0 skipped (both e2e suites ran); Vitest 155 passed |
+| `uv run poe build-frontend` | builds, no chunk-size warning (largest chunks: three 353 kB, main 280 kB, three 206 kB, Chart.js 167 kB) |
+| `uv run poe minimal-data-check` | 14 passed |
+| `uv run poe screenshots` | 12 dev-page PNGs + 11 dashboard PNGs (`frontend_screenshots/dashboard/`, with `summary.json`); no page errors; reviewed by eye (below) |
+| e2e durations | minimal ≈ 55 s, dev ≈ 85 s |
+
+**Screenshot review.** I looked at each PNG and fixed what was wrong:
+
+- in replay, the live data quality (DEGRADED after the replay ended) showed as halos and DQ flags as if it were history; replay now clears it and says "not replayed";
+- the command result was cut off at the bottom of the right column; it now sits under the buttons;
+- the "likely rejected" hints took four lines; they are now one line, with the reasons in the tooltips;
+- an EXECUTED result showed the ACCEPTED ack's reason; reasons now show only for REJECTED / TIMEOUT / errors;
+- the history range reached back before the first stored event (an empty strip on the left);
+- machine ids and times wrapped in the alerts table at 1280 px;
+- the scenario progression placeholder was clipped;
+- the replay speed was shown twice.
+
+**Bug found by the e2e run:** devstack's mock-server child survived the test on Windows (terminating a process there runs no cleanup) and kept the mock port, so the next run talked to a stale server. The stack now starts the mock server itself.
+
+### Known limitations
+
+- **Data quality is not replayable:** it is a rolling wall-clock window. Replay shows it as "not replayed".
+- **No threshold lines:** the backend has no alarm limits to show. The simulator's thresholds are perturbed per run and not part of the twin's contract.
+- **Replay plays by polling `/replay`:** at most one request in flight, a 500 ms tick. Fine for the stores used here; not measured on large stores.
+- **Latency p95** is the upper bound of the histogram bucket, not an exact percentile.
+- **Dev-mode e2e and screenshots use the mock server's fixed port** from `sources.yaml`, so they cannot run while `uv run poe dev` is running. The stack checks the port first.
+- **Layout:** the dashboard targets desktop widths (minimum 1200 px). Narrow and mobile layouts are out of scope.
+- **Accessibility** is basic (keyboard paths, labels, live regions). It was not audited with a screen reader.
+- **Synthetic states overview** (dev page): with constant-size labels some labels overlap at the overview distance; the per-state close-ups are clean.
+- **Not run:** the CI matrix (there is no remote). Linux and macOS behaviour relies on poe tasks, `subprocess.Popen` and `node` with no shell; only Windows was exercised.
+- **Vitest drive-letter quirk** (Phase 5 note) still applies to this tool's shell; tests run from `C:\` paths.
+
+### Deviations from the plan / CLAUDE.md
+
+- **New dependencies (approved in planning):**
+  - runtime: `chart.js` 4.6.1 (in the CLAUDE.md stack);
+  - dev: `@testing-library/react` 16.3.3, `@testing-library/dom` 10.4.2, `jsdom` 30.1.3 (31.x was under two weeks old), `@playwright/test` 1.64.1.
+  
+  No zoom plugin.
+- **API changes:**
+  - new endpoints and fields (listed above);
+  - the `/replay` response model is now `ReplayResponse`, a superset of `LineState`.
+- **New CLI option:** `--cors-origin` on `serve` and `devstack`.
+- **Engine behaviour:**
+  - a snapshot that carries a `dataQuality` map is treated as complete (a missing machine has no report);
+  - buffers now sit halfway along the link between outlet and inlet, instead of between machine centres.
+- **"Restart" in the dev e2e** is Maintenance. RESET keeps the wear, so the machine would fault again. Maintenance clears the fault and wear, and the simulator runs the machine again afterwards.
+- **Code split:** three.js is split into chunks along its own module boundary (`maxSize` on the chunk group). The warning limit was not raised.
+- **Refactors:**
+  - the API test helpers (`running_api`, `api_client`, keys) moved from `test_api.py` into `twin_backend/testing.py`, so the new test module can use them (pytest's importlib mode);
+  - `twin_common.config.loader._read_yaml` became `read_yaml`.
+- **New files outside the CLAUDE.md layout** (§5 updated):
+  - frontend: `playwright.config.ts`, `tsconfig.e2e.json`, `e2e/`;
+  - backend: `twin_backend/e2e_stack.py`, `api/routes/auth.py`;
+  - common: `twin_common/config/scenario_options.py`;
+  - config: `config/scenarios/e2e_quiet.yaml`.
+
 ## Phase 5: 3D twin engine, frontend (done, 2026-11-14)
 
 Delivered in two parts:
@@ -128,11 +360,11 @@ The final images show every state with its label, the WARNING outline on the spi
 
 ### Known limitations
 
-- **FPS not measured:** the 60 fps target (4 machines) and the 20-machine smoothness were not measured on a GPU here; headless Chromium uses software rendering. Check `dev.html?synthetic=20&fps`.
+- **FPS (measured by the user on their GPU after this phase):** `dev.html?synthetic=20&fps` runs at 60 fps with a worst frame of 21 ms. Headless Chromium here uses software rendering, so it was not measured in this environment.
 - **Buffers are qualitative** (see the backlog); a FLOWING buffer may be nearly full or nearly empty.
 - **Reading age** in the tooltip uses the wall clock, which matches event time only for live sources (a replay at speed ≠ 1 or an old export shows large ages).
-- **Replay mode** is only a visual cue plus the live-data gate in `bindStream`; driving the engine from `/replay?t=` belongs to the dashboard phase.
-- **Bundle size:** one chunk of about 600 kB (three.js); Vite warns. Code splitting is left to the dashboard phase.
+- **Replay mode** was only a visual cue plus the live-data gate in `bindStream`; the dashboard (Phase 6) now drives the engine from `/replay?t=`.
+- **Bundle size:** one chunk of about 600 kB (three.js); Vite warned. Fixed in Phase 6 (code split, no warning).
 - **Vitest under this tool's shell:** Vitest fails on every test file, even a trivial one, when it is started with a lower-case drive letter in the working directory (`c:\dev\...`), which is how this session's shell starts; with `C:\` (any normal terminal, PowerShell, CI) it passes. It looks like two Vitest module instances when the path case differs. Not a project issue; noted in case it shows up elsewhere.
 - **Not run:** the CI matrix (there is no remote).
 

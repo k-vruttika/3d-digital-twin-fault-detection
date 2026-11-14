@@ -118,6 +118,28 @@ Fault types: `bearing_wear`, `overheating`, `spindle_imbalance` (CNC only), `bel
 
 Transport per publisher: mock `POST /scenario`; MQTT `{prefix}/scenario` with the ack on `{prefix}/scenario/ack`; OPC UA method `InjectScenario` on the line object (one String argument with the ScenarioRequest JSON, returns the ScenarioAck JSON).
 
+### Dashboard support (Phase 6)
+
+These endpoints exist for the dashboard ([ADR 0018](adr/0018-dashboard-state-auth-replay.md)); all are viewer-level:
+
+- **`GET /auth/me`:** `{principal, role, anonymous}` for the presented key (401 for a wrong key, or for no key when keys are configured). The dashboard shows the role and hides operator controls for viewers. The backend still checks the role on every request.
+- **`GET /commands/limits`:** `limits` (per machine kind, `speedRpm` and `loadPct` min/max), `rules` (the state rules with their reasons) and `alwaysAllowed` (`["STOP"]`), all from `config/commands.yaml`.
+- **`GET /replay/range`:** `{start, end}`, the event-time span of the stored readings and state changes (`null` when nothing is stored).
+- **`GET /replay?t=`:** also returns `line` and `alerts`, on top of `machines` and `predictions` (which still equal `reconstruct(t)`):
+  - `line`: the root causes and line status the twin engine derives from the reconstructed states, using the same propagation as live;
+  - `alerts`: the alerts unresolved at t (the highest rev per alert with `ts <= t`).
+
+  Data quality is computed over a live wall-clock window and is not replayed.
+- **`GET /sources`:** has an `ingest` block with the active source's counters since the backend started (`IngestMetrics`):
+  - `messagesIn`, `published`;
+  - `late` and `latePct`;
+  - `quarantined` and `quarantinedByReason`;
+  - `partial` and `partialPct`;
+  - `duplicates`;
+  - `latency` (`count`, `meanS`, and `p95S`, the upper bound of the histogram bucket that holds the 95th percentile).
+- **`GET /scenario/options`** (simulation only): the injectable fault types, read from `config/simulator.yaml` (empty without it). For each type: `faultType`, the machine `kinds` it applies to, `gradual`, `heldOut`. Also the configured `progressionS` range.
+- **`serve --cors-origin URL`** (repeatable, also on `devstack`): an extra allowed CORS origin on top of `api.yaml`, e.g. a Vite server on another port.
+
 <!-- BEGIN GENERATED: uv run poe api-docs -->
 
 ### REST API reference (OpenAPI 3.1.0, LineTwin API 0.4.0)
@@ -170,6 +192,17 @@ Acknowledge an alert (operator); repeating it changes nothing. Role: **operator*
 | 404 | Unknown or already resolved alert |  |
 | 422 | Validation Error | [HTTPValidationError](#httpvalidationerror) |
 
+#### auth
+
+##### `GET /auth/me`
+
+The principal and role of the presented key (anonymous viewer without one). Role: **viewer**.
+
+| Status | Description | Body |
+|---|---|---|
+| 200 | Successful Response | [AuthMeResponse](#authmeresponse) |
+| 401 | Invalid key, or a key is required |  |
+
 #### commands
 
 ##### `GET /commands`
@@ -202,6 +235,14 @@ Request body: [CommandRequest](#commandrequest)
 | 404 | Unknown machine |  |
 | 409 | idempotencyKey already used for a different request |  |
 | 422 | Validation Error | [HTTPValidationError](#httpvalidationerror) |
+
+##### `GET /commands/limits`
+
+Parameter limits per machine kind and the safety rules (commands.yaml). Role: **viewer**.
+
+| Status | Description | Body |
+|---|---|---|
+| 200 | Successful Response | [CommandLimitsResponse](#commandlimitsresponse) |
 
 ##### `GET /commands/{command_id}`
 
@@ -253,7 +294,9 @@ Readings in a time range: raw, or 1 s / 1 min / 10 min buckets. Role: **viewer**
 
 ##### `GET /replay`
 
-Line state at event time t (snapshot + replay, equals reconstruct(t)). Role: **viewer**.
+Line state at event time t (reconstruct(t)) with root causes and alerts as of t. Role: **viewer**.
+
+`machines` and `predictions` equal `reconstruct(t)` (snapshot + replay). `line` holds the root causes the twin engine derives from those states (same propagation as live), `alerts` the alerts that were unresolved at t (highest rev with ts <= t). Data quality uses a wall-clock window and is not replayed.
 
 | Parameter | In | Required | Type | Description |
 |---|---|---|---|---|
@@ -261,8 +304,16 @@ Line state at event time t (snapshot + replay, equals reconstruct(t)). Role: **v
 
 | Status | Description | Body |
 |---|---|---|
-| 200 | Successful Response | [LineState](#linestate) |
+| 200 | Successful Response | [ReplayResponse](#replayresponse) |
 | 422 | Validation Error | [HTTPValidationError](#httpvalidationerror) |
+
+##### `GET /replay/range`
+
+Event-time span of the stored readings and state changes (replay scrubber bounds). Role: **viewer**.
+
+| Status | Description | Body |
+|---|---|---|
+| 200 | Successful Response | [ReplayRangeResponse](#replayrangeresponse) |
 
 #### line
 
@@ -329,6 +380,16 @@ Request body: [ScenarioPayload](#scenariopayload)
 | 403 | Not an operator |  |
 | 409 | The active source does not support scenario injection |  |
 | 422 | Inconsistent request |  |
+
+##### `GET /scenario/options`
+
+Injectable fault types per machine kind (from the simulator config; simulation only). Role: **viewer**.
+
+Read from `simulator.yaml` in the config directory; empty when there is no simulator config. Whether the active source can inject at all is `GET /sources` capability `scenario`.
+
+| Status | Description | Body |
+|---|---|---|
+| 200 | Successful Response | [ScenarioOptionsResponse](#scenariooptionsresponse) |
 
 ##### `GET /scenario/{request_id}`
 
@@ -482,6 +543,14 @@ Contribution of one sensor (and the physical part it maps to) to a prediction.
 | `anonymousRead` | boolean | yes |  |
 | `operatorKeys` | boolean | yes |  |
 
+##### AuthMeResponse
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `principal` | string | yes |  |
+| `role` | [Role](#role) | yes |  |
+| `anonymous` | boolean | yes |  |
+
 ##### Capability
 
 Optional features a source adapter supports beyond streaming readings.
@@ -512,6 +581,14 @@ Acknowledgement of a command by the command bus or the machine.
 | `status` | [AckStatus](#ackstatus) | yes |  |
 | `reason` | string \| null | no |  |
 | `ts` | string (date-time) | yes |  |
+
+##### CommandLimitsResponse
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `limits` | map of [KindLimitsModel](#kindlimitsmodel) | yes | parameter limits per machine kind (commands.yaml) |
+| `rules` | array of [SafetyRuleModel](#safetyrulemodel) | yes | state rules; STOP is always allowed |
+| `alwaysAllowed` | array of [CommandType](#commandtype) | yes | commands no rule can block |
 
 ##### CommandRecord
 
@@ -564,6 +641,15 @@ What the API and WS stream show per machine.
 | `linkDown` | boolean | no |  |
 | `reasons` | array of string | no |  |
 
+##### FaultOptionModel
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `faultType` | string | yes |  |
+| `kinds` | array of [MachineKind](#machinekind) | yes |  |
+| `gradual` | boolean | yes | progresses over progressionS; false = immediate (jam) |
+| `heldOut` | boolean | yes | excluded from training data (unseen-fault experiments) |
+
 ##### HTTPValidationError
 
 | Field | Type | Required | Description |
@@ -611,6 +697,38 @@ One of: `NORMAL`, `WARNING`, `FAULT`
 | `readings` | array of [Reading](#reading) \| null | no |  |
 | `buckets` | array of [HistoryBucketModel](#historybucketmodel) \| null | no |  |
 
+##### IngestStatsModel
+
+Counters of the active source since the backend started (IngestMetrics).
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `messagesIn` | integer | yes |  |
+| `published` | integer | yes |  |
+| `late` | integer | yes |  |
+| `latePct` | number \| null | no |  |
+| `quarantined` | integer | yes |  |
+| `quarantinedByReason` | map of integer | yes |  |
+| `partial` | integer | yes |  |
+| `partialPct` | number \| null | no |  |
+| `duplicates` | integer | yes |  |
+| `latency` | [LatencyModel](#latencymodel) | yes |  |
+
+##### KindLimitsModel
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `speedRpm` | [RangeModel](#rangemodel) | yes |  |
+| `loadPct` | [RangeModel](#rangemodel) | yes |  |
+
+##### LatencyModel
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `count` | integer | yes |  |
+| `meanS` | number \| null | no |  |
+| `p95S` | number \| null | no | upper bound of the p95 histogram bucket |
+
 ##### LineBufferModel
 
 | Field | Type | Required | Description |
@@ -641,16 +759,6 @@ One of: `NORMAL`, `WARNING`, `FAULT`
 | `machines` | array of [LineMachineModel](#linemachinemodel) | yes |  |
 | `buffers` | array of [LineBufferModel](#linebuffermodel) | yes |  |
 | `topology` | [TopologyModel](#topologymodel) | yes |  |
-
-##### LineState
-
-Full line state. ``as_of`` is set by whoever built it (reconstruct time, live watermark).
-
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `asOf` | string (date-time) \| null | no |  |
-| `machines` | map of [MachineView](#machineview) | no |  |
-| `predictions` | map of map of [Prediction](#prediction) | no |  |
 
 ##### LineStatus
 
@@ -745,6 +853,13 @@ Data-quality flag attached to each reading by the ingest pipeline.
 
 One of: `OK`, `FILLED`, `LATE`, `SUSPECT`
 
+##### RangeModel
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `min` | number | yes |  |
+| `max` | number | yes |  |
+
 ##### Reading
 
 One telemetry sample from one machine.  Sensor values are nullable: ``null`` (or an absent key) means the sensor value is missing for this sample. The ingest pipeline keeps partially missing readings with ``quality=SUSPECT`` and quarantines readings without any sensor value (ADR 0007).
@@ -768,6 +883,25 @@ One telemetry sample from one machine.  Sensor values are nullable: ``null`` (or
 
 One of: `OK`, `DEGRADED`
 
+##### ReplayRangeResponse
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `start` | string (date-time) \| null | no | oldest stored reading/state ts |
+| `end` | string (date-time) \| null | no | newest stored reading/state ts |
+
+##### ReplayResponse
+
+``reconstruct(t)`` plus what the twin derives from it (root causes, alerts as of t).
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `asOf` | string (date-time) \| null | no |  |
+| `machines` | map of [MachineView](#machineview) | no |  |
+| `predictions` | map of map of [Prediction](#prediction) | no |  |
+| `line` | [LineViewModel](#lineviewmodel) | yes |  |
+| `alerts` | array of [Alert](#alert) | no | unresolved alerts as of t (highest rev <= t) |
+
 ##### Role
 
 API roles, in increasing order of privilege.
@@ -780,6 +914,15 @@ One of: `viewer`, `operator`
 |---|---|---|---|
 | `cause` | string \| null | no |  |
 | `unknown` | boolean | no |  |
+
+##### SafetyRuleModel
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `types` | array of [CommandType](#commandtype) | yes |  |
+| `forbiddenStates` | array of [MachineState](#machinestate) \| null | no |  |
+| `requiredStates` | array of [MachineState](#machinestate) \| null | no |  |
+| `reason` | string | yes |  |
 
 ##### ScenarioAck
 
@@ -797,6 +940,13 @@ The simulator's answer to a ScenarioRequest (status EXECUTED / REJECTED / TIMEOU
 Simulation-only scenario injection (ADR 0015). Real equipment would not offer this.
 
 One of: `INJECT_FAULT`, `LOAD_SCENARIO`
+
+##### ScenarioOptionsResponse
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `faults` | array of [FaultOptionModel](#faultoptionmodel) | yes |  |
+| `progressionS` | [RangeModel](#rangemodel) \| null | no | configured progression range of gradual faults |
 
 ##### ScenarioPayload
 
@@ -873,6 +1023,7 @@ One of: `speed`, `temp`, `vib`, `load`, `current`
 | `health` | [AdapterHealthModel](#adapterhealthmodel) \| null | no |  |
 | `configured` | array of [AdapterKind](#adapterkind) | yes |  |
 | `switches` | integer | yes |  |
+| `ingest` | [IngestStatsModel](#ingeststatsmodel) \| null | no | ingestion counters of the active source |
 
 ##### StateChange
 

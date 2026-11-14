@@ -94,11 +94,17 @@ help = "Frontend dev server (Vite) on http://127.0.0.1:5173; the 3D twin dev pag
 cmd = "npm --prefix frontend run dev"
 
 [tool.poe.tasks.screenshots]
-help = "Headless Chromium screenshots of the 3D dev page (synthetic data) -> experiments/results/frontend_screenshots/"
+help = """Headless Chromium screenshots: 3D dev page (synthetic) and dashboard (real backend; dev-mode
+    shots need `up`, or pass --minimal-only) -> experiments/results/frontend_screenshots/"""
 sequence = [
     { cmd = "npm --prefix frontend exec -- playwright install chromium" },
     { cmd = "npm --prefix frontend run screenshots" },
+    { cmd = "python -m twin_backend.e2e_stack screenshots" },
 ]
+
+[tool.poe.tasks.browsers]
+help = "Install Playwright's Chromium (and its system libraries on Linux) for the e2e tests"
+cmd = "npm --prefix frontend exec -- playwright install --with-deps chromium"
 
 [tool.poe.tasks.minimal]
 help = "Backend API from the replay file + SQLite, no Docker/broker/ML (run sim-quick first); extra args pass through"
@@ -228,6 +234,7 @@ testpaths = ["common/tests", "simulator/tests", "backend/tests", "ml/tests", "te
 addopts = ["--import-mode=importlib", "-ra", "--strict-markers"]
 markers = [
     "services: needs the Docker Compose services (uv run poe up); skipped when unreachable",
+    "e2e: drives the dashboard in Playwright's Chromium (uv run poe browsers); skipped without it",
 ]
 filterwarnings = [
     # Starlette's TestClient asks for the httpx2 package; httpx works and is what we depend on.

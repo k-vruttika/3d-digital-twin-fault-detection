@@ -13,6 +13,8 @@ import type {
   Reading,
 } from "../api/types.ts";
 import { DEFAULT_CONFIG } from "./config.ts";
+import { footprintOf } from "./layout.ts";
+import { lineView } from "./rootCause.ts";
 
 const SENSORS = ["speed", "temp", "vib", "load", "current"];
 const CATALOG: LineResponse["sensors"] = {
@@ -76,38 +78,89 @@ export function generateLine(n: number): LineResponse {
   return chainLine(`synthetic_${String(n)}`, machines);
 }
 
-/** One machine per state (screenshots of every visual). */
-export const STATE_SCENE: { id: string; kind: MachineKind; state: MachineState }[] = [
-  { id: "S-RUN", kind: "CONVEYOR", state: "RUNNING" },
-  { id: "S-BLOCK", kind: "CONVEYOR", state: "BLOCKED" },
-  { id: "S-WARN", kind: "CNC", state: "WARNING" },
-  { id: "S-FAULT", kind: "CNC", state: "FAULT" },
-  { id: "S-STARVE", kind: "INSPECTION", state: "STARVED" },
-  { id: "S-MAINT", kind: "INSPECTION", state: "MAINTENANCE" },
-  { id: "S-STALE", kind: "CNC", state: "STALE" },
-  { id: "S-OFF", kind: "CONVEYOR", state: "OFFLINE" },
-];
-
-export function stateSceneLine(): LineResponse {
-  return chainLine("synthetic_states", STATE_SCENE.map((s) => syntheticMachine(s.id, s.kind)));
+/**
+ * The states scene (screenshots of every visual): independent short segments, one per row, so
+ * every combination is one the simulator can produce (twin_sim/line.py):
+ *
+ * 1. RUNNING -> WARNING -> RUNNING: a WARNING machine keeps running and passing parts, so its
+ *    neighbours run too (it can never make them STARVED / BLOCKED);
+ * 2. BLOCKED -> FAULT -> STARVED: a faulted machine stops, its feeder fills up, its receiver
+ *    runs dry;
+ * 3. BLOCKED -> MAINTENANCE -> STARVED: the same for a machine in maintenance;
+ * 4. STALE and OFFLINE alone (link states come from the backend, not the machine).
+ *
+ * Root causes are derived with `lineView` (the backend's rule), never written by hand.
+ */
+interface SceneMachine {
+  id: string;
+  kind: MachineKind;
+  state: MachineState;
 }
 
-/** Root causes matching the state scene (labels "BLOCKED by S-WARN", "STARVED by S-FAULT"). */
-export function stateSceneLineView(): LineViewModel {
+/** Segments in rows; `linked` segments have a buffer between neighbours. */
+export const STATE_SEGMENTS: { linked: boolean; machines: SceneMachine[] }[] = [
+  { linked: true, machines: [
+    { id: "S-RUN", kind: "CONVEYOR", state: "RUNNING" },
+    { id: "S-WARN", kind: "CNC", state: "WARNING" },
+    { id: "S-RUN2", kind: "INSPECTION", state: "RUNNING" },
+  ] },
+  { linked: true, machines: [
+    { id: "S-BLOCK", kind: "CONVEYOR", state: "BLOCKED" },
+    { id: "S-FAULT", kind: "CNC", state: "FAULT" },
+    { id: "S-STARVE", kind: "INSPECTION", state: "STARVED" },
+  ] },
+  { linked: true, machines: [
+    { id: "S-BLOCK2", kind: "CONVEYOR", state: "BLOCKED" },
+    { id: "S-MAINT", kind: "INSPECTION", state: "MAINTENANCE" },
+    { id: "S-STARVE2", kind: "CONVEYOR", state: "STARVED" },
+  ] },
+  { linked: false, machines: [
+    { id: "S-STALE", kind: "CNC", state: "STALE" },
+    { id: "S-OFF", kind: "CONVEYOR", state: "OFFLINE" },
+  ] },
+];
+
+export const STATE_SCENE: SceneMachine[] = STATE_SEGMENTS.flatMap((s) => s.machines);
+
+/** The states scene as a line: segments are not linked; each sits in its own row. */
+export function stateSceneLine(): LineResponse {
+  const { gap, rowSpacing } = DEFAULT_CONFIG.layout;
+  const machines: LineMachine[] = [];
+  const buffers: LineResponse["buffers"] = [];
+  const upstream: Record<string, string | null> = {};
+  const downstream: Record<string, string | null> = {};
+  STATE_SEGMENTS.forEach(({ linked, machines: segment }, row) => {
+    let x = 0;
+    let prev: string | null = null;
+    for (const s of segment) {
+      const m = syntheticMachine(s.id, s.kind);
+      const len = footprintOf(s.kind, DEFAULT_CONFIG.layout).length;
+      x += len / 2;
+      m.layout = { position: [x, 0, row * rowSpacing], rotationDeg: 0 };
+      x += len / 2 + gap;
+      machines.push(m);
+      upstream[s.id] = linked ? prev : null;
+      downstream[s.id] = null;
+      if (linked && prev !== null) {
+        downstream[prev] = s.id;
+        buffers.push({ id: `B-${s.id}`, from: prev, to: s.id, capacity: 8 });
+      }
+      prev = s.id;
+    }
+  });
   return {
-    status: "DEGRADED",
-    rootCauses: {
-      "S-RUN": { cause: null, unknown: false },
-      "S-BLOCK": { cause: "S-WARN", unknown: false },
-      "S-WARN": { cause: "S-WARN", unknown: false },
-      "S-FAULT": { cause: "S-FAULT", unknown: false },
-      "S-STARVE": { cause: "S-FAULT", unknown: false },
-      "S-MAINT": { cause: "S-MAINT", unknown: false },
-      "S-STALE": { cause: "S-STALE", unknown: true },
-      "S-OFF": { cause: "S-OFF", unknown: true },
-    },
-    impacted: {},
+    lineId: "synthetic_states",
+    sensors: CATALOG,
+    machines,
+    buffers,
+    topology: { order: machines.map((m) => m.id), upstream, downstream },
   };
+}
+
+/** Root causes of the states scene, derived with the backend's rule (rootCause.ts). */
+export function stateSceneLineView(): LineViewModel {
+  const states = Object.fromEntries(STATE_SCENE.map((s) => [s.id, s.state]));
+  return lineView(states, stateSceneLine().topology);
 }
 
 export const SYNTHETIC_EPOCH_MS = Date.parse("2026-01-01T00:00:00Z");

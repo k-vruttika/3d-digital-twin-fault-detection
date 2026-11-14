@@ -45,10 +45,12 @@ import type {
 } from "../api/types.ts";
 import { DEFAULT_CONFIG, type VisualConfig } from "./config.ts";
 import { buildMachine } from "./geometry/machines.ts";
+import { buildTransfer } from "./geometry/transfer.ts";
 import { GeometryCache, makeBeltTexture, type BuildContext } from "./geometry/shared.ts";
 import { BufferModel } from "./buffers.ts";
 import { FpsMeter } from "./fps.ts";
 import { ItemFlow } from "./items.ts";
+import { bufferLabelVisible, machineLabelVisible, type LabelMode } from "./labelPolicy.ts";
 import { canvasLabelFactory, type LabelTextureFactory } from "./labels.ts";
 import { computeLayout, footprintOf, type LineLayout } from "./layout.ts";
 import { MachineModel } from "./machineModel.ts";
@@ -59,6 +61,15 @@ import { TooltipView } from "./tooltipView.ts";
 import { animationRate, bufferStatus, machineVisual, stateLabel, type VisualInput } from "./visuals.ts";
 
 export type EngineMode = "live" | "replay";
+export type { LabelMode } from "./labelPolicy.ts";
+
+/** Scene colours the host page may change (light / dark theme). */
+export interface EngineTheme {
+  background: number;
+  replayBackground: number;
+  floor: number;
+  grid: number;
+}
 
 export interface SelectEvent {
   machineId: string | null;
@@ -177,6 +188,8 @@ export class TwinEngine {
   private readonly dirty = new Set<string>();
   private pickables: Object3D[] = [];
   private modeValue: EngineMode = "live";
+  private labelModeValue: LabelMode = "auto";
+  private theme: EngineTheme;
   private connected = true;
   private selectedId: string | null = null;
   private hovered: PickTarget | null = null;
@@ -206,7 +219,9 @@ export class TwinEngine {
     this.camera.position.set(-6, 8, 12);
     this.controls = (opts.createControls ?? defaultControls)(this.camera, this.renderer.domElement);
 
-    this.scene.background = new Color(this.cfg.colors.background);
+    const c = this.cfg.colors;
+    this.theme = { background: c.background, replayBackground: c.replayBackground, floor: c.floor, grid: c.grid };
+    this.scene.background = new Color(this.theme.background);
     const hemi = new HemisphereLight(0xffffff, 0x404850, 1.6);
     const sun = new DirectionalLight(0xffffff, 2.2);
     sun.position.set(-8, 14, 10);
@@ -282,6 +297,7 @@ export class TwinEngine {
       const model = new BufferModel(b, ctx, this.labelFactory);
       this.buffers.set(b.id, model);
       this.world.add(model.root);
+      if (b.turns) this.world.add(buildTransfer(ctx, b));
     }
     this.items = new ItemFlow(ctx, [...this.machines.values()]);
     if (this.items.mesh !== null) this.world.add(this.items.mesh);
@@ -308,8 +324,9 @@ export class TwinEngine {
         d.reading = view.lastReading ?? null;
         d.reason = view.lastStateChange?.reason ?? null;
       }
-      const dq = snapshot.dataQuality?.[id];
-      if (dq !== undefined) d.dataQuality = dq;
+      // A snapshot with a dataQuality map is complete: a machine missing from it has no report
+      // (a replay passes {}: data quality is not replayable).
+      if (snapshot.dataQuality !== undefined) d.dataQuality = snapshot.dataQuality[id] ?? null;
       const rc = snapshot.line?.rootCauses[id];
       if (snapshot.line) d.rootCause = rc ?? null;
       const preds = snapshot.predictions?.[id];
@@ -393,9 +410,29 @@ export class TwinEngine {
 
   setMode(mode: EngineMode): void {
     this.modeValue = mode;
-    const bg = mode === "replay" ? this.cfg.colors.replayBackground : this.cfg.colors.background;
-    (this.scene.background as Color).set(bg);
+    this.applyBackground();
     this.container.dataset.twinMode = mode;
+  }
+
+  /** "auto": labels only for non-normal states (plus hover / selection); "all": every label. */
+  setLabelMode(mode: LabelMode): void {
+    this.labelModeValue = mode;
+  }
+
+  get labelMode(): LabelMode {
+    return this.labelModeValue;
+  }
+
+  /** Scene colours for the host's theme; the floor and grid follow on the next loadLayout. */
+  setTheme(theme: Partial<EngineTheme>): void {
+    this.theme = { ...this.theme, ...theme };
+    this.applyBackground();
+    if (this.line !== null) this.loadLayout(this.line);
+  }
+
+  private applyBackground(): void {
+    const bg = this.modeValue === "replay" ? this.theme.replayBackground : this.theme.background;
+    (this.scene.background as Color).set(bg);
   }
 
   /** The stream is up (true) or down (false: every machine shows "link lost"). */
@@ -463,6 +500,7 @@ export class TwinEngine {
     this.items?.update(dt, itemSpacing, itemSize, this.cfg.beltSpeed, (m) => this.itemsVisible(m.id));
     if (this.pointer !== null) this.updateHover();
     this.controls.update();
+    this.updateLabels();
     this.renderer.render(this.scene, this.camera);
     this.fpsMeter?.frame(nowMs);
   }
@@ -518,6 +556,11 @@ export class TwinEngine {
     return this.layout;
   }
 
+  /** Transfer tracks in the scene (one per turning link). */
+  get transferCount(): number {
+    return this.world.children.filter((o) => o.name.startsWith("transfer:")).length;
+  }
+
   /** Screen position (px, container-relative) of a machine's label anchor, or null. */
   screenPosition(machineId: string): { x: number; y: number } | null {
     const m = this.machines.get(machineId);
@@ -555,6 +598,29 @@ export class TwinEngine {
   }
 
   // ------------------------------------------------------------------ internals
+  private updateLabels(): void {
+    const camPos = this.camera.position;
+    const fov = this.camera.fov;
+    const h = Math.max(1, this.container.clientHeight);
+    const hovered = this.hovered;
+    const normal = this.cfg.labels.normalStates;
+    for (const [id, m] of this.machines) {
+      const flags = {
+        mode: this.labelModeValue,
+        hovered: hovered?.kind === "machine" && hovered.id === id,
+        selected: this.selectedId === id,
+      };
+      const state = this.data.get(id)?.state ?? null;
+      const show = machineLabelVisible(state, this.connected, normal, flags);
+      m.updateLabel(camPos, fov, h, show, flags.hovered || flags.selected);
+    }
+    for (const [id, b] of this.buffers) {
+      const flags = { mode: this.labelModeValue, hovered: hovered?.kind === "buffer" && hovered.id === id, selected: false };
+      const show = bufferLabelVisible(b.status, this.cfg.labels.bufferStatuses, flags);
+      b.updateLabel(camPos, fov, h, show, flags.hovered);
+    }
+  }
+
   private visualInput(d: MachineData): VisualInput {
     const latest = [...d.predictions.values()].sort((a, b) => Date.parse(b.ts) - Date.parse(a.ts))[0];
     return {
@@ -602,7 +668,7 @@ export class TwinEngine {
     const margin = 4;
     const sx = maxX - minX + margin * 2;
     const sz = maxZ - minZ + margin * 2;
-    const floorMat = ctx.tracker.track(new MeshStandardMaterial({ color: this.cfg.colors.floor, roughness: 0.95 }));
+    const floorMat = ctx.tracker.track(new MeshStandardMaterial({ color: this.theme.floor, roughness: 0.95 }));
     const floor = new Mesh(this.cache.plane, floorMat);
     floor.rotation.x = -Math.PI / 2;
     floor.scale.set(sx, sz, 1);
@@ -610,7 +676,7 @@ export class TwinEngine {
     floor.receiveShadow = true;
     floor.userData.noPick = true;
     const size = Math.ceil(Math.max(sx, sz));
-    const grid = new GridHelper(size, size, this.cfg.colors.grid, this.cfg.colors.grid);
+    const grid = new GridHelper(size, size, this.theme.grid, this.theme.grid);
     ctx.tracker.track(grid.geometry);
     const gridMats = Array.isArray(grid.material) ? grid.material : [grid.material];
     for (const m of gridMats) ctx.tracker.track(m);

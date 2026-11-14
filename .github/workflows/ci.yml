@@ -41,10 +41,15 @@ jobs:
       - name: Start services (Ubuntu)
         if: runner.os == 'Linux'
         run: uv run --frozen poe up
+      # Dashboard end-to-end tests (Playwright) run on Ubuntu only, next to the services they need.
+      # Windows and macOS install no browser: the e2e tests skip there, everything else runs.
+      - name: Playwright Chromium for the e2e tests (Ubuntu)
+        if: runner.os == 'Linux'
+        run: uv run --frozen poe browsers
       - name: Test
         run: uv run --frozen poe test
         env:
-          # Ubuntu: service tests must run (fail instead of skip). Elsewhere they are skipped.
+          # Ubuntu: service and e2e tests must run (fail instead of skip). Elsewhere they are skipped.
           LINETWIN_REQUIRE_SERVICES: ${{ runner.os == 'Linux' && '1' || '0' }}
       - name: Minimal-mode data path (simulator files, no DB/broker/ML)
         run: uv run --frozen poe minimal-data-check

@@ -1,0 +1,41 @@
+{
+  "source": "real backend via twin_backend.e2e_stack (no recorded data)",
+  "minimalReplayFile": "generate --quick, run 2",
+  "minimalMoments": {
+    "normal": {
+      "machine": "INSP-01",
+      "state": "RUNNING",
+      "ts": "2026-01-01T00:09:09.000Z"
+    },
+    "warning": {
+      "machine": "INSP-01",
+      "state": "WARNING",
+      "ts": "2026-01-01T00:09:10.000Z"
+    },
+    "fault": {
+      "machine": "INSP-01",
+      "state": "FAULT",
+      "ts": "2026-01-01T00:12:57.000Z"
+    },
+    "waiting": {
+      "machine": "CNV-02",
+      "state": "STARVED",
+      "ts": "2026-01-01T00:13:09.000Z"
+    }
+  },
+  "devMode": true,
+  "screenshots": [
+    "alerts",
+    "command_confirm_stop",
+    "command_result",
+    "machine_details",
+    "overview_dark_1280",
+    "overview_dark_1920",
+    "overview_light_1280",
+    "overview_light_1920",
+    "replay_mode",
+    "scenario_warning",
+    "sources"
+  ],
+  "ok": true
+}

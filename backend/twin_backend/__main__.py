@@ -104,6 +104,13 @@ def add_serve_args(s: argparse.ArgumentParser) -> None:
     s.add_argument("--sqlite-path", help="SQLite event store file")
     s.add_argument("--host", help="bind address (default: api.yaml host)")
     s.add_argument("--port", type=int, help="port (default: api.yaml port)")
+    s.add_argument(
+        "--cors-origin",
+        dest="cors_origins",
+        action="append",
+        default=None,
+        help="extra allowed CORS origin on top of api.yaml (repeatable), e.g. a dev server port",
+    )
 
 
 def run_serve(args: argparse.Namespace) -> int:
@@ -131,6 +138,10 @@ def run_serve(args: argparse.Namespace) -> int:
     except ConfigError as exc:
         print(f"configuration error:\n{exc}", file=sys.stderr)
         return 2
+    extra_origins = [o for o in (getattr(args, "cors_origins", None) or []) if o]
+    if extra_origins:
+        merged = list(dict.fromkeys([*runtime.api_cfg.cors_origins, *extra_origins]))
+        runtime.api_cfg = runtime.api_cfg.model_copy(update={"cors_origins": merged})
     host = args.host or runtime.api_cfg.host
     port = args.port or runtime.api_cfg.port
     log.info(

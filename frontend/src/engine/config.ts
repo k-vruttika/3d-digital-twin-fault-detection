@@ -5,7 +5,9 @@
  * machine states, data quality and alerts always come from the backend. Units: metres, seconds,
  * RPM. Colours are 0xRRGGBB.
  */
-import type { MachineKind } from "../api/types.ts";
+import type { MachineKind, MachineState } from "../api/types.ts";
+import type { LabelSizing } from "./labelPolicy.ts";
+import type { BufferStatus } from "./visuals.ts";
 
 export interface Footprint {
   /** along the material flow */
@@ -48,6 +50,8 @@ export interface VisualConfig {
     itemSize: number;
   };
   buffer: { maxStack: number; boxSize: number; perLayer: number };
+  /** Transfer track where a row turns into the next (metres). */
+  transfer: { width: number; height: number; railWidth: number; chevronSpacing: number };
   colors: {
     background: number;
     replayBackground: number;
@@ -83,11 +87,14 @@ export interface VisualConfig {
   flashHz: number;
   /** Outline thickness (m) of the at-risk part. */
   outlineThickness: number;
-  labels: {
+  labels: LabelSizing & {
     enabled: boolean;
-    /** World height of a label sprite (m). */
-    height: number;
+    /** Texture font size (px); the on-screen size comes from pixelHeight. */
     fontPx: number;
+    /** Machine states whose label is hidden unless hovered, selected or mode "all". */
+    normalStates: MachineState[];
+    /** Buffer statuses whose label is shown by default. */
+    bufferStatuses: BufferStatus[];
   };
   /** Decimals shown per sensor in tooltips. */
   sensorDecimals: Record<string, number>;
@@ -122,6 +129,7 @@ export const DEFAULT_CONFIG: VisualConfig = {
   cameraSweepHz: 0.25,
   conveyor: { beltWidth: 0.8, height: 0.85, rollerPitch: 0.25, itemSpacing: 0.9, itemSize: 0.28 },
   buffer: { maxStack: 12, boxSize: 0.24, perLayer: 6 },
+  transfer: { width: 0.7, height: 0.04, railWidth: 0.05, chevronSpacing: 0.9 },
   colors: {
     background: 0x1d2229,
     replayBackground: 0x2a2620,
@@ -152,7 +160,17 @@ export const DEFAULT_CONFIG: VisualConfig = {
   maintenanceTint: 0.45,
   flashHz: 2,
   outlineThickness: 0.035,
-  labels: { enabled: true, height: 0.32, fontPx: 44 },
+  labels: {
+    enabled: true,
+    fontPx: 44,
+    pixelHeight: 22,
+    minPixelHeight: 14,
+    referenceViewportPx: 720,
+    fadeStart: 45,
+    hideDistance: 80,
+    normalStates: ["RUNNING", "IDLE"],
+    bufferStatuses: ["FULL", "EMPTY", "UNKNOWN"],
+  },
   sensorDecimals: { speed: 0, temp: 1, vib: 2, load: 1, current: 1 },
   render: { maxPixelRatio: 2, shadowMaxMachines: 8, fov: 45 },
 };

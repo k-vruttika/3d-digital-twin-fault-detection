@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { createTestEngine, LINE } from "../test/fakes.ts";
 import { FpsCounter } from "./fps.ts";
-import { generateLine, stateSceneLine, SyntheticReadings } from "./synthetic.ts";
+import { generateLine, STATE_SCENE, stateSceneLine, SyntheticReadings } from "./synthetic.ts";
 import type { HoverEvent, SelectEvent } from "./TwinEngine.ts";
 
 function readyEngine() {
@@ -227,6 +227,6 @@ describe("synthetic data", () => {
     const r = a.next(m, "IDLE", 2);
     expect(r.speed).toBe(0);
     expect(r.seq).toBe(2);
-    expect(stateSceneLine().machines).toHaveLength(8);
+    expect(stateSceneLine().machines).toHaveLength(STATE_SCENE.length);
   });
 });

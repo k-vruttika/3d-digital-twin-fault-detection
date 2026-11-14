@@ -11,8 +11,7 @@ import { bindStream } from "../api/bind.ts";
 import { ApiError, RestClient } from "../api/rest.ts";
 import type { LineResponse } from "../api/types.ts";
 import { StreamClient, streamUrl } from "../api/ws.ts";
-import { TwinEngine } from "../engine/TwinEngine.ts";
-import { startSynthetic } from "./syntheticMode.ts";
+import type { TwinEngine } from "../engine/TwinEngine.ts";
 
 const params = new URLSearchParams(window.location.search);
 const container = document.getElementById("twin");
@@ -31,25 +30,42 @@ function setStatus(status: string, text: string): void {
 const synthetic = params.get("synthetic");
 const freeze = params.get("freeze");
 const frozenAt = freeze === null ? null : Number(freeze) * 1000;
-const engine = new TwinEngine(container, {
-  fps: params.has("fps"),
-  ...(frozenAt === null ? {} : { now: () => frozenAt, wallClock: () => Date.parse("2026-01-01T00:00:10Z") }),
-});
-
-engine.on("select", ({ machineId }) => {
-  selectionEl.hidden = machineId === null;
-  selectionEl.textContent = machineId === null ? "" : `selected: ${machineId}`;
-});
-
 const cleanups: (() => void)[] = [];
 
-if (synthetic !== null) {
-  cleanups.push(startSynthetic(engine, synthetic, { frozen: frozenAt !== null, setStatus }));
-} else {
-  void startLive();
+setStatus("connecting", "loading the 3D engine …");
+void start(container, selectionEl);
+
+/** three.js and the engine load as their own chunk (dynamic import), after the page shell. */
+async function start(twin: HTMLElement, selection: HTMLElement): Promise<void> {
+  const [{ TwinEngine }, { startSynthetic }] = await Promise.all([
+    import("../engine/TwinEngine.ts"),
+    import("./syntheticMode.ts"),
+  ]);
+  const engine = new TwinEngine(twin, {
+    fps: params.has("fps"),
+    ...(frozenAt === null ? {} : { now: () => frozenAt, wallClock: () => Date.parse("2026-01-01T00:00:10Z") }),
+  });
+  engine.on("select", ({ machineId }) => {
+    selection.hidden = machineId === null;
+    selection.textContent = machineId === null ? "" : `selected: ${machineId}`;
+  });
+  exposeDevHook(engine);
+  const onResize = (): void => {
+    engine.resize();
+  };
+  window.addEventListener("resize", onResize);
+  cleanups.push(() => {
+    window.removeEventListener("resize", onResize);
+    engine.dispose();
+  });
+  if (synthetic !== null) {
+    cleanups.push(startSynthetic(engine, synthetic, { frozen: frozenAt !== null, setStatus }));
+  } else {
+    await startLive(engine);
+  }
 }
 
-async function startLive(): Promise<void> {
+async function startLive(engine: TwinEngine): Promise<void> {
   const baseUrl = import.meta.env.VITE_LINETWIN_API_URL ?? "http://127.0.0.1:8000";
   const apiKey = import.meta.env.VITE_LINETWIN_API_KEY;
   const rest = new RestClient({ baseUrl, apiKey });
@@ -102,27 +118,20 @@ async function startLive(): Promise<void> {
   client.connect();
 }
 
-// Expose a small hook for the screenshot script (dev server only).
-const devHook = {
-  engine,
-  screenPosition: (id: string) => engine.screenPosition(id),
-  focus: (id: string, distance?: number) => {
-    engine.focus(id, distance);
-  },
-};
-(window as unknown as { __linetwinDev?: typeof devHook }).__linetwinDev = devHook;
-
-const onResize = (): void => {
-  engine.resize();
-};
-window.addEventListener("resize", onResize);
-cleanups.push(() => {
-  window.removeEventListener("resize", onResize);
-});
+/** A small hook for the screenshot script. */
+function exposeDevHook(engine: TwinEngine): void {
+  const devHook = {
+    engine,
+    screenPosition: (id: string) => engine.screenPosition(id),
+    focus: (id: string, distance?: number) => {
+      engine.focus(id, distance);
+    },
+  };
+  (window as unknown as { __linetwinDev?: typeof devHook }).__linetwinDev = devHook;
+}
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     for (const c of cleanups) c();
-    engine.dispose();
   });
 }

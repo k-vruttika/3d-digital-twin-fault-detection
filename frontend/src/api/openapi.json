@@ -254,6 +254,29 @@
         "title": "AuthInfo",
         "type": "object"
       },
+      "AuthMeResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "anonymous": {
+            "title": "Anonymous",
+            "type": "boolean"
+          },
+          "principal": {
+            "title": "Principal",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          }
+        },
+        "required": [
+          "principal",
+          "role",
+          "anonymous"
+        ],
+        "title": "AuthMeResponse",
+        "type": "object"
+      },
       "Capability": {
         "description": "Optional features a source adapter supports beyond streaming readings.",
         "enum": [
@@ -364,6 +387,45 @@
           "ts"
         ],
         "title": "CommandAck",
+        "type": "object"
+      },
+      "CommandLimitsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "alwaysAllowed": {
+            "description": "commands no rule can block",
+            "items": {
+              "$ref": "#/components/schemas/CommandType"
+            },
+            "title": "Alwaysallowed",
+            "type": "array"
+          },
+          "limits": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/KindLimitsModel"
+            },
+            "description": "parameter limits per machine kind (commands.yaml)",
+            "propertyNames": {
+              "$ref": "#/components/schemas/MachineKind"
+            },
+            "title": "Limits",
+            "type": "object"
+          },
+          "rules": {
+            "description": "state rules; STOP is always allowed",
+            "items": {
+              "$ref": "#/components/schemas/SafetyRuleModel"
+            },
+            "title": "Rules",
+            "type": "array"
+          }
+        },
+        "required": [
+          "limits",
+          "rules",
+          "alwaysAllowed"
+        ],
+        "title": "CommandLimitsResponse",
         "type": "object"
       },
       "CommandRecord": {
@@ -522,6 +584,40 @@
           "machineId"
         ],
         "title": "DataQualityReport",
+        "type": "object"
+      },
+      "FaultOptionModel": {
+        "additionalProperties": false,
+        "properties": {
+          "faultType": {
+            "title": "Faulttype",
+            "type": "string"
+          },
+          "gradual": {
+            "description": "progresses over progressionS; false = immediate (jam)",
+            "title": "Gradual",
+            "type": "boolean"
+          },
+          "heldOut": {
+            "description": "excluded from training data (unseen-fault experiments)",
+            "title": "Heldout",
+            "type": "boolean"
+          },
+          "kinds": {
+            "items": {
+              "$ref": "#/components/schemas/MachineKind"
+            },
+            "title": "Kinds",
+            "type": "array"
+          }
+        },
+        "required": [
+          "faultType",
+          "kinds",
+          "gradual",
+          "heldOut"
+        ],
+        "title": "FaultOptionModel",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -739,6 +835,134 @@
         "title": "HistoryResponse",
         "type": "object"
       },
+      "IngestStatsModel": {
+        "additionalProperties": false,
+        "description": "Counters of the active source since the backend started (IngestMetrics).",
+        "properties": {
+          "duplicates": {
+            "title": "Duplicates",
+            "type": "integer"
+          },
+          "late": {
+            "title": "Late",
+            "type": "integer"
+          },
+          "latePct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latepct"
+          },
+          "latency": {
+            "$ref": "#/components/schemas/LatencyModel"
+          },
+          "messagesIn": {
+            "title": "Messagesin",
+            "type": "integer"
+          },
+          "partial": {
+            "title": "Partial",
+            "type": "integer"
+          },
+          "partialPct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partialpct"
+          },
+          "published": {
+            "title": "Published",
+            "type": "integer"
+          },
+          "quarantined": {
+            "title": "Quarantined",
+            "type": "integer"
+          },
+          "quarantinedByReason": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Quarantinedbyreason",
+            "type": "object"
+          }
+        },
+        "required": [
+          "messagesIn",
+          "published",
+          "late",
+          "quarantined",
+          "quarantinedByReason",
+          "partial",
+          "duplicates",
+          "latency"
+        ],
+        "title": "IngestStatsModel",
+        "type": "object"
+      },
+      "KindLimitsModel": {
+        "additionalProperties": false,
+        "properties": {
+          "loadPct": {
+            "$ref": "#/components/schemas/RangeModel"
+          },
+          "speedRpm": {
+            "$ref": "#/components/schemas/RangeModel"
+          }
+        },
+        "required": [
+          "speedRpm",
+          "loadPct"
+        ],
+        "title": "KindLimitsModel",
+        "type": "object"
+      },
+      "LatencyModel": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "meanS": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Means"
+          },
+          "p95S": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "upper bound of the p95 histogram bucket",
+            "title": "P95S"
+          }
+        },
+        "required": [
+          "count"
+        ],
+        "title": "LatencyModel",
+        "type": "object"
+      },
       "LineBufferModel": {
         "additionalProperties": false,
         "properties": {
@@ -867,43 +1091,6 @@
           "topology"
         ],
         "title": "LineResponse",
-        "type": "object"
-      },
-      "LineState": {
-        "additionalProperties": false,
-        "description": "Full line state. ``as_of`` is set by whoever built it (reconstruct time, live watermark).",
-        "properties": {
-          "asOf": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Asof"
-          },
-          "machines": {
-            "additionalProperties": {
-              "$ref": "#/components/schemas/MachineView"
-            },
-            "title": "Machines",
-            "type": "object"
-          },
-          "predictions": {
-            "additionalProperties": {
-              "additionalProperties": {
-                "$ref": "#/components/schemas/Prediction"
-              },
-              "type": "object"
-            },
-            "title": "Predictions",
-            "type": "object"
-          }
-        },
-        "title": "LineState",
         "type": "object"
       },
       "LineStatus": {
@@ -1340,6 +1527,25 @@
         "title": "Quality",
         "type": "string"
       },
+      "RangeModel": {
+        "additionalProperties": false,
+        "properties": {
+          "max": {
+            "title": "Max",
+            "type": "number"
+          },
+          "min": {
+            "title": "Min",
+            "type": "number"
+          }
+        },
+        "required": [
+          "min",
+          "max"
+        ],
+        "title": "RangeModel",
+        "type": "object"
+      },
       "Reading": {
         "additionalProperties": false,
         "description": "One telemetry sample from one machine.\n\nSensor values are nullable: ``null`` (or an absent key) means the sensor value is missing\nfor this sample. The ingest pipeline keeps partially missing readings with\n``quality=SUSPECT`` and quarantines readings without any sensor value (ADR 0007).",
@@ -1462,6 +1668,90 @@
         "title": "Reliability",
         "type": "string"
       },
+      "ReplayRangeResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "end": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "newest stored reading/state ts",
+            "title": "End"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "oldest stored reading/state ts",
+            "title": "Start"
+          }
+        },
+        "title": "ReplayRangeResponse",
+        "type": "object"
+      },
+      "ReplayResponse": {
+        "additionalProperties": false,
+        "description": "``reconstruct(t)`` plus what the twin derives from it (root causes, alerts as of t).",
+        "properties": {
+          "alerts": {
+            "description": "unresolved alerts as of t (highest rev <= t)",
+            "items": {
+              "$ref": "#/components/schemas/Alert"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "asOf": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asof"
+          },
+          "line": {
+            "$ref": "#/components/schemas/LineViewModel"
+          },
+          "machines": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MachineView"
+            },
+            "title": "Machines",
+            "type": "object"
+          },
+          "predictions": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "$ref": "#/components/schemas/Prediction"
+              },
+              "type": "object"
+            },
+            "title": "Predictions",
+            "type": "object"
+          }
+        },
+        "required": [
+          "line"
+        ],
+        "title": "ReplayResponse",
+        "type": "object"
+      },
       "Role": {
         "description": "API roles, in increasing order of privilege.",
         "enum": [
@@ -1492,6 +1782,56 @@
           }
         },
         "title": "RootCauseView",
+        "type": "object"
+      },
+      "SafetyRuleModel": {
+        "additionalProperties": false,
+        "properties": {
+          "forbiddenStates": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/MachineState"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forbiddenstates"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "requiredStates": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/MachineState"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requiredstates"
+          },
+          "types": {
+            "items": {
+              "$ref": "#/components/schemas/CommandType"
+            },
+            "title": "Types",
+            "type": "array"
+          }
+        },
+        "required": [
+          "types",
+          "reason"
+        ],
+        "title": "SafetyRuleModel",
         "type": "object"
       },
       "ScenarioAck": {
@@ -1539,6 +1879,34 @@
         ],
         "title": "ScenarioAction",
         "type": "string"
+      },
+      "ScenarioOptionsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "faults": {
+            "items": {
+              "$ref": "#/components/schemas/FaultOptionModel"
+            },
+            "title": "Faults",
+            "type": "array"
+          },
+          "progressionS": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RangeModel"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "configured progression range of gradual faults"
+          }
+        },
+        "required": [
+          "faults"
+        ],
+        "title": "ScenarioOptionsResponse",
+        "type": "object"
       },
       "ScenarioPayload": {
         "additionalProperties": false,
@@ -1870,6 +2238,17 @@
                 "type": "null"
               }
             ]
+          },
+          "ingest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IngestStatsModel"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ingestion counters of the active source"
           },
           "switches": {
             "title": "Switches",
@@ -2888,6 +3267,35 @@
         ]
       }
     },
+    "/auth/me": {
+      "get": {
+        "operationId": "auth_me_auth_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthMeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Invalid key, or a key is required"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "The principal and role of the presented key (anonymous viewer without one)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/commands": {
       "get": {
         "operationId": "list_commands_commands_get",
@@ -3030,6 +3438,32 @@
           }
         ],
         "summary": "Send a command (operator); answers with the final ack",
+        "tags": [
+          "commands"
+        ]
+      }
+    },
+    "/commands/limits": {
+      "get": {
+        "operationId": "command_limits_commands_limits_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandLimitsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Parameter limits per machine kind and the safety rules (commands.yaml)",
         "tags": [
           "commands"
         ]
@@ -3477,6 +3911,7 @@
     },
     "/replay": {
       "get": {
+        "description": "`machines` and `predictions` equal `reconstruct(t)` (snapshot + replay). `line` holds the root causes the twin engine derives from those states (same propagation as live), `alerts` the alerts that were unresolved at t (highest rev with ts <= t). Data quality uses a wall-clock window and is not replayed.",
         "operationId": "replay_replay_get",
         "parameters": [
           {
@@ -3497,7 +3932,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LineState"
+                  "$ref": "#/components/schemas/ReplayResponse"
                 }
               }
             },
@@ -3519,7 +3954,33 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Line state at event time t (snapshot + replay, equals reconstruct(t))",
+        "summary": "Line state at event time t (reconstruct(t)) with root causes and alerts as of t",
+        "tags": [
+          "history"
+        ]
+      }
+    },
+    "/replay/range": {
+      "get": {
+        "operationId": "replay_range_replay_range_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayRangeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Event-time span of the stored readings and state changes (replay scrubber bounds)",
         "tags": [
           "history"
         ]
@@ -3654,6 +4115,33 @@
           }
         ],
         "summary": "Inject a fault or load a scenario (operator; simulation only)",
+        "tags": [
+          "scenario (simulation only)"
+        ]
+      }
+    },
+    "/scenario/options": {
+      "get": {
+        "description": "Read from `simulator.yaml` in the config directory; empty when there is no simulator config. Whether the active source can inject at all is `GET /sources` capability `scenario`.",
+        "operationId": "scenario_options_scenario_options_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioOptionsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Injectable fault types per machine kind (from the simulator config; simulation only)",
         "tags": [
           "scenario (simulation only)"
         ]

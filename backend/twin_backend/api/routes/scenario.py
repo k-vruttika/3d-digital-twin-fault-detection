@@ -12,8 +12,10 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import AwareDatetime, ValidationError
 
 from twin_backend.api.deps import Ctx, Operator, Viewer, check_machines
+from twin_backend.api.models import FaultOptionModel, RangeModel, ScenarioOptionsResponse
 from twin_backend.commands.scenarios import ScenarioPayload, ScenarioRecord
 from twin_backend.engine.line_state import StateModel
+from twin_common.config.scenario_options import ScenarioOptions, load_scenario_options
 
 router = APIRouter(tags=["scenario (simulation only)"])
 
@@ -52,6 +54,43 @@ async def inject(body: ScenarioPayload, ctx: Ctx, principal: Operator) -> Scenar
     if not result.supported:
         raise HTTPException(status.HTTP_409_CONFLICT, result.ack.reason)
     return ScenarioRecord(request=result.request, acks=[result.ack])
+
+
+SIMULATOR_CONFIG = "simulator.yaml"
+
+
+def options_response(opts: ScenarioOptions) -> ScenarioOptionsResponse:
+    return ScenarioOptionsResponse(
+        faults=[
+            FaultOptionModel(
+                fault_type=f.fault_type, kinds=list(f.kinds), gradual=f.gradual, held_out=f.held_out
+            )
+            for f in opts.faults
+        ],
+        progression_s=RangeModel(min=opts.progression_s[0], max=opts.progression_s[1])
+        if opts.progression_s is not None
+        else None,
+    )
+
+
+@router.get(
+    "/scenario/options",
+    response_model=ScenarioOptionsResponse,
+    summary="Injectable fault types per machine kind (from the simulator config; simulation only)",
+    description=(
+        "Read from `simulator.yaml` in the config directory; empty when there is no simulator "
+        "config. Whether the active source can inject at all is `GET /sources` capability "
+        "`scenario`."
+    ),
+)
+async def scenario_options(ctx: Ctx, _: Viewer) -> ScenarioOptionsResponse:
+    settings = ctx.runtime.settings
+    config_dir = (
+        settings.config_dir
+        if settings.config_dir.is_absolute()
+        else ctx.runtime.root / settings.config_dir
+    )
+    return options_response(load_scenario_options(config_dir / SIMULATOR_CONFIG))
 
 
 @router.get(

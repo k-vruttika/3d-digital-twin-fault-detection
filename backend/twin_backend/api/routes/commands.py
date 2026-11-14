@@ -8,6 +8,12 @@ from fastapi import APIRouter, HTTPException, Query, Response, status
 from pydantic import AwareDatetime
 
 from twin_backend.api.deps import Ctx, Operator, Viewer, check_machines
+from twin_backend.api.models import (
+    CommandLimitsResponse,
+    KindLimitsModel,
+    RangeModel,
+    SafetyRuleModel,
+)
 from twin_backend.commands.service import (
     CommandRecord,
     CommandRequest,
@@ -15,6 +21,7 @@ from twin_backend.commands.service import (
     UnknownMachineError,
 )
 from twin_backend.engine.line_state import StateModel
+from twin_common.config.commands import FAIL_SAFE_COMMANDS, CommandsConfig
 from twin_common.contracts import CommandAck
 
 router = APIRouter(tags=["commands"])
@@ -58,6 +65,37 @@ async def send_command(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     response.headers[REPLAY_HEADER] = "true" if result.replay else "false"
     return result.ack
+
+
+def limits_response(cfg: CommandsConfig) -> CommandLimitsResponse:
+    return CommandLimitsResponse(
+        limits={
+            kind: KindLimitsModel(
+                speed_rpm=RangeModel(min=lim.speed_rpm.min, max=lim.speed_rpm.max),
+                load_pct=RangeModel(min=lim.load_pct.min, max=lim.load_pct.max),
+            )
+            for kind, lim in cfg.limits.items()
+        },
+        rules=[
+            SafetyRuleModel(
+                types=list(r.types),
+                forbidden_states=r.forbidden_states,
+                required_states=r.required_states,
+                reason=r.reason,
+            )
+            for r in cfg.rules
+        ],
+        always_allowed=sorted(FAIL_SAFE_COMMANDS),
+    )
+
+
+@router.get(
+    "/commands/limits",
+    response_model=CommandLimitsResponse,
+    summary="Parameter limits per machine kind and the safety rules (commands.yaml)",
+)
+async def command_limits(ctx: Ctx, _: Viewer) -> CommandLimitsResponse:
+    return limits_response(ctx.runtime.commands_cfg)
 
 
 @router.get(

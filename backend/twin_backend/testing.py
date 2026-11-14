@@ -12,6 +12,8 @@ from __future__ import annotations
 import asyncio
 import os
 import threading
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, NoReturn
@@ -541,6 +543,67 @@ def file_runtime(
         storage_cfg=st,
         **build_kw,
     )
+
+
+API_OP_KEY = "op-key-0123456789abcdef"
+API_VIEW_KEY = "viewer-key-0123456789abcdef"
+API_KEYS = {
+    "api_keys_operator": f"alice:{API_OP_KEY}",
+    "api_keys_viewer": f"victor:{API_VIEW_KEY}",
+}
+
+
+@asynccontextmanager
+async def running_api(
+    export: SimExport,
+    tmp: Path,
+    *,
+    backend: str = "sqlite",
+    dsn: str | None = None,
+    keys: bool = True,
+    wait_idle: bool = True,
+    **runtime_kw: Any,
+) -> AsyncIterator[tuple[Any, Any]]:
+    """A uvicorn server on a file-source runtime; yields (runtime, ServerHandle)."""
+    from pydantic import SecretStr
+
+    from twin_backend.api.app import create_app
+    from twin_backend.api.server import ServerHandle
+
+    secret_keys = {k: SecretStr(v) for k, v in API_KEYS.items()} if keys else {}
+    rt = file_runtime(
+        export, tmp, backend, dsn, settings=settings_for(dsn, **secret_keys), **runtime_kw
+    )
+    server = ServerHandle(create_app(rt))
+    await server.start()
+    try:
+        if wait_idle:
+            await rt.manager.wait_idle()
+            await rt.engine.drain()
+            await rt.storage.flush()
+        yield rt, server
+    finally:
+        await server.stop()
+
+
+def api_client(server: Any, key: str | None = API_VIEW_KEY) -> Any:
+    """An httpx client for a ``running_api`` server, sending ``key`` as X-API-Key."""
+    import httpx
+
+    headers = {"X-API-Key": key} if key else {}
+    return httpx.AsyncClient(base_url=server.base_url, headers=headers, timeout=10.0)
+
+
+def require_chromium() -> None:
+    """Skip when Playwright's Chromium is missing; fail instead with LINETWIN_REQUIRE_SERVICES=1."""
+    from twin_backend.e2e_stack import chromium_missing
+
+    reason = chromium_missing()
+    if reason is None:
+        return
+    if os.environ.get(REQUIRE_SERVICES_ENV) == "1":
+        pytest.fail(reason, pytrace=False)
+    pytest.skip(reason)
 
 
 @pytest.fixture

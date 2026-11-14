@@ -26,6 +26,7 @@ from twin_backend.api.routes import (
     sources,
     system,
 )
+from twin_backend.api.routes import auth as auth_routes
 from twin_backend.api.ws import WsHub
 from twin_backend.api.ws_models import openapi_components
 from twin_backend.runtime import Runtime
@@ -82,7 +83,8 @@ def create_app(
         allow_headers=[API_KEY_HEADER, "Content-Type"],
         expose_headers=["Idempotent-Replay"],
     )
-    for module in (line, machines, history, commands, alerts, sources, scenario, system):
+    routers = (auth_routes, line, machines, history, commands, alerts, sources, scenario, system)
+    for module in routers:
         app.include_router(module.router)
 
     @app.websocket("/stream")

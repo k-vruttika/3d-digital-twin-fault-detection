@@ -141,6 +141,13 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--seed", type=int, help="simulator seed")
     p.add_argument("--host", help="backend bind address (default: api.yaml)")
     p.add_argument("--port", type=int, help="backend port (default: api.yaml)")
+    p.add_argument(
+        "--cors-origin",
+        dest="cors_origins",
+        action="append",
+        default=None,
+        help="extra allowed CORS origin on top of api.yaml (repeatable)",
+    )
     return p
 
 
@@ -201,6 +208,7 @@ def main(
             sqlite_path=None,
             host=args.host,
             port=args.port,
+            cors_origins=args.cors_origins,
         )
         if serve is None:
             from twin_backend.__main__ import run_serve

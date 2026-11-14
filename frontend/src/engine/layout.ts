@@ -5,7 +5,12 @@
  * `rowLength` machines the line turns: the next row runs back along -x, `rowSpacing` further in
  * +z (a serpentine), so long lines stay compact. A machine's `layout` override in the line config
  * replaces its position and/or rotation; override positions are world coordinates in the same
- * frame. Buffers sit midway between the machines they link, turned along the link.
+ * frame. Buffers sit midway along the link between the machines they connect, turned along it.
+ *
+ * Links: a link between two machines in line (one row) is straight, from the outlet of one to
+ * the inlet of the next. Where the line turns into the next row (or overrides put the machines
+ * out of line), the link becomes a transfer path (`linkPath`): out of the outlet, half a gap
+ * further, across, and into the inlet. The engine draws it as a transfer track (transfer.ts).
  */
 import type { LineResponse, MachineKind } from "../api/types.ts";
 import type { Footprint, LayoutConfig } from "./config.ts";
@@ -33,6 +38,78 @@ export interface BufferPlacement {
   y: number;
   z: number;
   rotationY: number;
+  /** Floor points [x, z] of the link from the outlet of `from` to the inlet of `to`. */
+  path: [number, number][];
+  /** true when the link is not a straight run within a row (a row turn or an override). */
+  turns: boolean;
+}
+
+/** Unit vector of the flow direction for a rotation (three.js: +x turns towards -z). */
+export function flowDirection(rotationY: number): [number, number] {
+  return [Math.cos(rotationY), -Math.sin(rotationY)];
+}
+
+const EPS = 1e-6;
+
+/**
+ * The floor path [x, z] from the outlet of `a` to the inlet of `b`. Straight when the two are
+ * in line facing the same way; otherwise out of the outlet by `gap / 2`, across, and into the
+ * inlet from `gap / 2` before it. For a U-turn (opposite directions, the serpentine) both
+ * corner points are pushed to the same distance along the flow, so the crossing runs straight
+ * across beyond the end of the longer machine.
+ */
+export function linkPath(a: Placement, b: Placement, gap: number): { path: [number, number][]; turns: boolean } {
+  const fa = flowDirection(a.rotationY);
+  const fb = flowDirection(b.rotationY);
+  const out: [number, number] = [a.x + fa[0] * (a.footprint.length / 2), a.z + fa[1] * (a.footprint.length / 2)];
+  const inp: [number, number] = [b.x - fb[0] * (b.footprint.length / 2), b.z - fb[1] * (b.footprint.length / 2)];
+  const dot = fa[0] * fb[0] + fa[1] * fb[1];
+  const dx = inp[0] - out[0];
+  const dz = inp[1] - out[1];
+  const cross = fa[0] * dz - fa[1] * dx; // sideways offset of the inlet from the outlet's line
+  const ahead = fa[0] * dx + fa[1] * dz;
+  if (dot > 1 - EPS && Math.abs(cross) < EPS && ahead >= -EPS) return { path: [out, inp], turns: false };
+  const e = gap / 2;
+  let p1: [number, number] = [out[0] + fa[0] * e, out[1] + fa[1] * e];
+  let p2: [number, number] = [inp[0] - fb[0] * e, inp[1] - fb[1] * e];
+  if (dot < -1 + EPS) {
+    const along = (p: [number, number]): number => p[0] * fa[0] + p[1] * fa[1];
+    const t = Math.max(along(p1), along(p2));
+    const push = (p: [number, number]): [number, number] => {
+      const k = t - along(p);
+      return [p[0] + fa[0] * k, p[1] + fa[1] * k];
+    };
+    p1 = push(p1);
+    p2 = push(p2);
+  }
+  return { path: [out, p1, p2, inp], turns: true };
+}
+
+/** The point halfway along a polyline and the direction (rotationY) of the segment there. */
+export function pathMidpoint(path: readonly [number, number][]): { x: number; z: number; rotationY: number } {
+  const lengths = path.slice(1).map((p, i) => {
+    const q = path[i] ?? p;
+    return Math.hypot(p[0] - q[0], p[1] - q[1]);
+  });
+  const total = lengths.reduce((s, l) => s + l, 0);
+  let left = total / 2;
+  for (let i = 0; i < lengths.length; i++) {
+    const l = lengths[i] ?? 0;
+    const a = path[i];
+    const b = path[i + 1];
+    if (a === undefined || b === undefined) break;
+    if (left <= l || i === lengths.length - 1) {
+      const k = l > 0 ? left / l : 0;
+      return {
+        x: a[0] + (b[0] - a[0]) * k,
+        z: a[1] + (b[1] - a[1]) * k,
+        rotationY: l > 0 ? Math.atan2(-(b[1] - a[1]), b[0] - a[0]) : 0,
+      };
+    }
+    left -= l;
+  }
+  const only = path[0] ?? [0, 0];
+  return { x: only[0], z: only[1], rotationY: 0 };
 }
 
 export interface Bounds {
@@ -118,18 +195,19 @@ export function computeLayout(line: LineResponse, cfg: LayoutConfig): LineLayout
     const a = machines.get(b.from);
     const c = machines.get(b.to);
     if (a === undefined || c === undefined) continue;
-    const dx = c.x - a.x;
-    const dz = c.z - a.z;
+    const { path, turns } = linkPath(a, c, cfg.gap);
+    const mid = pathMidpoint(path);
     buffers.push({
       id: b.id,
       from: b.from,
       to: b.to,
       capacity: b.capacity,
-      x: (a.x + c.x) / 2,
+      x: mid.x,
       y: Math.min(a.y, c.y),
-      z: (a.z + c.z) / 2,
-      // rotationY 0 = +x; three.js rotates +x towards -z for positive angles.
-      rotationY: dx === 0 && dz === 0 ? 0 : Math.atan2(-dz, dx),
+      z: mid.z,
+      rotationY: mid.rotationY,
+      path,
+      turns,
     });
   }
 

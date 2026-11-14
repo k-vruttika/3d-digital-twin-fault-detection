@@ -6,18 +6,27 @@
  * against the committed OpenAPI schema.
  */
 import type {
+  AdapterKind,
+  Alert,
   AlertsResponse,
   ApiPaths,
+  AuthMeResponse,
   CommandAck,
+  CommandLimitsResponse,
   CommandRequest,
+  CommandsResponse,
   HealthResponse,
   HistoryResponse,
   LineResponse,
-  LineState,
   MachinesResponse,
   MachineStateResponse,
+  ReplayRangeResponse,
+  ReplayResponse,
+  ScenarioOptionsResponse,
+  ScenarioPayload,
+  ScenarioRecord,
+  ScenariosResponse,
   SourcesResponse,
-  Alert,
 } from "./types.ts";
 
 type Method = "get" | "post";
@@ -42,6 +51,16 @@ export const ENDPOINTS = [
   ["post", "/commands"],
   ["get", "/health"],
   ["get", "/sources"],
+  ["post", "/sources/switch"],
+  ["get", "/auth/me"],
+  ["get", "/commands"],
+  ["get", "/commands/limits"],
+  ["get", "/replay/range"],
+  ["get", "/scenario"],
+  ["post", "/scenario"],
+  ["get", "/scenario/options"],
+  ["get", "/predict"],
+  ["post", "/whatif"],
 ] as const satisfies readonly (readonly [Method, keyof ApiPaths])[];
 
 export class ApiError extends Error {
@@ -88,12 +107,54 @@ export class RestClient {
     return this.get("/machines/{machine_id}/state", { machine_id: machineId });
   }
 
-  getHistory(query: Query<Operation<"/history", "get">>): Promise<HistoryResponse> {
-    return this.get("/history", {}, query);
+  getHistory(query: Query<Operation<"/history", "get">>, signal?: AbortSignal): Promise<HistoryResponse> {
+    return this.get("/history", {}, query, signal);
   }
 
-  getReplay(t: string): Promise<LineState> {
-    return this.get("/replay", {}, { t });
+  getReplay(t: string, signal?: AbortSignal): Promise<ReplayResponse> {
+    return this.get("/replay", {}, { t }, signal);
+  }
+
+  getReplayRange(): Promise<ReplayRangeResponse> {
+    return this.get("/replay/range", {});
+  }
+
+  getAuthMe(): Promise<AuthMeResponse> {
+    return this.get("/auth/me", {});
+  }
+
+  getCommands(query: Query<Operation<"/commands", "get">> = {}): Promise<CommandsResponse> {
+    return this.get("/commands", {}, query);
+  }
+
+  getCommandLimits(): Promise<CommandLimitsResponse> {
+    return this.get("/commands/limits", {});
+  }
+
+  switchSource(kind: AdapterKind): Promise<SourcesResponse> {
+    return this.post("/sources/switch", {}, { kind });
+  }
+
+  getScenarios(query: Query<Operation<"/scenario", "get">> = {}): Promise<ScenariosResponse> {
+    return this.get("/scenario", {}, query);
+  }
+
+  postScenario(payload: ScenarioPayload): Promise<ScenarioRecord> {
+    return this.post("/scenario", {}, payload);
+  }
+
+  getScenarioOptions(): Promise<ScenarioOptionsResponse> {
+    return this.get("/scenario/options", {});
+  }
+
+  /** Phase 11 stub: rejects with ApiError 501 until the inference service exists. */
+  async getPredict(): Promise<unknown> {
+    return this.request("GET", "/predict", {}, undefined, undefined);
+  }
+
+  /** Phase 11 stub: rejects with ApiError 501 until the what-if service exists. */
+  async postWhatif(body: unknown = {}): Promise<unknown> {
+    return this.request("POST", "/whatif", {}, undefined, body);
   }
 
   getAlerts(query: Query<Operation<"/alerts", "get">> = {}): Promise<AlertsResponse> {
@@ -121,8 +182,9 @@ export class RestClient {
     path: P,
     params: Record<string, string>,
     query?: Record<string, QueryValue>,
+    signal?: AbortSignal,
   ): Promise<OkBody<Operation<P, "get">>> {
-    return this.request("GET", path, params, query, undefined) as Promise<
+    return this.request("GET", path, params, query, undefined, signal) as Promise<
       OkBody<Operation<P, "get">>
     >;
   }
@@ -159,16 +221,18 @@ export class RestClient {
     return `${this.baseUrl}${filled}${qs ? `?${qs}` : ""}`;
   }
 
-  private async request(
+  protected async request(
     method: "GET" | "POST",
     path: string,
     params: Record<string, string>,
     query: Record<string, QueryValue> | undefined,
     body: unknown,
+    signal?: AbortSignal,
   ): Promise<unknown> {
     const headers: Record<string, string> = { Accept: "application/json" };
     if (this.apiKey !== undefined && this.apiKey !== "") headers["X-API-Key"] = this.apiKey;
     const init: RequestInit = { method, headers };
+    if (signal !== undefined) init.signal = signal;
     if (body !== undefined) {
       headers["Content-Type"] = "application/json";
       init.body = JSON.stringify(body);

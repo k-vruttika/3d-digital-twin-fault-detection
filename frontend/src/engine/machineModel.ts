@@ -12,6 +12,7 @@ import {
   MeshStandardMaterial,
   Sprite,
   SpriteMaterial,
+  Vector3,
   type Material,
   type Object3D,
 } from "three";
@@ -19,6 +20,7 @@ import {
 import type { AlertSeverity } from "../api/types.ts";
 import type { BuiltMachine } from "./geometry/machines.ts";
 import type { BuildContext, PartMaterial } from "./geometry/shared.ts";
+import { labelScreenScale, MIN_VISIBLE_OPACITY } from "./labelPolicy.ts";
 import type { LabelTextureFactory } from "./labels.ts";
 import type { Placement } from "./layout.ts";
 import { smoothRate, toneColor, type VisualSpec } from "./visuals.ts";
@@ -26,6 +28,7 @@ import { smoothRate, toneColor, type VisualSpec } from "./visuals.ts";
 const GREY = new Color();
 const TMP = new Color();
 const BLACK = new Color(0x000000);
+const LABEL_POS = new Vector3();
 
 /** Luminance-preserving grey of a colour. */
 function greyOf(c: Color, out: Color): Color {
@@ -53,6 +56,8 @@ export class MachineModel {
   private highlights = new Map<string, number>();
   private selected = false;
   private labelKey = "";
+  /** Texture aspect of the current label; null = no label texture. */
+  private labelAspect: number | null = null;
   private flashPhase = 0;
 
   // indicators
@@ -299,6 +304,7 @@ export class MachineModel {
     this.labelMaterial.map = null;
     this.ctx.tracker.release(old);
     if (label === null || this.labelFactory === null) {
+      this.labelAspect = null;
       this.label.visible = false;
       return;
     }
@@ -310,13 +316,34 @@ export class MachineModel {
       fontPx: cfg.labels.fontPx,
     });
     if (made === null) {
+      this.labelAspect = null;
       this.label.visible = false;
       return;
     }
     this.labelMaterial.map = this.ctx.tracker.track(made.texture);
     this.labelMaterial.needsUpdate = true;
-    const h = cfg.labels.height;
-    this.label.scale.set(h * made.aspect, h, 1);
-    this.label.visible = true;
+    this.labelAspect = made.aspect;
+  }
+
+  /**
+   * Per frame: show the label if the policy says so (`show`), at a constant on-screen size
+   * and faded by distance (labelPolicy.ts); `exempt` (hovered / selected) never fades.
+   */
+  updateLabel(cameraPosition: Vector3, fovDeg: number, viewportPx: number, show: boolean, exempt: boolean): void {
+    if (!show || this.labelAspect === null) {
+      this.label.visible = false;
+      return;
+    }
+    this.label.getWorldPosition(LABEL_POS);
+    const { worldHeight, opacity } = labelScreenScale(
+      LABEL_POS.distanceTo(cameraPosition),
+      fovDeg,
+      viewportPx,
+      this.ctx.cfg.labels,
+      exempt,
+    );
+    this.label.visible = opacity >= MIN_VISIBLE_OPACITY;
+    this.labelMaterial.opacity = opacity;
+    this.label.scale.set(worldHeight * this.labelAspect, worldHeight, 1);
   }
 }

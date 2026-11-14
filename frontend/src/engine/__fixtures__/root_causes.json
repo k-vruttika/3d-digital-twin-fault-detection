@@ -1,0 +1,8564 @@
+{
+  "cases": [
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "RUNNING"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "IDLE",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "WARNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "FAULT",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "SOURCE",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "STARVED",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNC-01": [
+            "CNV-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "BLOCKED",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "MAINTENANCE",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "OFFLINE",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "STALE",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": null,
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "RUNNING"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "IDLE",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "WARNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "FAULT",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNV-01": [
+            "CNC-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "STARVED",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "INSP-01": [
+            "CNC-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "BLOCKED",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "MAINTENANCE",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "OFFLINE",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "STALE",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": null,
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "RUNNING"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "WARNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "FAULT"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNC-01": [
+            "INSP-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNV-02": [
+            "INSP-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "CNV-02",
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "MAINTENANCE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": true
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "OFFLINE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": true
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "STALE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": null
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "RUNNING"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "IDLE",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "WARNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "FAULT",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "INSP-01": [
+            "CNV-02"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "INSP-01",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "STARVED",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "SINK",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "BLOCKED",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "MAINTENANCE",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "OFFLINE",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "STALE",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": null,
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNC-01": [
+            "CNV-01",
+            "INSP-01",
+            "CNV-02"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "FAULT",
+        "CNV-01": "BLOCKED",
+        "CNV-02": "STARVED",
+        "INSP-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "INSP-01": [
+            "CNV-01",
+            "CNC-01",
+            "CNV-02"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "INSP-01",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "BLOCKED",
+        "CNV-01": "BLOCKED",
+        "CNV-02": "STARVED",
+        "INSP-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNC-01": [
+            "CNV-01",
+            "INSP-01",
+            "CNV-02"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "WARNING",
+        "CNV-01": "BLOCKED",
+        "CNV-02": "STARVED",
+        "INSP-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "SOURCE",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "SOURCE",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "SOURCE",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "SOURCE",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "STARVED",
+        "CNV-01": "STARVED",
+        "CNV-02": "STARVED",
+        "INSP-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "SINK",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "SINK",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "SINK",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "SINK",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "BLOCKED",
+        "CNV-01": "BLOCKED",
+        "CNV-02": "BLOCKED",
+        "INSP-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNC-01": [
+            "CNV-01",
+            "INSP-01",
+            "CNV-02"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "OFFLINE",
+        "CNV-01": "BLOCKED",
+        "CNV-02": "STARVED",
+        "INSP-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNC-01": [
+            "CNV-01",
+            "INSP-01",
+            "CNV-02"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": null,
+        "CNV-01": "BLOCKED",
+        "CNV-02": "STARVED",
+        "INSP-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNV-02": [
+            "INSP-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "SOURCE",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "CNV-02",
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "STARVED",
+        "CNV-02": "RUNNING",
+        "INSP-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "INSP-01": [
+            "CNV-02"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "INSP-01",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "IDLE",
+        "CNV-01": null,
+        "CNV-02": "STARVED",
+        "INSP-01": "OFFLINE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": null,
+        "INSP-01": "WARNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNV-02": [
+            "CNC-01",
+            "INSP-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "CNV-02",
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "BLOCKED",
+        "CNV-01": "OFFLINE",
+        "CNV-02": "RUNNING",
+        "INSP-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "SOURCE",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "OFFLINE",
+        "CNV-01": "STARVED",
+        "CNV-02": "MAINTENANCE",
+        "INSP-01": "FAULT"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "STALE",
+        "CNV-01": "STALE",
+        "CNV-02": "FAULT",
+        "INSP-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNC-01": [
+            "INSP-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "STALE",
+        "CNV-01": null,
+        "CNV-02": null,
+        "INSP-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNV-02": [
+            "INSP-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "CNV-02",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "MAINTENANCE",
+        "CNV-01": "IDLE",
+        "CNV-02": "IDLE",
+        "INSP-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNC-01": [
+            "CNV-01",
+            "INSP-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "MAINTENANCE",
+        "CNV-01": "BLOCKED",
+        "CNV-02": "OFFLINE",
+        "INSP-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNC-01": [
+            "INSP-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "FAULT",
+        "CNV-01": "IDLE",
+        "CNV-02": "IDLE",
+        "INSP-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "SINK",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": null,
+        "CNV-01": "RUNNING",
+        "CNV-02": "BLOCKED",
+        "INSP-01": "FAULT"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "FAULT",
+        "CNV-01": "OFFLINE",
+        "CNV-02": null,
+        "INSP-01": "STALE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNV-02": [
+            "INSP-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "CNV-02",
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "STALE",
+        "CNV-02": "FAULT",
+        "INSP-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNC-01": [
+            "INSP-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "SINK",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "MAINTENANCE",
+        "CNV-01": null,
+        "CNV-02": "BLOCKED",
+        "INSP-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "IDLE",
+        "CNV-01": null,
+        "CNV-02": "STALE",
+        "INSP-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "FAULT",
+        "CNV-01": "STALE",
+        "CNV-02": null,
+        "INSP-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "SOURCE",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "SOURCE",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "STARVED",
+        "CNV-01": "STARVED",
+        "CNV-02": "MAINTENANCE",
+        "INSP-01": "FAULT"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "FAULT",
+        "CNV-01": "OFFLINE",
+        "CNV-02": null,
+        "INSP-01": "WARNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "STALE",
+        "CNV-01": "FAULT",
+        "CNV-02": "FAULT",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNV-02": [
+            "INSP-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "CNV-02",
+            "unknown": true
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "WARNING",
+        "CNV-02": "STALE",
+        "INSP-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNC-01": [
+            "INSP-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "SINK",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": null,
+        "CNV-01": null,
+        "CNV-02": "BLOCKED",
+        "INSP-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "INSP-01": [
+            "CNV-02"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "INSP-01",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "STALE",
+        "CNV-01": "MAINTENANCE",
+        "CNV-02": "STARVED",
+        "INSP-01": "MAINTENANCE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "OFFLINE",
+        "CNV-01": "WARNING",
+        "CNV-02": "WARNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": null,
+        "CNV-01": "MAINTENANCE",
+        "CNV-02": "IDLE",
+        "INSP-01": "MAINTENANCE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "FAULT",
+        "CNV-01": "OFFLINE",
+        "CNV-02": null,
+        "INSP-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "OFFLINE",
+        "CNV-01": "OFFLINE",
+        "CNV-02": "IDLE",
+        "INSP-01": "MAINTENANCE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "INSP-01": [
+            "CNV-02"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "INSP-01",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "MAINTENANCE",
+        "CNV-01": "STALE",
+        "CNV-02": "STARVED",
+        "INSP-01": "OFFLINE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "INSP-01": [
+            "CNV-02"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "INSP-01",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "IDLE",
+        "CNV-01": "MAINTENANCE",
+        "CNV-02": "STARVED",
+        "INSP-01": "FAULT"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "OFFLINE",
+        "CNV-01": "OFFLINE",
+        "CNV-02": "RUNNING",
+        "INSP-01": "WARNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "INSP-01": [
+            "CNV-02"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "INSP-01",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "STALE",
+        "CNV-01": "RUNNING",
+        "CNV-02": "STARVED",
+        "INSP-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "INSP-01": [
+            "CNC-01",
+            "CNV-02"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "INSP-01",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "BLOCKED",
+        "CNV-01": null,
+        "CNV-02": "STARVED",
+        "INSP-01": "FAULT"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNV-02": [
+            "INSP-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "CNV-02",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "OFFLINE",
+        "CNV-01": "STALE",
+        "CNV-02": "STALE",
+        "INSP-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "SOURCE",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "MAINTENANCE",
+        "CNV-01": "STARVED",
+        "CNV-02": null,
+        "INSP-01": "MAINTENANCE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNV-01": [
+            "CNC-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "STARVED",
+        "CNV-01": "OFFLINE",
+        "CNV-02": "OFFLINE",
+        "INSP-01": null
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "OFFLINE",
+        "CNV-01": "OFFLINE",
+        "CNV-02": "MAINTENANCE",
+        "INSP-01": "WARNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNV-01": [
+            "CNC-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "SINK",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "STARVED",
+        "CNV-01": "OFFLINE",
+        "CNV-02": "BLOCKED",
+        "INSP-01": "OFFLINE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNC-01": [
+            "CNV-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "WARNING",
+        "CNV-01": "BLOCKED",
+        "CNV-02": "MAINTENANCE",
+        "INSP-01": null
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNV-01": [
+            "CNC-01"
+          ],
+          "CNV-02": [
+            "INSP-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "CNV-02",
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "STARVED",
+        "CNV-01": null,
+        "CNV-02": "MAINTENANCE",
+        "INSP-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNC-01": [
+            "INSP-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "WARNING",
+        "CNV-01": "OFFLINE",
+        "CNV-02": "STALE",
+        "INSP-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": null,
+        "CNV-01": "RUNNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "OFFLINE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "WARNING",
+        "CNV-02": null,
+        "INSP-01": null
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNV-02": [
+            "CNC-01",
+            "INSP-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNV-02",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "CNV-02",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "BLOCKED",
+        "CNV-01": "IDLE",
+        "CNV-02": "OFFLINE",
+        "INSP-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": null,
+        "CNV-02": "WARNING",
+        "INSP-01": "FAULT"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "SOURCE",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": null,
+        "CNV-01": "STARVED",
+        "CNV-02": "MAINTENANCE",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "OFFLINE",
+        "CNV-01": "STALE",
+        "CNV-02": "OFFLINE",
+        "INSP-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "SINK",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "SINK",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "IDLE",
+        "CNV-01": "FAULT",
+        "CNV-02": "BLOCKED",
+        "INSP-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "SINK",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "FAULT",
+        "CNV-01": "WARNING",
+        "CNV-02": "BLOCKED",
+        "INSP-01": null
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "RUNNING",
+        "CNV-01": "WARNING",
+        "CNV-02": "IDLE",
+        "INSP-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": true
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "OFFLINE",
+        "CNV-01": "RUNNING",
+        "CNV-02": "IDLE",
+        "INSP-01": "OFFLINE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "STALE",
+        "CNV-01": "RUNNING",
+        "CNV-02": null,
+        "INSP-01": "WARNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "INSP-01": [
+            "CNV-02"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "INSP-01",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "WARNING",
+        "CNV-01": "IDLE",
+        "CNV-02": "STARVED",
+        "INSP-01": null
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "OFFLINE",
+        "CNV-01": "OFFLINE",
+        "CNV-02": "WARNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "OFFLINE",
+        "CNV-01": "FAULT",
+        "CNV-02": "OFFLINE",
+        "INSP-01": "OFFLINE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNC-01": [
+            "INSP-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "STALE",
+        "CNV-01": "OFFLINE",
+        "CNV-02": "OFFLINE",
+        "INSP-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNC-01": [
+            "INSP-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "SINK",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "IDLE",
+        "CNV-01": null,
+        "CNV-02": "BLOCKED",
+        "INSP-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "INSP-01": [
+            "CNC-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "SOURCE",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "BLOCKED",
+        "CNV-01": "STARVED",
+        "CNV-02": "IDLE",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNV-01": [
+            "CNC-01",
+            "INSP-01",
+            "CNV-02"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "STARVED",
+        "CNV-01": "STALE",
+        "CNV-02": "STARVED",
+        "INSP-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "SINK",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "MAINTENANCE",
+        "CNV-01": "OFFLINE",
+        "CNV-02": "BLOCKED",
+        "INSP-01": "OFFLINE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "IDLE",
+        "CNV-01": "RUNNING",
+        "CNV-02": null,
+        "INSP-01": "FAULT"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "STALE",
+        "CNV-01": "FAULT",
+        "CNV-02": "WARNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "INSP-01": [
+            "CNV-01",
+            "CNC-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "BLOCKED",
+        "CNV-01": "BLOCKED",
+        "CNV-02": "RUNNING",
+        "INSP-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNV-02": [
+            "INSP-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "CNV-02",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "MAINTENANCE",
+        "CNV-01": "FAULT",
+        "CNV-02": "IDLE",
+        "INSP-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "IDLE",
+        "CNV-01": "WARNING",
+        "CNV-02": "STALE",
+        "INSP-01": "MAINTENANCE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "OFFLINE",
+        "CNV-01": "WARNING",
+        "CNV-02": "IDLE",
+        "INSP-01": "OFFLINE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNV-02": [
+            "INSP-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "CNV-02",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "IDLE",
+        "CNV-01": "WARNING",
+        "CNV-02": "STALE",
+        "INSP-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": true
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "WARNING",
+        "CNV-01": "RUNNING",
+        "CNV-02": "WARNING",
+        "INSP-01": "STALE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNV-01": [
+            "CNC-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "STARVED",
+        "CNV-01": "WARNING",
+        "CNV-02": "STALE",
+        "INSP-01": "WARNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "MAINTENANCE",
+        "CNV-01": null,
+        "CNV-02": "FAULT",
+        "INSP-01": "FAULT"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "WARNING",
+        "CNV-01": null,
+        "CNV-02": "WARNING",
+        "INSP-01": "MAINTENANCE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNC-01": [
+            "CNV-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": "FAULT",
+        "CNV-01": "BLOCKED",
+        "CNV-02": null,
+        "INSP-01": "STALE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": null,
+            "unknown": true
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNC-01": null,
+        "CNV-01": "RUNNING",
+        "CNV-02": "FAULT",
+        "INSP-01": "MAINTENANCE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {
+          "CNC-01": [
+            "CNV-01"
+          ]
+        },
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "MAINTENANCE",
+        "CNV-01": "BLOCKED",
+        "CNV-02": "OFFLINE",
+        "INSP-01": "STALE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": true
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": true
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "MAINTENANCE",
+        "CNV-01": "RUNNING",
+        "CNV-02": "STALE",
+        "INSP-01": "STALE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "SINK",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "FAULT",
+        "CNV-01": "WARNING",
+        "CNV-02": "BLOCKED",
+        "INSP-01": "STALE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "SOURCE",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": "CNV-02",
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNC-01": "WARNING",
+        "CNV-01": "STARVED",
+        "CNV-02": "WARNING",
+        "INSP-01": "WARNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNC-01": {
+            "cause": "CNC-01",
+            "unknown": false
+          },
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          },
+          "CNV-02": {
+            "cause": null,
+            "unknown": false
+          },
+          "INSP-01": {
+            "cause": "INSP-01",
+            "unknown": false
+          }
+        },
+        "status": "DEGRADED"
+      },
+      "states": {
+        "CNC-01": "MAINTENANCE",
+        "CNV-01": "WARNING",
+        "CNV-02": "RUNNING",
+        "INSP-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNC-01": "INSP-01",
+          "CNV-01": "CNC-01",
+          "CNV-02": null,
+          "INSP-01": "CNV-02"
+        },
+        "order": [
+          "CNV-01",
+          "CNC-01",
+          "INSP-01",
+          "CNV-02"
+        ],
+        "upstream": {
+          "CNC-01": "CNV-01",
+          "CNV-01": null,
+          "CNV-02": "INSP-01",
+          "INSP-01": "CNC-01"
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "RUNNING"
+      },
+      "states": {
+        "CNV-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "WARNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "FAULT"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "SOURCE",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "SINK",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "MAINTENANCE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "OFFLINE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "STALE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNV-01": null
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "RUNNING"
+      },
+      "states": {
+        "CNV-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "RUNNING"
+      },
+      "states": {
+        "CNV-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "OFFLINE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "RUNNING"
+      },
+      "states": {
+        "CNV-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "STALE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "SINK",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNV-01": null
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "RUNNING"
+      },
+      "states": {
+        "CNV-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "RUNNING"
+      },
+      "states": {
+        "CNV-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "STALE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "FAULT"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "MAINTENANCE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "FAULT"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNV-01": null
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "SOURCE",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "OFFLINE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNV-01": null
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "RUNNING"
+      },
+      "states": {
+        "CNV-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "WARNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "OFFLINE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "WARNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "RUNNING"
+      },
+      "states": {
+        "CNV-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "RUNNING"
+      },
+      "states": {
+        "CNV-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "MAINTENANCE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "SOURCE",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "SOURCE",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "OFFLINE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "FAULT"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "FAULT"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "STALE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "FAULT"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "SOURCE",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNV-01": null
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "RUNNING"
+      },
+      "states": {
+        "CNV-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "SOURCE",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "STALE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "SINK",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "STALE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNV-01": null
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNV-01": null
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "RUNNING"
+      },
+      "states": {
+        "CNV-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "SINK",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "SINK",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "FAULT"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "RUNNING"
+      },
+      "states": {
+        "CNV-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "SINK",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "SINK",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "MAINTENANCE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "RUNNING"
+      },
+      "states": {
+        "CNV-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "SINK",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "WARNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "RUNNING"
+      },
+      "states": {
+        "CNV-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "RUNNING"
+      },
+      "states": {
+        "CNV-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "SINK",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "BLOCKED"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "OFFLINE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": false
+          }
+        },
+        "status": "RUNNING"
+      },
+      "states": {
+        "CNV-01": "RUNNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": true
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "OFFLINE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "SOURCE",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "IDLE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNV-01": null
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": null,
+            "unknown": true
+          }
+        },
+        "status": "UNKNOWN"
+      },
+      "states": {
+        "CNV-01": null
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "SOURCE",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "STARVED"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "FAULT"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "WARNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "WARNING"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    },
+    {
+      "expected": {
+        "impacted": {},
+        "rootCauses": {
+          "CNV-01": {
+            "cause": "CNV-01",
+            "unknown": false
+          }
+        },
+        "status": "STOPPED"
+      },
+      "states": {
+        "CNV-01": "MAINTENANCE"
+      },
+      "topology": {
+        "downstream": {
+          "CNV-01": null
+        },
+        "order": [
+          "CNV-01"
+        ],
+        "upstream": {
+          "CNV-01": null
+        }
+      }
+    }
+  ]
+}

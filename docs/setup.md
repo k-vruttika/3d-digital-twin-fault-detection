@@ -145,7 +145,7 @@ The API listens on `http://127.0.0.1:8000` (`config/api.yaml`). `GET /health` ne
 
 ## 5. Running backend and frontend together
 
-The 3D twin's dev page needs the backend running. Use two terminals:
+The dashboard (and the 3D twin's dev page) needs the backend running. Use two terminals:
 
 ```text
 # terminal 1: a backend (either one)
@@ -153,10 +153,14 @@ uv run poe sim-quick; uv run poe minimal     # file replay, no Docker
 uv run poe up; uv run poe dev --source mock  # live simulator, commands work
 
 # terminal 2: the Vite dev server
-uv run poe frontend                          # open http://127.0.0.1:5173/dev.html
+uv run poe frontend                          # dashboard: http://127.0.0.1:5173/  (3D only: /dev.html)
 ```
 
-If `.env` configures API keys, put a viewer key in `frontend/.env.local` as `VITE_LINETWIN_API_KEY=...` (gitignored). Without keys the backend serves anonymous read access on loopback and the page needs nothing. `uv run poe screenshots` renders the dev page headless (Playwright downloads its Chromium on the first run). Details: [frontend.md](frontend.md).
+- **API keys:** if `.env` configures them, enter a key in the dashboard header; it stays in memory, or in sessionStorage if you tick "remember in this tab". For the dev page, put a viewer key in `frontend/.env.local` as `VITE_LINETWIN_API_KEY=...` (gitignored). Without keys the backend serves anonymous read access on loopback, and neither page needs a key.
+- **Screenshots:** `uv run poe screenshots` renders the dev page and the dashboard headless. Playwright downloads its Chromium on the first run. The dashboard's dev-mode shots need `uv run poe up`.
+- **End-to-end tests:** they need Playwright's Chromium. Run `uv run poe browsers` once; on Linux it also installs the system libraries and asks for sudo. Without the browser the e2e tests are skipped. The dev-mode e2e test also needs the services, and must not run alongside `uv run poe dev`, because both use the mock server's port.
+
+Details: [frontend.md](frontend.md).
 
 ## 6. Minimal mode reminder
 

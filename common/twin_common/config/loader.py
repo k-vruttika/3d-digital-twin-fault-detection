@@ -43,7 +43,7 @@ def format_validation_error(source: str, exc: ValidationError) -> str:
     return "\n".join(lines)
 
 
-def _read_yaml(path: Path) -> dict[str, Any]:
+def read_yaml(path: Path) -> dict[str, Any]:
     if not path.is_file():
         raise ConfigError(f"config file not found: {path}")
     try:
@@ -57,7 +57,7 @@ def _read_yaml(path: Path) -> dict[str, Any]:
 
 def load_model(path: str | Path, model: type[ModelT]) -> ModelT:
     p = Path(path)
-    data = _read_yaml(p)
+    data = read_yaml(p)
     try:
         return model.model_validate(data)
     except ValidationError as exc:

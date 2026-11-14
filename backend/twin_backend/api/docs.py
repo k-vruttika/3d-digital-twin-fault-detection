@@ -29,6 +29,9 @@ DOC_PATH = Path("docs/api.md")
 OPENAPI_PATH = Path("frontend/src/api/openapi.json")
 FIXTURE_DIR = Path("frontend/src/engine/__fixtures__")
 LINE_FIXTURES = {"line.json": "line.yaml", "line_single.json": "line_single.yaml"}
+ROOT_CAUSE_FIXTURE = "root_causes.json"
+ROOT_CAUSE_SEED = 6
+ROOT_CAUSE_RANDOM_CASES = 150
 METHOD_ORDER = {"get": 0, "post": 1, "put": 2, "delete": 3}
 
 
@@ -53,11 +56,69 @@ def line_fixture(config_file: str) -> str:
     return _json(line_response(line).model_dump(mode="json", by_alias=True))
 
 
+def root_cause_fixture() -> str:
+    """Backend root causes for many state combinations (the frontend port is checked against it).
+
+    Cases: every machine of ``line.yaml`` and ``line_single.yaml`` in every state (others
+    RUNNING), hand-picked chains of STARVED / BLOCKED machines, and seeded random combinations
+    including machines without a state. Deterministic.
+    """
+    import random
+
+    from twin_backend.engine.propagation import line_view
+    from twin_backend.engine.topology import Topology
+    from twin_backend.engine.twin import LineViewModel
+    from twin_common.config import load_line_config
+    from twin_common.enums import MachineState
+
+    states_all: list[MachineState | None] = [*MachineState, None]
+    rng = random.Random(ROOT_CAUSE_SEED)
+    cases: list[dict[str, Any]] = []
+    for config_file in LINE_FIXTURES.values():
+        topo = Topology.from_line(load_line_config(_root() / "config" / config_file))
+        ids = list(topo.machine_ids)
+        combos: list[dict[str, MachineState | None]] = []
+        for m in ids:
+            for st in states_all:
+                combos.append({x: (st if x == m else MachineState.RUNNING) for x in ids})
+        if len(ids) >= 4:
+            s_, b_, f_ = MachineState.STARVED, MachineState.BLOCKED, MachineState.FAULT
+            w_, i_, o_ = MachineState.WARNING, MachineState.IDLE, MachineState.OFFLINE
+            for row in (
+                [b_, f_, s_, s_],
+                [b_, b_, i_, s_],
+                [b_, w_, s_, s_],
+                [s_, s_, s_, s_],
+                [b_, b_, b_, b_],
+                [b_, o_, s_, s_],
+                [b_, None, s_, s_],
+                [s_, MachineState.RUNNING, b_, MachineState.RUNNING],
+            ):
+                combos.append(dict(zip(ids, row, strict=False)))
+        for _ in range(ROOT_CAUSE_RANDOM_CASES // len(LINE_FIXTURES)):
+            combos.append({x: rng.choice(states_all) for x in ids})
+        for combo in combos:
+            view = LineViewModel.of(line_view(combo, topo))
+            cases.append(
+                {
+                    "topology": {
+                        "order": ids,
+                        "upstream": dict(topo.upstream),
+                        "downstream": dict(topo.downstream),
+                    },
+                    "states": {m: (v.value if v is not None else None) for m, v in combo.items()},
+                    "expected": view.model_dump(mode="json", by_alias=True),
+                }
+            )
+    return _json({"cases": cases})
+
+
 def generated_files(app: FastAPI) -> dict[Path, str]:
     """Every generated frontend input: repo-relative path -> content."""
     out = {OPENAPI_PATH: openapi_json(app)}
     for name, config_file in LINE_FIXTURES.items():
         out[FIXTURE_DIR / name] = line_fixture(config_file)
+    out[FIXTURE_DIR / ROOT_CAUSE_FIXTURE] = root_cause_fixture()
     return out
 
 

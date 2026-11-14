@@ -10,71 +10,33 @@ from __future__ import annotations
 import asyncio
 import json
 import random
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
-import httpx
 import pytest
 import websockets
-from pydantic import SecretStr
 
-from twin_backend.api.app import create_app
 from twin_backend.api.auth import Authenticator, StartupRefusedError, is_loopback
-from twin_backend.api.server import ServerHandle
 from twin_backend.api.ws import CLOSE_UNAUTHORIZED
 from twin_backend.api.ws_models import SERVER_ADAPTER
 from twin_backend.storage.base import Stream
 from twin_backend.storage.export import order_readings, readings_to_csv
-from twin_backend.testing import SimExport, file_runtime, settings_for
+from twin_backend.testing import (
+    API_OP_KEY,
+    API_VIEW_KEY,
+    SimExport,
+    api_client,
+    running_api,
+)
 from twin_common.config.settings import parse_api_keys
 from twin_common.enums import Role
 
-OP_KEY = "op-key-0123456789abcdef"
-VIEW_KEY = "viewer-key-0123456789abcdef"
-KEYS = {
-    "api_keys_operator": SecretStr(f"alice:{OP_KEY}"),
-    "api_keys_viewer": SecretStr(f"victor:{VIEW_KEY}"),
-}
+OP_KEY = API_OP_KEY
+VIEW_KEY = API_VIEW_KEY
+REPLAY_EXTRAS = {"line", "alerts"}  # Phase 6 additions on top of reconstruct(t)
 FAR = {"from": "2000-01-01T00:00:00Z", "to": "2100-01-01T00:00:00Z"}
-
-
-@asynccontextmanager
-async def running_api(
-    export: SimExport,
-    tmp: Path,
-    *,
-    backend: str = "sqlite",
-    dsn: str | None = None,
-    keys: bool = True,
-    wait_idle: bool = True,
-    **runtime_kw: Any,
-) -> AsyncIterator[tuple[Any, ServerHandle]]:
-    rt = file_runtime(
-        export,
-        tmp,
-        backend,
-        dsn,
-        settings=settings_for(dsn, **(KEYS if keys else {})),
-        **runtime_kw,
-    )
-    server = ServerHandle(create_app(rt))
-    await server.start()
-    try:
-        if wait_idle:
-            await rt.manager.wait_idle()
-            await rt.engine.drain()
-            await rt.storage.flush()
-        yield rt, server
-    finally:
-        await server.stop()
-
-
-def client(server: ServerHandle, key: str | None = VIEW_KEY) -> httpx.AsyncClient:
-    headers = {"X-API-Key": key} if key else {}
-    return httpx.AsyncClient(base_url=server.base_url, headers=headers, timeout=10.0)
+client = api_client
 
 
 # ---------------------------------------------------------------- auth units
@@ -181,11 +143,14 @@ async def test_replay_equals_reconstruct_and_history_matches_store(
             r = await c.get("/replay", params={"t": t.isoformat()})
             assert r.status_code == 200
             expected = (await rt.storage.reconstruct(t)).model_dump(mode="json")
-            assert r.json() == expected
+            body = r.json()
+            assert {k: v for k, v in body.items() if k not in REPLAY_EXTRAS} == expected
         # at the watermark the replayed state equals the live state
         live = rt.engine.snapshot()
         at_hi = (await c.get("/replay", params={"t": live.watermark().isoformat()})).json()
-        assert {k: v for k, v in at_hi.items() if k != "asOf"} == live.body()
+        assert {k: v for k, v in at_hi.items() if k not in {"asOf", *REPLAY_EXTRAS}} == live.body()
+        # the replay's root causes are the live engine's at the watermark
+        assert at_hi["line"] == rt.engine.line_model().model_dump(mode="json", by_alias=True)
 
         raw = (await c.get("/history", params=FAR | {"resolution": "raw"})).json()
         stored = [s.item.model_dump(mode="json") for s in await store.fetch(Stream.READINGS)]

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -10,12 +10,22 @@ from fastapi.responses import Response
 from pydantic import AwareDatetime
 
 from twin_backend.api.deps import Ctx, Storage, Store, Viewer, check_machines
-from twin_backend.api.models import HistoryBucketModel, HistoryResponse, SensorStatsModel
-from twin_backend.engine.line_state import LineState
-from twin_backend.storage.base import Stream
+from twin_backend.api.models import (
+    HistoryBucketModel,
+    HistoryResponse,
+    ReplayRangeResponse,
+    ReplayResponse,
+    SensorStatsModel,
+)
+from twin_backend.engine.propagation import line_view
+from twin_backend.engine.twin import LineViewModel
+from twin_backend.storage.base import EventStore, Stream
 from twin_backend.storage.export import order_readings, readings_to_csv, readings_to_jsonl
+from twin_common.contracts import Alert
 
 router = APIRouter(tags=["history"])
+# fetch() is half-open [t0, t1); one microsecond (the store's resolution) makes ts == t inclusive.
+_EPSILON = timedelta(microseconds=1)
 
 From = Annotated[AwareDatetime, Query(alias="from", description="inclusive, ISO-8601 with zone")]
 To = Annotated[AwareDatetime, Query(alias="to", description="exclusive, ISO-8601 with zone")]
@@ -98,15 +108,56 @@ async def history(
 
 @router.get(
     "/replay",
-    response_model=LineState,
-    summary="Line state at event time t (snapshot + replay, equals reconstruct(t))",
+    response_model=ReplayResponse,
+    summary="Line state at event time t (reconstruct(t)) with root causes and alerts as of t",
+    description=(
+        "`machines` and `predictions` equal `reconstruct(t)` (snapshot + replay). `line` holds "
+        "the root causes the twin engine derives from those states (same propagation as live), "
+        "`alerts` the alerts that were unresolved at t (highest rev with ts <= t). Data quality "
+        "uses a wall-clock window and is not replayed."
+    ),
 )
 async def replay(
+    ctx: Ctx,
     storage: Storage,
+    store: Store,
     _: Viewer,
     t: Annotated[AwareDatetime, Query(description="event time, ISO-8601 with zone")],
-) -> LineState:
-    return await storage.reconstruct(_utc(t))
+) -> ReplayResponse:
+    t = _utc(t)
+    state = await storage.reconstruct(t)
+    topo = ctx.runtime.engine.topology
+    view = line_view({m: v.state for m, v in state.machines.items()}, topo)
+    return ReplayResponse(
+        as_of=state.as_of,
+        machines=state.machines,
+        predictions=state.predictions,
+        line=LineViewModel.of(view),
+        alerts=await alerts_as_of(store, t),
+    )
+
+
+async def alerts_as_of(store: EventStore, t: datetime) -> list[Alert]:
+    """Unresolved alerts at event time t: the highest rev per alert among events with ts <= t."""
+    latest: dict[str, Alert] = {}
+    for row in await store.fetch(Stream.ALERTS, None, t + _EPSILON):
+        alert: Alert = row.item
+        cur = latest.get(alert.alert_id)
+        if cur is None or alert.rev > cur.rev:
+            latest[alert.alert_id] = alert
+    return sorted((a for a in latest.values() if not a.resolved), key=lambda a: (a.ts, a.alert_id))
+
+
+@router.get(
+    "/replay/range",
+    response_model=ReplayRangeResponse,
+    summary="Event-time span of the stored readings and state changes (replay scrubber bounds)",
+)
+async def replay_range(store: Store, _: Viewer) -> ReplayRangeResponse:
+    span = await store.min_max_ts([Stream.READINGS, Stream.STATE_CHANGES])
+    if span is None:
+        return ReplayRangeResponse()
+    return ReplayRangeResponse(start=span[0], end=span[1])
 
 
 @router.get(
