@@ -178,14 +178,20 @@ class LossWeights(ConfigModel):
 
 
 class EarlyStopping(ConfigModel):
-    """Stop on an exponential moving average of the validation macro F1 (operating windows,
-    mean over horizons). The best checkpoint is still the epoch with the best raw score."""
+    """Training budget and checkpoint rule for the sequence models.
 
-    min_epochs: int = Field(ge=1)  # never stop before this many epochs
-    max_epochs: int = Field(ge=1)  # hard cap
-    patience: int = Field(ge=1)  # epochs without an EMA improvement > min_delta
+    The score is the validation macro F1 (operating windows, mean over horizons), smoothed
+    with an exponential moving average (EMA). ``patience: null`` means a fixed budget: always
+    train ``max_epochs`` epochs, never stop early. ``checkpoint_by`` picks the epoch whose
+    weights are kept: the best raw score or the best EMA.
+    """
+
+    min_epochs: int = Field(default=1, ge=1)  # never stop on patience before this many epochs
+    max_epochs: int = Field(ge=1)  # hard cap (the fixed budget when patience is null)
+    patience: int | None = Field(default=None, ge=1)  # epochs without an EMA gain > min_delta
     ema_alpha: float = Field(gt=0, le=1)  # weight of the newest epoch; 1 = no smoothing
-    min_delta: float = Field(ge=0)
+    min_delta: float = Field(default=0.0, ge=0)
+    checkpoint_by: Literal["raw", "ema"] = "raw"
 
     @model_validator(mode="after")
     def _order(self) -> EarlyStopping:
@@ -195,9 +201,11 @@ class EarlyStopping(ConfigModel):
 
 
 class LrSchedule(ConfigModel):
-    """Reduce-on-plateau on the validation loss (type none = constant learning rate)."""
+    """Learning-rate schedule. ``none``: constant; ``plateau``: reduce-on-plateau on the
+    validation loss (the annealing phase differs per run); ``cosine``: cosine decay from
+    ``lr`` to ``min_lr`` over ``max_epochs`` (identical for every run)."""
 
-    type: Literal["none", "plateau"]
+    type: Literal["none", "plateau", "cosine"]
     factor: float = Field(default=0.5, gt=0, lt=1)
     patience: int = Field(default=1, ge=0)
     min_lr: float = Field(default=1e-5, ge=0)

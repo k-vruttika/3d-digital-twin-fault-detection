@@ -9,16 +9,13 @@ arch:
   ff_mult: 2                         # feed-forward width = 2 * d_model
   dropout: 0.1
 training:
-  early_stopping:                    # on an EMA of val macro F1; best checkpoint by raw val macro F1
-    min_epochs: 10                   # LR halvings start around epochs 6-10 (diagnostics)
-    max_epochs: 16                   # curves observed to 16; gains small by then
-    patience: 3                      # epochs without an EMA improvement > min_delta
+  early_stopping:                    # fixed budget: no early stop; checkpoint by best EMA of val macro F1
+    max_epochs: 22                   # every run trains exactly 22 epochs (chosen from validation curves only, ADR 0020)
+    patience: null                   # null = never stop on patience
     ema_alpha: 0.4                   # weight of the newest epoch (1 = no smoothing)
-    min_delta: 0.002
-  lr_schedule:                       # reduce-on-plateau on the validation loss
-    type: plateau
-    factor: 0.5
-    patience: 1
+    checkpoint_by: ema               # keep the weights of the epoch with the best EMA
+  lr_schedule:                       # cosine decay lr -> min_lr over max_epochs: identical annealing for every run
+    type: cosine
     min_lr: 0.00001
   batch_size: 256
   lr: 0.001

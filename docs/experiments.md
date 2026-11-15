@@ -70,10 +70,9 @@ uv run poe mlflow-ui                   # browse the runs (http://127.0.0.1:5000)
 | transformer | raw windows | 2 pre-norm layers, d_model 64, 4 heads, mean pooling, multi-head |
 
 - **Sequence-model training:**
-  - early stopping watches an exponential moving average (EMA) of the validation macro F1 (operating windows, mean of both horizons), so one noisy epoch neither stops training nor resets the patience;
-  - it never stops before `min_epochs` and always stops at `max_epochs`;
-  - the checkpoint kept is the epoch with the best *raw* validation macro F1;
-  - optional reduce-on-plateau on the validation loss;
+  - fixed budget: every run trains `max_epochs` (22) epochs, with no early stopping on patience (`patience: null`); the EMA of the validation macro F1 (operating windows, mean of both horizons) smooths the epoch-to-epoch noise;
+  - the checkpoint kept is the epoch with the best EMA (`checkpoint_by: ema`);
+  - cosine learning-rate decay over the budget, identical for every run (reduce-on-plateau and early stopping on patience remain available as options, used in the previous configuration);
   - per-epoch learning curves (train / validation loss per head, validation macro F1 per horizon, its EMA, the learning rate) are logged to MLflow as step metrics and plotted in the report.
   
   Settings: `early_stopping` and `lr_schedule` in `config/models/<model>.yaml`.

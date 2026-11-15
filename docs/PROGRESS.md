@@ -1259,6 +1259,8 @@ pytest now runs 221 tests: 76 in `simulator/tests` and 3 in `tests/test_phase1_i
 
 ## Phase 7 follow-ups (completed 2026-11-15)
 
+Two rounds. Round 1 added learning curves, EMA early stopping and paired comparisons. Round 2 (follow-up 2, at the end of this section) replaced early stopping with a fixed 22-epoch budget; the current E1 report and all current results are from round 2.
+
 Learning curves and robust early stopping for the sequence models, 3-seed reruns, paired bootstrap comparisons, interpretation notes, regenerated E1 (`experiments/results/E1_clean.md`, plus `E1_clean_learning_curves.png`).
 
 ### What was built
@@ -1269,11 +1271,11 @@ Learning curves and robust early stopping for the sequence models, 3-seed reruns
 - **Paired bootstrap** (`evaluate/bootstrap.py: paired_bootstrap`, `experiments/paired.py`): both sides on the same resampled test runs. Every model vs the threshold baseline, and the best sequence model vs the best tree model per horizon.
 - **Report:** interpretation notes; early warning first (primary), classification second; sections for paired comparisons, sequence-model training with learning curves, and changes since the previous configuration. `docs/experiments.md` has the same notes.
 
-### Settings (config/models/{lstm,gru,transformer}.yaml)
+### Follow-up 1 settings (superseded by follow-up 2 below)
 
 Reduce-on-plateau for all three; `max_epochs: 16`; `min_epochs: 10`; `patience: 3` over `min_delta: 0.002`; `ema_alpha: 0.4`. Config hashes: lstm `40059aaad95e`, gru `5d9055af6981`, transformer `dc9c17caa015`. Choices were based on seed-0 diagnostics (16 epochs, MLflow `E1_curves_none` / `E1_curves_plateau`, not part of E1): constant LR gave a noisy validation score that stopped old runs on unlucky dips; plateau reduced the noise and raised +10 s macro F1 for all three.
 
-### 3-seed reruns (all finished with the same config hash)
+### Follow-up 1 reruns (superseded by follow-up 2 below)
 
 | Run | Epochs | Best epoch | Train time | MLflow run |
 |---|---|---|---|---|
@@ -1289,31 +1291,84 @@ Reduce-on-plateau for all three; `max_epochs: 16`; `min_epochs: 10`; `patience: 
 
 Training time varies with machine load (the same model took 257 to 615 s for LSTM). LSTM seed 0 ran earlier; LSTM seed 1 had been stopped once by request and was rerun. The last `train-all` invocation (lstm seed 1 to transformer seed 2) took 5011 s.
 
-### Results (from the regenerated E1 report; 3 seeds, mean over seeds)
+### Follow-up 1 results (superseded by follow-up 2 below; kept for the record)
 
 - **Early warning (primary):** all learned models detect every gradual episode (miss rate 0.000) with about 0 false alarms per hour. Mean lead at +30 s: rf 283 s, xgb 289, lstm 296, gru 293, transformer 294 (threshold 226, persistence 229).
 - **Paired vs threshold (+30 s):** every learned model warns earlier than the threshold baseline, with the CI excluding zero in 3/3 seeds: lead gain 57 s (rf), 63 (xgb), 70 (lstm), 67 (gru), 68 (transformer). Persistence is not different from threshold (+3 s, CI [-11, 15]). Macro F1 vs threshold at +30 s: rf +0.042 and gru +0.046 (CI excludes zero), xgb +0.027, lstm +0.035, transformer +0.041 (CI includes zero).
 - **Paired best sequence vs best tree:** +10 s transformer - xgb: lead +13 s [4, 22] (CI excludes zero in 2/3 seeds), macro F1 +0.005 (no). +30 s lstm - xgb: lead +7 s [-4, 17] (no), macro F1 +0.008 (no). Sequence models are not clearly better than the trees.
 - **+10 s macro F1** is below the threshold baseline for every learned model (-0.04 for rf, about -0.10 for the others). Models warn earlier than the simulator's WARNING label, which the per-window metric counts as errors; FAULT recall at +10 s is low (0.03 to 0.14).
 
-### Learning curves: have they flattened by epoch 16? Not clearly
+### Follow-up 1 learning curves (epoch 16: not clearly flat)
 
 - The three runs that reached the cap (lstm 0, gru 0, transformer 1) had their best epoch at 15, 16 and 15, and their validation EMA was still rising (about +0.001 to +0.008 per epoch over the last epochs, after the LR drops). A larger cap might gain a little; this was not tested.
 - Six of nine runs stopped on patience at 10 to 15 epochs, mostly right after `min_epochs`. Four of them (lstm 2, gru 2, transformer 0, transformer 2) stopped at 10 to 11 epochs with the learning rate still at its initial value (no plateau drop yet), so they did not get the annealing phase that the longer runs got. Their EMAs were noisy and flat rather than converged.
 - Seed-to-seed spread is large (transformer +10 s macro F1 ±0.030, train time ±256 s), which is partly this difference in stopping point. Epoch-count variance is therefore a limitation of the sequence-model results.
 
-### Changes vs the previous configuration (E1 report table)
+### Follow-up 1 changes vs the plain early-stopping configuration
 
 Epochs rose from 9.3 / 6.7 / 8.3 to 14.0 / 12.3 / 12.0 (lstm / gru / transformer) and train time from 228 / 328 / 674 s to 397 / 503 / 923 s. Macro F1 at +10 s rose (lstm 0.646 to 0.666, gru 0.636 to 0.666, transformer 0.652 to 0.662). At +30 s and in lead times the changes are within the seed spread (lead 294 to 296, 296 to 293, 296 to 294 s).
 
-### Verification
+### Follow-up 1 verification
 
 `uv run poe lint` clean (ruff, mypy, ESLint, tsc). `uv run poe test`: 703 passed, 50 skipped (services not running: TimescaleDB, MQTT); frontend 163 passed. `uv run poe minimal-data-check`: 14 passed.
 
-### Known limitations / decisions
+### Known limitations / decisions (follow-up 1; the first one is addressed by follow-up 2)
 
 - Early stopping interacts with `min_epochs: 10`: some seeds stop before the first LR drop (see above). Options for later: raise `min_epochs`, or compare at a fixed 16 epochs. Not done, to keep to the planned settings.
 - `E1_clean.md` is regenerated from MLflow; it contains the older runs only in the changes table.
 - Decision: results were not tuned further after seeing the test metrics.
 
-Suggested commit message: `Phase 7 follow-ups: learning curves, EMA early stopping, 3-seed sequence-model reruns, paired bootstrap comparisons, regenerated E1`
+
+### Follow-up 2 (2026-11-15): fixed 22-epoch budget for the sequence models
+
+**Decision, made from validation curves only (ADR 0020, amendment 2026-11-15).** In follow-up 1, several runs were still improving at the 16-epoch cap, while others stopped at 10 to 11 epochs on patience before any learning-rate reduction. Seeds therefore had different schedules. Every LSTM, GRU and Transformer run now trains exactly 22 epochs with the same schedule, with no early stopping, and keeps the epoch with the best EMA of the validation macro F1. The 22-epoch figure and the schedule were not tuned on test results.
+
+- **Learning-rate schedule:** cosine decay from `lr` to `min_lr` 1e-5 over the 22 epochs, instead of reduce-on-plateau. Reduce-on-plateau cannot give every run a comparable annealing phase, because its drops depend on each run's validation loss. This was my choice among the two options offered.
+- **Code:** `EarlyStopping.patience` may be null (fixed budget), new `checkpoint_by: raw | ema`, new `lr_schedule.type: cosine` (`config.py`, `train/early_stopping.py`, `models/nn.py`). Two unit tests added (fixed budget never stops early; EMA checkpoint ignores a lucky spike). The old options remain available.
+- **Config hashes changed**, so `train-all --skip-existing` reran all nine runs. Last invocation: 8768 s.
+
+| Run | Best epoch | Train time | MLflow run |
+|---|---|---|---|
+| lstm 0 | 22 | 438.9 s | `40119be6067546d480bf2ea4220b239c` |
+| lstm 1 | 22 | 498.0 s | `340bf53036264014aa52c6db90efb665` |
+| lstm 2 | 22 | 497.9 s | `a628361bc6eb4083935a198e99448830` |
+| gru 0 | 20 | 723.6 s | `f4feb13aa3be433dbdf43c0fa11db346` |
+| gru 1 | 22 | 713.5 s | `88ebaaa9ff9d4f60a49c396442b75df5` |
+| gru 2 | 22 | 723.4 s | `a0b3d4a2c5294acfafd77c49fe9aa9ef` |
+| transformer 0 | 21 | 1662.7 s | `68f4408b910b49c698c7f2a99fd83f26` |
+| transformer 1 | 18 | 1692.2 s | `700352634d51403396f2d68e8f847c1a` |
+| transformer 2 | 22 | 1650.7 s | `a493b55342b34fafa2de95e7ae17209b` |
+
+**Did the seed-to-seed spread shrink?** Yes for most metrics, clearly for lead and +10 s macro F1, barely for +30 s macro F1 (std over 3 seeds, follow-up 1 to follow-up 2):
+
+| Metric | LSTM | GRU | Transformer |
+|---|---|---|---|
+| Lead mean +30 s (s) | 5 to 3 | 7 to 1 | 10 to 3 |
+| Macro F1 +10 s | 0.016 to 0.005 | 0.026 to 0.007 | 0.030 to 0.002 |
+| Macro F1 +30 s | 0.010 to 0.008 | 0.017 to 0.015 | 0.015 to 0.013 |
+| Fault recall +30 s | 0.034 to 0.023 | 0.091 to 0.045 | 0.033 to 0.035 |
+| Train time (s) | 191 to 34 | 142 to 6 | 256 to 21 |
+
+The remaining +30 s spread is probably genuine seed variance (initialisation, batch order), no longer schedule variance. With 3 seeds these stds are rough.
+
+**Have the curves flattened at 22 epochs?** Mostly, but not fully. The learning rate is annealed to about 1e-5 to 2e-5 at epoch 22 in every run, so late gains are small. The validation EMA still rose by 0.001 to 0.006 per epoch over the last five epochs in all nine runs, and six of nine runs (LSTM 0, 1, 2, GRU 1, 2, Transformer 2) kept their last epoch as the best. A longer cosine budget could gain a little more. This was not tested.
+
+**Did any conclusion change?** (E1 report, 3 seeds; test numbers are reported, not used to choose the budget)
+
+- **Unchanged:**
+  - every learned model still detects all 26 gradual episodes, with about 0 false alarms per hour;
+  - every learned model warns earlier than the threshold baseline, with the CI excluding zero in 3/3 seeds (+30 s lead: rf 57 s, xgb 63, lstm 58, gru 66, transformer 61);
+  - persistence is not different from the threshold baseline;
+  - at +30 s no sequence model is clearly better than the best tree (gru - xgb: lead +3 s [-10, 16], macro F1 +0.014 [-0.034, 0.049]).
+- **Changed:**
+  - LSTM and Transformer lose lead relative to follow-up 1 (+30 s lead 296 to 284 s and 294 to 286 s; versus threshold WARNING 65 to 53 s and 63 to 56 s), and fall slightly below xgb (289 s). GRU keeps its lead (292 s), and is now the best sequence model at both horizons;
+  - fault recall at +30 s is lower for all three (LSTM 0.344 to 0.320, GRU 0.399 to 0.344, Transformer 0.406 to 0.338);
+  - at +10 s, GRU - xgb is now positive: lead +7 s [0, 14] (CI excludes zero in 2/3 seeds), macro F1 +0.045 [0.006, 0.086] (2/3 seeds). In follow-up 1 the best sequence model (Transformer) was not significantly better on macro F1;
+  - macro F1 at +10 s rose for LSTM and GRU (0.666 to 0.704 and 0.701), is still below the threshold baseline, and by less (about -0.055 instead of -0.093). Transformer stayed at 0.669.
+- **Summary:** sequence models are comparable to the tree models for early warning, with GRU slightly ahead at +10 s. The fixed budget removed most of the schedule-driven noise but did not make the sequence models better than XGBoost or the Random Forest, and the longer, uniform training lowered LSTM and Transformer lead times a little.
+
+**Cost:** training takes 478 s (LSTM), 720 s (GRU) and 1669 s (Transformer) per seed on this machine, versus 397 / 503 / 923 s before.
+
+**Verification:** `uv run poe lint` clean; `uv run poe test` 705 passed, 50 skipped (services not running); frontend 163 passed.
+
+Suggested commit message: `Phase 7 follow-ups: fixed 22-epoch budget with cosine schedule for sequence models, EMA checkpoint, learning curves, paired bootstrap comparisons, regenerated E1`

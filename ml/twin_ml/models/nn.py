@@ -2,10 +2,11 @@
 
 One shared encoder with four heads: a health classifier per horizon, time to fault (in units
 of the cap, sigmoid output, censoring-aware loss) and the fault type (auxiliary). Training is
-deterministic for a seed (torch deterministic algorithms, seeded batch order). Early stopping
-watches an exponential moving average of the validation macro F1 (operating windows, mean of
-the horizons) with min_epochs, patience and a max-epoch cap; the checkpoint kept is the epoch
-with the best raw validation macro F1. Optional reduce-on-plateau on the validation loss.
+deterministic for a seed (torch deterministic algorithms, seeded batch order). The score is
+the validation macro F1 (operating windows, mean of the horizons) and its exponential moving
+average. Either a fixed budget of max_epochs (patience null) or early stopping on the EMA;
+the checkpoint kept is the best epoch by raw or EMA score. LR schedule: none, reduce-on-plateau
+on the validation loss, or cosine decay over max_epochs.
 This is the only module of twin_ml that imports torch.
 """
 
@@ -233,7 +234,9 @@ class SequenceModel:
             self.cfg, len(self.horizons), self.n_fault_types, train.window, len(SEQUENCE_CHANNELS)
         )
         opt = torch.optim.AdamW(self.net.parameters(), lr=t.lr, weight_decay=t.weight_decay)
-        sched = None
+        sched: (
+            torch.optim.lr_scheduler.LRScheduler | torch.optim.lr_scheduler.ReduceLROnPlateau | None
+        ) = None
         if t.lr_schedule.type == "plateau":
             sched = torch.optim.lr_scheduler.ReduceLROnPlateau(
                 opt,
@@ -241,6 +244,10 @@ class SequenceModel:
                 factor=t.lr_schedule.factor,
                 patience=t.lr_schedule.patience,
                 min_lr=t.lr_schedule.min_lr,
+            )
+        elif t.lr_schedule.type == "cosine":  # same schedule for every run
+            sched = torch.optim.lr_scheduler.CosineAnnealingLR(
+                opt, T_max=es.max_epochs, eta_min=t.lr_schedule.min_lr
             )
         tg = self._targets(train, train.weight.astype(np.float32))
         cws = [class_weights(y, tg.sw, len(HEALTH), self.cfg.class_weight) for y in tg.ys]
@@ -273,10 +280,12 @@ class SequenceModel:
             entry["val_macro_f1_ema"] = float(stopper.ema or 0.0)
             entry["seconds"] = time.perf_counter() - t0
             history.append(entry)
-            if is_best:  # checkpoint: best raw validation macro F1
+            if is_best:  # checkpoint: best epoch by the configured signal (raw or EMA)
                 best_state = copy.deepcopy(self.net.state_dict())
-            if sched is not None:
+            if isinstance(sched, torch.optim.lr_scheduler.ReduceLROnPlateau):
                 sched.step(entry["val_loss"])
+            elif sched is not None:
+                sched.step()
             if stop:  # stopping signal: the smoothed score (or the cap)
                 break
         if best_state is not None:

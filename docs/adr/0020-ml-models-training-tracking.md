@@ -45,7 +45,7 @@ E1 compares baselines and five model families on clean simulator data. Three con
   - one shared encoder (2 layers, width 64; the Transformer has 4 heads, feed-forward width 128, learned positions, pre-norm and mean pooling);
   - four heads: health at +10 s, health at +30 s, time to fault (sigmoid × cap, censoring-aware loss) and fault type (auxiliary, loss weight 0.3);
   - AdamW, gradient clipping;
-  - early stopping on the validation macro F1 of operating windows, averaged over both horizons (patience 3, at most 15 epochs);
+  - training budget and checkpoint rule on the validation macro F1 of operating windows, averaged over both horizons: see "Amendment 2026-11-15" below (initially patience 3, at most 15 epochs);
   - focal loss is available (`focal_gamma`) and off by default.
 - **Weights:** sample weight × class weight as in ADR 0019 (power 0.5, cap 50) for every classifier.
 - **Seeds:** three model seeds (0, 1, 2) per trained model; the data split is fixed. Torch runs with `use_deterministic_algorithms(True)` and a seeded batch order; same seed, same predictions (tested).
@@ -69,3 +69,10 @@ E1 compares baselines and five model families on clean simulator data. Three con
 - **Isolation from the backend:** the backend and minimal mode stay free of torch, sklearn, xgboost, mlflow and `twin_ml`. Every import guard (`tests/test_phase*_minimal.py`, `/health?modules=true`) now lists `mlflow` and `twin_ml`.
 - **CI cost:** CI installs the CPU wheels on all three OSes (the uv cache keeps repeat runs short). The tiny end-to-end training tests run everywhere.
 - **No GPU path:** CUDA wheels would need a separate index and an approval.
+
+## Amendment 2026-11-15: fixed training budget for the sequence models
+
+- **Decision:** LSTM, GRU and Transformer train for a fixed 22 epochs with a cosine learning-rate decay (`lr` to `min_lr` 1e-5 over the 22 epochs). There is no early stopping on patience. The checkpoint kept is the epoch with the best exponential moving average (alpha 0.4) of the validation macro F1.
+- **Why:** the validation learning curves of the previous configuration (EMA early stopping, reduce-on-plateau, cap 16) showed two problems. Several runs were still improving at the 16-epoch cap. Others stopped at 10 to 11 epochs on patience before the first learning-rate reduction, so seeds got different schedules and the seed-to-seed spread mixed model variance with schedule differences. A fixed budget and a fixed schedule give every run the same annealing phase. Reduce-on-plateau cannot do that, because its drops depend on each run's validation loss.
+- **Evidence used:** validation curves only (per-epoch validation loss, validation macro F1 and its EMA, learning rate). The budget of 22 epochs and the schedule were not chosen from test-set results. The test-set metrics of the previous runs had been seen (the previous E1 report), but they were not used for this choice.
+- **Consequences:** training takes longer for the runs that used to stop early (22 epochs each). Old runs keep their earlier config hash; `train-all --skip-existing` reruns every sequence model. The code keeps `patience`, `min_epochs`, `checkpoint_by: raw` and the plateau schedule as options.

@@ -494,10 +494,10 @@ def _training_section(report: dict[str, Any]) -> list[str]:
     lines = [
         "## Sequence-model training",
         "",
-        "Early stopping watches an exponential moving average of the validation macro F1 "
-        "(operating windows, mean of the horizons) with a minimum number of epochs, a patience "
-        "and a maximum; the checkpoint kept is the epoch with the best raw validation macro F1. "
-        "Settings: `config/models/<model>.yaml`.",
+        "Fixed training budget: every run trains the same number of epochs with the same "
+        "learning-rate schedule (no early stopping on patience). The checkpoint kept is the epoch "
+        "with the best exponential moving average (EMA) of the validation macro F1 (operating "
+        "windows, mean of the horizons). Settings: `config/models/<model>.yaml`.",
         "",
         *_table(["Model", "Epochs", "Best epoch", "Stopped by", "Train time s"], rows),
         "",
@@ -740,7 +740,7 @@ def plot_curves(report: dict[str, Any], path: Path) -> bool:
             Line2D([], [], color=INK2, lw=1.0, ls=(0, (4, 3))),
             Line2D([], [], color=INK, marker="o", lw=0, markersize=5),
         ],
-        labels=[*[f"+{h} s" for h in horizons][:2], "EMA (stopping signal)", "kept epoch"],
+        labels=[*[f"+{h} s" for h in horizons][:2], "EMA (checkpoint signal)", "kept epoch"],
         frameon=False,
         fontsize=8,
         labelcolor=INK2,

@@ -8,8 +8,8 @@ from twin_ml.config import EarlyStopping
 from twin_ml.train.early_stopping import EarlyStopper
 
 
-def cfg(**kw: float) -> EarlyStopping:
-    base: dict[str, float] = {
+def cfg(**kw: float | str | None) -> EarlyStopping:
+    base: dict[str, float | str | None] = {
         "min_epochs": 1,
         "max_epochs": 50,
         "patience": 2,
@@ -69,3 +69,20 @@ def test_resume_skips_only_runs_with_the_same_config_hash() -> None:
         ["threshold", "lstm", "gru"], [0, 1, 2], {"threshold": "t", "lstm": "new", "gru": "g"}, done
     )
     assert todo == [("lstm", 1), ("lstm", 2), ("gru", 0), ("gru", 1), ("gru", 2)]
+
+
+def test_fixed_budget_never_stops_early() -> None:
+    st = EarlyStopper(cfg(patience=None, max_epochs=8))
+    assert run(st, [0.5, 0.4, 0.3, 0.2, 0.1, 0.1, 0.1, 0.1]) == 8
+    assert st.stop_reason == "max_epochs"
+
+
+def test_checkpoint_by_ema_prefers_smoothed_peak() -> None:
+    scores = [0.5, 0.6, 0.85, 0.55, 0.7, 0.72]  # one lucky spike at epoch 3
+    raw = EarlyStopper(cfg(patience=None, max_epochs=6))
+    ema = EarlyStopper(cfg(patience=None, max_epochs=6, ema_alpha=0.4, checkpoint_by="ema"))
+    run(raw, scores)
+    run(ema, scores)
+    assert raw.best_epoch == 3
+    assert ema.best_epoch == 6
+    assert ema.best_score == pytest.approx(0.72)  # raw score at the selected epoch
