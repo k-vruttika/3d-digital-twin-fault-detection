@@ -1,0 +1,95 @@
+# Phase 8: robustness, calibration and conformal prediction (ADR 0021, 0022, 0023).
+# Every setting here was fixed before any Phase 8 test result was seen. Definitions:
+# docs/experiments.md. Runner: python -m twin_ml.experiments.robustness --study <name>.
+experiment: P8_robustness              # MLflow experiment of the study runs
+phase_tag: P8
+source_experiment: E1_clean            # E1 runs whose models the e1models study reuses
+
+# Test-time perturbations, applied to the raw sensor series before windowing, so forward fill
+# and the missing masks behave as in live use.
+perturbations:
+  noise:   { levels_pct: [10, 20, 30] }            # sigma = level x normal-operation std
+  mcar:    { levels_pct: [5, 10, 20, 30] }         # values removed completely at random
+  dropout: { levels_pct: [5, 10, 20, 30], duration_s: [10, 60] }   # single-sensor gaps
+  stuck:   { levels_pct: [5, 10, 20, 30], duration_s: [30, 300] }  # single sensor holds value
+  normal_states: [RUNNING]             # normal-operation std: RUNNING rows, no active fault
+perturbation_seed: 808                 # SeedSequence(seed, (condition, run, machine))
+
+# Simulator-driven test sets: the 200 runs regenerated with sensor faults, base seed 42 (the
+# same physics, faults and load as data/sim); only the test-split runs are used.
+sensor_fault_sets:
+  sf_all:   { source_dir: data/sim_sf_all,   scenario: config/scenarios/sf_all.yaml,   types: [stuck, drift, dropout] }
+  sf_seen:  { source_dir: data/sim_sf_seen,  scenario: config/scenarios/sf_seen.yaml,  types: [stuck, dropout] }
+  sf_drift: { source_dir: data/sim_sf_drift, scenario: config/scenarios/sf_drift.yaml, types: [drift] }
+
+ece_bins: 15
+eval_subset: operating                 # calibration, ECE and conformal on operating windows
+
+calibration:                           # fitted on clean validation data only
+  tree_methods: [isotonic, platt]      # one-vs-rest; chosen per model and horizon by CV NLL
+  cv_folds: 5                          # run-grouped folds of the validation split
+  temperature_bounds: [0.05, 20.0]
+
+conformal:                             # split conformal, calibrated on clean validation data
+  alpha: 0.1
+  methods: [lac, aps, mondrian_lac]
+  aps_seed: 13
+
+# Pre-registered primary outcomes (ADR 0021). Fixed before the first study run; never changed
+# after results are seen. Everything else in the report is exploratory.
+primary:
+  horizon: 30
+  reference: threshold
+  early_warning: [miss_rate, rel_lead_mean_s, false_alarms_per_h]
+  calibration: [ece_cal]
+  conformal: [cov_lac_FAULT, cov_aps_FAULT, cov_mondrian_lac_FAULT]
+  conditions: [noise_20, mcar_20, sf_all, e4_high]
+
+studies:
+  e1models:                            # E2 noise, E3 missing data, sensor faults; no retraining
+    models_from: e1
+    dataset_config: config/models/dataset.yaml
+    experiment: E1_clean
+    conditions: [clean, perturbations, sf_all, sf_seen, sf_drift]
+  e4:                                  # condition shift: trained on low + medium load
+    models_from: train
+    dataset_config: config/models/dataset_e4.yaml
+    experiment: P8_E4
+    conditions: [e4_high, e4_in]
+  aug:                                 # ablation: trained on augmented training data
+    models_from: train
+    dataset_config: config/models/dataset_aug.yaml
+    experiment: P8_aug
+    conditions: [clean, perturbations, sf_all, sf_seen, sf_drift]
+
+  # Exploratory extension (Part C, added after the pre-registration; primary outcomes
+  # unchanged): signal-relative noise, evaluation only (the RF is retrained from its seed).
+  e1models_snoise:
+    models_from: e1
+    dataset_config: config/models/dataset.yaml
+    experiment: E1_clean
+    conditions: [clean, signal_noise]
+    extension: true
+  aug_snoise:
+    models_from: train
+    dataset_config: config/models/dataset_aug.yaml
+    experiment: P8_aug
+    conditions: [clean, signal_noise]
+    extension: true
+
+# Exploratory: Gaussian sigma per kind and sensor = p % of the sensor's typical rise before
+# FAULT (clean training episodes; twin_ml.data.perturb.signal_scale). Finds where early
+# warning breaks down.
+signal_noise: { levels_pct: [10, 25, 50, 100] }
+
+seen_in_augmentation: [noise, mcar, dropout, stuck]   # drift is never seen in training
+
+reliability_conditions: [clean, noise_20, mcar_20, sf_all]
+reliability_min_count: 50             # reliability plots hide bins with fewer windows (ECE uses all)
+
+# Phase 7 measured train time per (model, seed) on the reference laptop (docs/PROGRESS.md),
+# used only for the progress ETA; and a rough evaluation time per test condition.
+eta_train_s: { persistence: 0, threshold: 0, rf: 123, xgb: 19, lstm: 478, gru: 720, transformer: 1669 }
+eta_condition_s: { persistence: 4, threshold: 5, rf: 25, xgb: 15, lstm: 20, gru: 25, transformer: 40 }
+progress_dir: experiments/progress     # JSONL progress log per study (gitignored)
+report_name: robustness

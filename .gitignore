@@ -23,6 +23,7 @@ frontend/playwright-report/
 data/*
 !data/.gitkeep
 mlruns/
+experiments/progress/
 mlartifacts/
 *.onnx
 *.pt

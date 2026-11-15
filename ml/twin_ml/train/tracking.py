@@ -41,17 +41,26 @@ def flatten(data: Any, prefix: str = "") -> dict[str, str]:
     return out
 
 
-def finished_runs(tracking_dir: Path, experiment: str, dataset_key: str | None = None) -> list[Any]:
-    """Finished E1 runs of the experiment (newest first), optionally for one dataset."""
+def finished_runs(
+    tracking_dir: Path,
+    experiment: str,
+    dataset_key: str | None = None,
+    phase: str = PHASE_TAG,
+    extra_filter: str = "",
+) -> list[Any]:
+    """Finished runs of the experiment with the given phase tag (newest first), optionally for
+    one dataset; ``extra_filter`` is ANDed to the MLflow filter string."""
     from mlflow.tracking import MlflowClient
 
     client = MlflowClient(tracking_uri=tracking_uri(tracking_dir))
     exp = client.get_experiment_by_name(experiment)
     if exp is None:
         return []
-    flt = f"tags.phase = '{PHASE_TAG}' and attributes.status = 'FINISHED'"
+    flt = f"tags.phase = '{phase}' and attributes.status = 'FINISHED'"
     if dataset_key:
         flt += f" and tags.dataset_key = '{dataset_key}'"
+    if extra_filter:
+        flt += f" and {extra_filter}"
     runs: list[Any] = []
     token = None
     while True:

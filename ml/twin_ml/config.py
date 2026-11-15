@@ -44,6 +44,86 @@ class FeatureConfig(ConfigModel):
     min_speed_ratio: float = Field(gt=0, le=1)
 
 
+PerturbationKind = Literal["noise", "mcar", "dropout", "stuck"]
+PERTURBATION_KINDS: tuple[PerturbationKind, ...] = ("noise", "mcar", "dropout", "stuck")
+
+
+class PerturbationGrid(ConfigModel):
+    """Levels of one perturbation type in percent.
+
+    noise: Gaussian sigma as % of the sensor's normal-operation std; mcar: % of sensor values
+    removed; dropout / stuck: % of sensor-time covered by segments of ``duration_s``.
+    """
+
+    levels_pct: list[int] = Field(min_length=1)
+    duration_s: tuple[int, int] | None = None
+
+    @model_validator(mode="after")
+    def _check(self) -> PerturbationGrid:
+        if any(lv <= 0 or lv >= 100 for lv in self.levels_pct):
+            raise ValueError("levels_pct must lie in (0, 100)")
+        if self.levels_pct != sorted(set(self.levels_pct)):
+            raise ValueError("levels_pct must be unique and ascending")
+        if self.duration_s is not None and not 1 <= self.duration_s[0] <= self.duration_s[1]:
+            raise ValueError("duration_s must be [lo, hi] with 1 <= lo <= hi")
+        return self
+
+
+class PerturbationsConfig(ConfigModel):
+    noise: PerturbationGrid
+    mcar: PerturbationGrid
+    dropout: PerturbationGrid
+    stuck: PerturbationGrid
+    # rows used for the normal-operation std of each sensor and machine kind (training data,
+    # no active fault)
+    normal_states: list[MachineState] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _segments(self) -> PerturbationsConfig:
+        if self.dropout.duration_s is None or self.stuck.duration_s is None:
+            raise ValueError("dropout and stuck need duration_s")
+        return self
+
+    def grid(self, kind: PerturbationKind) -> PerturbationGrid:
+        out: PerturbationGrid = getattr(self, kind)
+        return out
+
+
+class LoadRangeFilter(ConfigModel):
+    """Keep only runs whose simulator load band is listed (manifest ``load_range``)."""
+
+    load_ranges: list[str] = Field(min_length=1)
+
+
+class RunFilterConfig(ConfigModel):
+    """Run selection on top of the fixed split (Phase 8, E4 condition shift; ADR 0023).
+
+    ``train`` / ``val`` restrict their split. ``test`` replaces the test split by every run of
+    the listed bands that is in neither the (filtered) train nor val split; ``test_in`` names
+    the bands of the original test split kept as the in-distribution reference split.
+    """
+
+    train: LoadRangeFilter | None = None
+    val: LoadRangeFilter | None = None
+    test: LoadRangeFilter | None = None
+    test_in: LoadRangeFilter | None = None
+
+
+class AugmentationConfig(ConfigModel):
+    """Training-series augmentation before windowing (Phase 8 ablation; ADR 0021).
+
+    Each training series is replaced, with probability ``p``, by a perturbed copy. The type is
+    drawn uniformly from ``perturbations``, the level uniformly from ``[min, max]`` of that
+    type's test grid. The perturbation settings are a copy of ``robustness.yaml``'s (a test
+    checks they match), so the dataset fingerprint covers them. Validation and test are never
+    augmented.
+    """
+
+    p: float = Field(gt=0, le=1)
+    seed: int
+    perturbations: PerturbationsConfig
+
+
 class DatasetConfig(ConfigModel):
     source_dir: Path
     out_dir: Path
@@ -56,6 +136,10 @@ class DatasetConfig(ConfigModel):
     normal_keep_frac: float = Field(gt=0, le=1)
     subsample_seed: int
     features: FeatureConfig
+    # Phase 8 study options; unset fields are left out of the fingerprint, so the E1 dataset
+    # key does not change.
+    run_filter: RunFilterConfig | None = None
+    augmentation: AugmentationConfig | None = None
 
     @model_validator(mode="after")
     def _horizons(self) -> DatasetConfig:
@@ -65,7 +149,9 @@ class DatasetConfig(ConfigModel):
 
     def fingerprint(self) -> str:
         """Hash of every setting that changes the built arrays (paths excluded)."""
-        data = self.model_dump(mode="json", exclude={"source_dir", "out_dir", "line_config"})
+        exclude: set[str] = {"source_dir", "out_dir", "line_config"}
+        exclude |= {k for k in ("run_filter", "augmentation") if getattr(self, k) is None}
+        data = self.model_dump(mode="json", exclude=exclude)
         return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
 
 
@@ -239,12 +325,100 @@ ModelConfig = Annotated[
 _MODEL_ADAPTER: TypeAdapter[ModelConfig] = TypeAdapter(ModelConfig)
 
 
+# --------------------------------------------------------------------------- Phase 8
+
+
+class SensorFaultSet(ConfigModel):
+    """A simulator-driven test set: the test runs regenerated with sensor faults (same seed)."""
+
+    source_dir: Path
+    scenario: Path
+    types: list[Literal["stuck", "drift", "dropout"]] = Field(min_length=1)
+
+
+class CalibrationConfig(ConfigModel):
+    tree_methods: list[Literal["isotonic", "platt"]] = Field(min_length=1)
+    cv_folds: int = Field(ge=2)  # run-grouped folds of the validation split for the selection
+    temperature_bounds: tuple[float, float]  # search range of T for the sequence models
+
+
+class ConformalConfig(ConfigModel):
+    alpha: float = Field(gt=0, lt=1)
+    methods: list[Literal["lac", "aps", "mondrian_lac"]] = Field(min_length=1)
+    aps_seed: int  # uniform draws of randomised APS
+
+
+class PrimaryConfig(ConfigModel):
+    """Pre-registered primary outcomes (ADR 0021); everything else is exploratory."""
+
+    horizon: int
+    reference: str  # early-warning outcomes are paired against this baseline
+    early_warning: list[str] = Field(min_length=1)
+    calibration: list[str] = Field(min_length=1)
+    conformal: list[str] = Field(min_length=1)
+    conditions: list[str] = Field(min_length=1)
+
+
+class StudyConfig(ConfigModel):
+    """One study: where its models come from and which test conditions it evaluates."""
+
+    models_from: Literal["e1", "train"]
+    dataset_config: Path
+    experiment: str = Field(min_length=1)  # MLflow experiment of the study's training runs
+    conditions: list[str] = Field(min_length=1)  # "perturbations" expands to the full grid
+    # exploratory extension study added after the pre-registration: kept out of the other
+    # studies' config hashes (their runs stay valid) and labelled exploratory in the report
+    extension: bool = False
+
+
+class SignalNoiseConfig(ConfigModel):
+    """Exploratory signal-relative noise grid (Part C): Gaussian sigma per machine kind and
+    sensor = p % of that sensor's typical rise before FAULT (clean training episodes)."""
+
+    levels_pct: list[int] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _levels(self) -> SignalNoiseConfig:
+        if any(lv <= 0 for lv in self.levels_pct) or self.levels_pct != sorted(
+            set(self.levels_pct)
+        ):
+            raise ValueError("levels_pct must be positive, unique and ascending")
+        return self
+
+
+class RobustnessConfig(ConfigModel):
+    experiment: str = Field(min_length=1)  # MLflow experiment of the study runs
+    phase_tag: str = Field(min_length=1)
+    source_experiment: str = Field(min_length=1)  # E1 runs whose models are reused
+    perturbations: PerturbationsConfig
+    perturbation_seed: int
+    sensor_fault_sets: dict[str, SensorFaultSet]
+    ece_bins: int = Field(ge=2)
+    eval_subset: Literal["operating", "all"]  # windows used for calibration and conformal
+    calibration: CalibrationConfig
+    conformal: ConformalConfig
+    primary: PrimaryConfig
+    studies: dict[str, StudyConfig]
+    seen_in_augmentation: list[str]  # perturbation kinds / sensor fault types seen in training
+    reliability_conditions: list[str] = Field(min_length=1)
+    reliability_min_count: int = Field(ge=1)  # plots only; the ECE uses every bin
+    eta_train_s: dict[str, float]  # Phase 7 measured train time per (model, seed), for the ETA
+    eta_condition_s: dict[str, float]  # rough evaluation time per test condition
+    progress_dir: Path
+    report_name: str = Field(min_length=1)
+    signal_noise: SignalNoiseConfig | None = None  # exploratory extension (Part C)
+
+
 def load_dataset_config(path: str | Path) -> DatasetConfig:
     return load_model(path, DatasetConfig)
 
 
 def load_eval_config(path: str | Path) -> EvalConfig:
     return load_model(path, EvalConfig)
+
+
+def load_robustness_config(path: str | Path) -> RobustnessConfig:
+    return load_model(path, RobustnessConfig)
 
 
 def parse_model_config(data: object, source: str = "<model config>") -> ModelConfig:

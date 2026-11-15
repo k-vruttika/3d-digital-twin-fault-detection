@@ -70,7 +70,7 @@ linetwin/
 │  ├─ mosquitto.d/           # Mosquitto settings shared by container and native fallback
 │  ├─ mosquitto.docker.conf  # Mosquitto entry config inside the container
 │  ├─ mosquitto.conf         # Mosquitto entry config for the native fallback
-│  └─ models/                # ML: dataset.yaml, eval.yaml, one <model>.yaml per model/baseline
+│  └─ models/                # ML: dataset.yaml (+ dataset_e4/_aug), eval.yaml, robustness.yaml (Phase 8), one <model>.yaml per model/baseline
 ├─ common/twin_common/       # shared Pydantic contracts (Reading, Command, ...), config loaders
 ├─ simulator/twin_sim/       # physics, machines, line, scenarios, publishers (mqtt, opcua, mock server), CLI
 ├─ backend/twin_backend/

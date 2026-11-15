@@ -5,6 +5,7 @@ Not used by production code. Importing this module loads neither torch nor sciki
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -17,7 +18,7 @@ import numpy.typing as npt
 import pytest
 
 from twin_common.enums import MachineState
-from twin_ml.config import DatasetConfig, EvalConfig
+from twin_ml.config import DatasetConfig, EvalConfig, ModelConfig, load_model_config
 from twin_ml.data.dataset import Dataset, SplitData
 from twin_ml.data.labels import STATE_TO_HEALTH, STATES
 
@@ -104,15 +105,27 @@ def eval_config(tracking_dir: Path, out_dir: Path) -> EvalConfig:
     )
 
 
-def generate_sim(out: Path, runs: int = ML_SIM_RUNS, duration_s: int = ML_SIM_DURATION_S) -> Path:
-    """Fault-dense quick-scenario runs (Parquet + manifest) for ML tests."""
-    from twin_common.config import load_line_config
-    from twin_sim.batch import generate
-    from twin_sim.config import load_scenario, load_sim_config
+def generate_sim(
+    out: Path,
+    runs: int = ML_SIM_RUNS,
+    duration_s: int = ML_SIM_DURATION_S,
+    sensor_faults: dict[str, Any] | None = None,
+) -> Path:
+    """Fault-dense quick-scenario runs (Parquet + manifest) for ML tests.
 
-    scenario = load_scenario(CONFIG_DIR / "scenarios" / "quick.yaml").model_copy(
-        update={"duration_s": duration_s}
-    )
+    ``sensor_faults``: a scenario ``sensor_faults`` section (Phase 8 sensor-fault sets); the
+    machine physics stay identical for the same seed.
+    """
+    from twin_common.config import load_line_config
+    from twin_common.config.loader import read_yaml
+    from twin_sim.batch import generate
+    from twin_sim.config import ScenarioConfig, load_sim_config
+
+    data = read_yaml(CONFIG_DIR / "scenarios" / "quick.yaml")
+    data["duration_s"] = duration_s
+    if sensor_faults is not None:
+        data["sensor_faults"] = sensor_faults
+    scenario = ScenarioConfig.model_validate(data)
     generate(
         line=load_line_config(CONFIG_DIR / "line.yaml"),
         sim=load_sim_config(CONFIG_DIR / "simulator.yaml"),
@@ -188,3 +201,73 @@ def make_split(
         "ep_fault": np.zeros(0, dtype=np.int64),
     }
     return SplitData(name="test", window=window, horizons=horizons, stride=stride, arrays=arrays)
+
+
+# Tiny model configs for end-to-end tests (seconds per model on quick data).
+TINY: dict[str, dict[str, Any]] = {
+    "persistence": {"type": "persistence"},
+    "threshold": {"type": "threshold", "sim_config": str(CONFIG_DIR / "simulator.yaml")},
+    "rf": {
+        "type": "rf",
+        "class_weight": {"power": 0.5, "max": 50.0},
+        "classifier": {"n_estimators": 8, "max_depth": 6, "min_samples_leaf": 2},
+        "regressor": {"n_estimators": 8, "max_depth": 6, "min_samples_leaf": 2},
+        "n_jobs": 2,
+    },
+    "xgb": {
+        "type": "xgb",
+        "class_weight": {"power": 0.5, "max": 50.0},
+        "classifier": {
+            "n_estimators": 20,
+            "max_depth": 3,
+            "learning_rate": 0.3,
+            "subsample": 1.0,
+            "colsample_bytree": 1.0,
+            "min_child_weight": 1.0,
+        },
+        "regressor": {
+            "n_estimators": 20,
+            "max_depth": 3,
+            "learning_rate": 0.3,
+            "subsample": 1.0,
+            "colsample_bytree": 1.0,
+            "min_child_weight": 1.0,
+        },
+        "early_stopping_rounds": 5,
+        "n_jobs": 2,
+    },
+}
+
+NN_TRAINING: dict[str, Any] = {
+    "early_stopping": {
+        "min_epochs": 1,
+        "max_epochs": 3,
+        "patience": 1,
+        "ema_alpha": 0.5,
+        "min_delta": 0.0,
+    },
+    "lr_schedule": {"type": "plateau", "factor": 0.5, "patience": 0, "min_lr": 1e-5},
+    "batch_size": 128,
+    "lr": 0.003,
+    "weight_decay": 0.0,
+    "grad_clip": 1.0,
+    "focal_gamma": 0.0,
+    "huber_delta": 0.1,
+    "loss_weights": {"cls": 1.0, "ttf": 0.5, "fault_type": 0.3},
+    "eval_batch_size": 1024,
+    "num_threads": 2,
+}
+for _kind in ("lstm", "gru", "transformer"):
+    TINY[_kind] = {
+        "type": _kind,
+        "class_weight": {"power": 0.5, "max": 50.0},
+        "arch": {"hidden": 16, "layers": 2, "dropout": 0.1, "heads": 2, "ff_mult": 2},
+        "training": NN_TRAINING,
+    }
+
+
+def tiny_config(model: str, tmp_path: Path) -> ModelConfig:
+    """Write ``TINY[model]`` to ``<tmp_path>/<model>.yaml`` and load it."""
+    path = tmp_path / f"{model}.yaml"
+    path.write_text(json.dumps(TINY[model]), encoding="utf-8")  # JSON is valid YAML
+    return load_model_config(path)

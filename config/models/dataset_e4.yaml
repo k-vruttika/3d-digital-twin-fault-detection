@@ -1,0 +1,37 @@
+# E4 condition shift (ADR 0023): the E1 dataset settings, trained on low + medium load runs only.
+# Same fixed split (seed 2026); train / val keep their low + medium runs; the test split becomes
+# every high-load run not used for training or validation (none are); test_in keeps the original
+# low + medium test runs as the in-distribution reference. Built by: uv run poe dataset-e4
+source_dir: data/sim                 # simulator output (Parquet + manifest.json), poe task `sim`
+out_dir: data/ml                     # built dataset: data/ml/<dataset_key>/ (gitignored)
+line_config: config/line.yaml        # machine id -> kind
+
+window_s: 30                         # window length in samples (1 Hz -> seconds)
+horizons_s: [10, 30]                 # health class targets at t + h
+ttf_cap_s: 600                       # time-to-fault cap; rows with a fault ahead or >= cap of
+                                     # run left have a known target, the rest are right-censored
+strides_s:                           # distance between consecutive window ends
+  train: 5
+  val: 5
+  test: 1                            # dense: early-warning metrics need every second
+
+split:
+  fractions: {train: 0.70, val: 0.15, test: 0.15}   # by run, never by window
+  seed: 2026                         # fixed; independent of the model seeds
+
+# Training-only subsampling of all-NORMAL windows far from any fault (no fault within the cap,
+# no active fault). Kept windows get sample weight 1 / normal_keep_frac, which restores the
+# original class prior before class weights are applied (ADR 0019). Val/test are never sampled.
+normal_keep_frac: 0.25
+subsample_seed: 7
+
+features:
+  # vib_norm = vib / max(speed / speed_ref_kind, min_speed_ratio); speed_ref_kind is the
+  # training-set median of nonzero speed per machine kind.
+  min_speed_ratio: 0.1
+
+run_filter:
+  train:   { load_ranges: [low, medium] }
+  val:     { load_ranges: [low, medium] }
+  test:    { load_ranges: [high] }
+  test_in: { load_ranges: [low, medium] }

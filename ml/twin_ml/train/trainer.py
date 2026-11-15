@@ -113,6 +113,22 @@ def run_one(
     tracking_dir: Path | None = None,
 ) -> RunResult:
     """Train ``model`` with ``seed``, evaluate it on the test split and log one MLflow run."""
+    return train_and_log(model, cfg, seed, ds, eval_cfg, root, tracking_dir)[0]
+
+
+def train_and_log(
+    model: str,
+    cfg: ModelConfig,
+    seed: int,
+    ds: Dataset,
+    eval_cfg: EvalConfig,
+    root: Path = Path(),
+    tracking_dir: Path | None = None,
+    phase: str = tracking.PHASE_TAG,
+    extra_tags: dict[str, str] | None = None,
+) -> tuple[RunResult, Predictor]:
+    """:func:`run_one` that also returns the fitted predictor (Phase 8 studies evaluate the
+    model further in the same process; Random Forests are never saved)."""
     import mlflow
 
     np.random.seed(seed)  # libraries that read the legacy global state
@@ -162,7 +178,7 @@ def run_one(
     with mlflow.start_run(run_name=f"{model}-seed{seed}") as run:
         mlflow.set_tags(
             {
-                "phase": tracking.PHASE_TAG,
+                "phase": phase,
                 "model": model,
                 "family": family(cfg),
                 "seed": str(seed),
@@ -170,6 +186,7 @@ def run_one(
                 "manifest_sha256": src["manifest_sha256"],
                 "content_sha256": src["content_sha256"],
                 "model_config_sha": config_sha(cfg),
+                **(extra_tags or {}),
             }
         )
         params = tracking.flatten(cfg.model_dump(mode="json"), "model.")
@@ -199,4 +216,4 @@ def run_one(
         macro_f1_h30=metrics.get(f"h{max(ds.horizons)}.operating.macro_f1"),
         run_id=run.info.run_id,
     )
-    return RunResult(run.info.run_id, model, seed, metrics, train_s)
+    return RunResult(run.info.run_id, model, seed, metrics, train_s), predictor

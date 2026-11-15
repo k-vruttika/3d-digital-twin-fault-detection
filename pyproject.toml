@@ -170,6 +170,31 @@ cmd = "python -m twin_ml.experiments.e1"
 help = "Write experiments/results/E1_clean.md + .json + lead-time plot from the MLflow runs"
 cmd = "python -m twin_ml.experiments.report_e1"
 
+# Phase 8: robustness, calibration and conformal prediction (config/models/robustness.yaml).
+[tool.poe.tasks.sim-sensor-faults]
+help = "Regenerate the 200 runs with simulator sensor faults (sf_all / sf_seen / sf_drift, seed 42) -> data/sim_sf_*/"
+sequence = [
+    { cmd = "python -m twin_sim generate --runs 200 --duration 3600 --seed 42 --scenario config/scenarios/sf_all.yaml --out data/sim_sf_all/" },
+    { cmd = "python -m twin_sim generate --runs 200 --duration 3600 --seed 42 --scenario config/scenarios/sf_seen.yaml --out data/sim_sf_seen/" },
+    { cmd = "python -m twin_sim generate --runs 200 --duration 3600 --seed 42 --scenario config/scenarios/sf_drift.yaml --out data/sim_sf_drift/" },
+]
+
+[tool.poe.tasks.dataset-e4]
+help = "Build the E4 condition-shift dataset (low + medium load training runs; config/models/dataset_e4.yaml)"
+cmd = "python -m twin_ml.data build --config config/models/dataset_e4.yaml"
+
+[tool.poe.tasks.dataset-aug]
+help = "Build the ablation dataset with augmented training series (config/models/dataset_aug.yaml)"
+cmd = "python -m twin_ml.data build --config config/models/dataset_aug.yaml"
+
+[tool.poe.tasks.robustness]
+help = "Phase 8 study runs, e.g. `uv run poe robustness --study e1models --skip-existing` (e1models | e4 | aug)"
+cmd = "python -m twin_ml.experiments.robustness"
+
+[tool.poe.tasks.report-robustness]
+help = "Write experiments/results/robustness.md + .json + plots from the MLflow study runs"
+cmd = "python -m twin_ml.experiments.report_robustness"
+
 [tool.poe.tasks.mlflow-ui]
 help = "MLflow UI on the local store (full mlflow in an isolated uv tool environment)"
 cmd = "uv tool run --from mlflow==3.17.2 mlflow ui --backend-store-uri mlruns --port 5000"
@@ -221,7 +246,11 @@ cmd = "docker compose ps"
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-extend-exclude = ["frontend", "data", "experiments/results"]
+# Anchored to the repo root: a bare name such as "data" would also exclude ml/twin_ml/data/.
+extend-exclude = ["./frontend", "./data", "./experiments/results"]
+# Also skip excluded paths when they are passed explicitly (pre-commit passes file names),
+# so `poe lint` and the pre-commit hook check exactly the same files.
+force-exclude = true
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF", "PT", "C4"]

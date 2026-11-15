@@ -212,6 +212,37 @@ class TreeModel:
             else:
                 m.n_jobs = n
 
+    def load(self, model_dir: Path, train: SplitData) -> None:
+        """Restore saved XGBoost heads (Phase 8). Random Forests are never saved.
+
+        The classes each head was trained on are not stored with the model; they are
+        recomputed from the training split exactly as :meth:`fit` saw them. A head missing
+        from ``model_dir`` was trained on a single class (constant prediction).
+        """
+        if not isinstance(self.cfg, XgbConfig):
+            raise TypeError("only XGBoost models are saved; retrain Random Forests from the seed")
+        from xgboost import XGBClassifier, XGBRegressor
+
+        self.horizons = train.horizons
+        targets: dict[str, tuple[npt.NDArray[Any], int]] = {
+            f"h{h}": (train.target(h), len(HEALTH)) for h in train.horizons
+        }
+        targets["fault_type"] = (train.at_end("fault_type"), self.n_fault_types)
+        for name, (y, k) in targets.items():
+            present = np.flatnonzero(np.bincount(y.astype(np.int64), minlength=k) > 0)
+            path = model_dir / f"{name}.json"
+            if present.size < 2:
+                self.heads[name] = _Classifier(None, present, k)
+                continue
+            if not path.is_file():
+                raise FileNotFoundError(f"saved head {path} is missing")
+            model = XGBClassifier()
+            model.load_model(path)
+            self.heads[name] = _Classifier(model, present, k)
+        reg = XGBRegressor()
+        reg.load_model(model_dir / "ttf.json")
+        self.regressor = reg
+
     def save(self, out_dir: Path) -> list[Path]:
         """XGBoost heads as JSON; Random Forests are not saved (hundreds of MB, ADR 0020)."""
         if not isinstance(self.cfg, XgbConfig):

@@ -198,7 +198,9 @@ class Dataset:
         return float(self.meta["config"]["ttf_cap_s"])
 
     def split(self, name: str) -> SplitData:
-        if name not in SPLITS:
+        """``train`` / ``val`` / ``test`` or an extra split of this build (e.g. ``test_in``)."""
+        extra = list(self.meta.get("extra_splits", []))
+        if name not in SPLITS and name not in extra:
             raise KeyError(f"unknown split {name!r}")
         if name not in self._splits:
             with np.load(self.path / f"{name}.npz", allow_pickle=False) as npz:
@@ -207,7 +209,7 @@ class Dataset:
                 name=name,
                 window=int(self.meta["config"]["window_s"]),
                 horizons=self.horizons,
-                stride=int(self.meta["config"]["strides_s"][name]),
+                stride=int(self.meta["config"]["strides_s"][name if name in SPLITS else "test"]),
                 arrays=arrays,
             )
         return self._splits[name]

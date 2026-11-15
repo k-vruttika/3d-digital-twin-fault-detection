@@ -1,5 +1,160 @@
 # LineTwin progress
 
+## Phase 8: Robustness, calibration and conformal prediction (IN PROGRESS: Parts A and B done, Part C next; nothing committed yet)
+
+- **Pre-registration recorded before any Phase 8 study run:** [ADR 0021](adr/0021-robustness-protocol.md) § Pre-registration, mirrored in `config/models/robustness.yaml` (`primary:`).
+  - **Timestamp correction:** this line first said "11:30 UTC", which was a mistake. The file times are `robustness.yaml` 11:10 UTC and ADR 0021 11:19 UTC (local 16:40 / 16:49 +05:30).
+  - **Smoke runs:** the first worker runs, from 11:21 UTC, went into a separate MLflow experiment (`P8_smoke`: persistence, then xgb and lstm seed 0, to check the pipeline). They are not part of any result.
+
+### Tooling fix (2026-11-15): `poe lint` and pre-commit now check the same thing
+
+- **Cause:** `[tool.ruff] extend-exclude` listed a bare `"data"`. Ruff treats a bare name as "every directory of that name", so `ruff check .` and `ruff format --check .` (in `poe lint`) silently skipped all of `ml/twin_ml/data/`. The pre-commit hooks pass file names explicitly, and ruff checks explicitly named files unless `force-exclude` is set. So the hook found the E501s and the unformatted code that `poe lint` never saw.
+- **Fix:**
+  - The excludes are anchored to the repo root (`./frontend`, `./data`, `./experiments/results`), and `force-exclude = true` is set.
+  - `.pre-commit-config.yaml` is now one hook that runs `uv run --frozen poe lint`. The old hooks auto-fixed with `ruff --fix` and `ruff format`, skipped `tsc`, and ran ESLint only on frontend changes; the new hook does none of that. To fix findings, run `uv run poe fmt`.
+  - Guarded by `tests/test_lint_config.py`.
+- **Line endings:** the report generators (`report_robustness`, `report_e1`) write their `.md` / `.json` with LF on every OS. Before this, Windows `write_text` produced CRLF. The robustness e2e test asserts LF.
+- **Checked:** `uv run poe lint` passes and `uv run pre-commit run --all-files` passes.
+
+### Part C (NOT STARTED; next session)
+
+**Done and ready for Part C:**
+- **Augmentation dataset built:** `uv run poe dataset-aug` → `data/ml/fe3ac4753945ec7d`. Of the 560 training series, 280 stayed clean and 280 were replaced (noise 81, MCAR 54, dropout 83, stuck 62). The normaliser is identical to E1's (fitted on clean data); val and test are unchanged.
+- **Signal-relative noise extension in place** (ADR 0021 amendment): config `signal_noise`, studies `e1models_snoise` and `aug_snoise`, tests.
+- **Report ready:** the ablation, signal-noise, case-study and drift sections are already in the report generator and fill in once the runs exist.
+
+**Remaining, in order:**
+1. `uv run poe robustness --study aug --skip-existing`: trains all 5 models × 3 seeds on the augmented data and evaluates 19 conditions. Estimate: about 2.5 h of training (E1-sized training set) plus about 1 h of evaluation.
+2. `uv run poe robustness --study e1models_snoise --skip-existing`: evaluation only, about 20 min (the RF is retrained from its seed).
+3. `uv run poe robustness --study aug_snoise --skip-existing`: needs step 1. It reloads XGBoost and the sequence models; the RF is retrained from its seed. About 25 min.
+4. `uv run poe report-robustness`, then check the ablation (seen vs unseen) and signal-noise sections and plots.
+5. Final `uv run poe lint` / `uv run poe test` / `minimal-data-check`; finish ADR 0023 (results pointer); this file's Phase 8 summary and deviations; `docs/experiments.md` results list; a suggested commit message (nothing committed yet).
+
+**How to resume:** every study command is resumable (`--skip-existing`). Progress goes to `experiments/progress/<study>.jsonl` and the logs to `experiments/progress/<study>.log`.
+
+### Part B (done, 2026-11-15): E4 condition shift
+
+- **Dataset:** `uv run poe dataset-e4` → `data/ml/0b2beacae27b45d3`.
+
+| Split | Runs | By band | Gradual episodes |
+|---|---|---|---|
+| train | 93 | low 53, medium 40 | 90 |
+| val | 22 | low 7, medium 15 | 21 |
+| `e4_high` | 62 | high 62 (none trained or validated on) | 62 |
+| `e4_in` | 23 | low 12, medium 11 | 20 |
+
+- **Study:** `uv run poe robustness --study e4 --skip-existing` trained and evaluated 17 runs in 8774 s (2 h 26 min), against a first estimate of 115 min.
+  - Measured per run: RF about 150–180 s, XGBoost about 57 s, LSTM 460–650 s, GRU 570–770 s, Transformer 1195–2000 s.
+  - The ETA came from Phase 7 train times scaled by the training-window ratio (0.678). It underestimated, because the evaluation on 878k + 326k test windows plus the training run's own test evaluation was not in it.
+- **Code** (applied after the study finished, because the running workers import these modules):
+  - the run filter (`data.build.select_runs`) and the extra split `test_in`;
+  - augmentation (`augment_series`);
+  - the signal-relative noise extension (`perturb.episode_rises`, `signal_scale`, `signal_noise_conditions`; extension studies).
+- **Hashes:** the study config hash leaves extension studies and the `signal_noise` settings out of its shared part. All 34 e1models and E4 runs were checked against a recomputed hash before and after the patch: 34 match, 0 mismatch.
+- **Report:** E4 in the PRIMARY section (`e4_high` vs threshold); the shift effect (unpaired) and the secondary E1-vs-E4 check on the 7 shared high-load runs (6 episodes) in EXPLORATORY; the plot `robustness_e4.png`.
+- **Results (short record; numbers in [robustness.md](../experiments/results/robustness.md)):**
+  - **Primary, `e4_high` (62 runs, 62 episodes, +30 s):**
+    - No model misses an episode.
+    - Lead relative to the threshold WARNING is still ahead of the threshold rule for every model (CI excludes zero in 3/3 seeds). The margin is much smaller for the trees (RF +24 s, XGBoost +14 s) than for the sequence models (+47 to +49 s).
+    - False alarms per hour: the Transformer is slightly above the threshold rule (+0.03, 2/3 seeds), the others are not different.
+    - ECE after calibration is about 0.003, except the RF at 0.029.
+    - Mondrian FAULT coverage drops to 0.78–0.89, below the 0.90 target. LAC is about 0 and APS 0.59–0.68.
+  - **Exploratory shift effect (same model, high minus low + medium, unpaired):**
+    - The tree models lose lead: RF −28 s and XGBoost −43 s (CI excludes zero in 3/3 seeds). The sequence models lose 5–11 s (CIs include zero).
+    - Mondrian FAULT coverage falls by about 0.09–0.12 for the sequence models.
+    - XGBoost's ECE rises slightly (3/3), and the RF's clearly (+0.028).
+  - **Secondary (E4 minus E1 on the 7 shared high-load runs, 6 episodes):** the E4 trees lose 29–40 s of lead, and the E4 sequence models lose 0.18–0.28 of Mondrian FAULT coverage. With 6 episodes the CIs are wide, and this comparison mixes the shift with the training-set size.
+- **Tests:** `uv run poe test`: pytest 759 passed, 50 skipped (services not running). Vitest 163 passed. `uv run poe lint` clean. `minimal-data-check` 14 passed. New: `test_ml_study_datasets.py` (E1 fingerprint unchanged, E4 run rule, augmentation seeded and train-only, built quick datasets), `test_ml_signal_noise.py` (scale, conditions, hashes), `test_ml_report_robustness.py`.
+
+### Report additions requested for Part C (implemented 2026-11-15, all exploratory, all generated)
+
+1. **FAULT-class ECE next to top-label ECE** in every calibration table (primary, study, E4, ablation), with a note giving the NORMAL share of operating windows: 97.8 % in the e1models test set at +30 s.
+2. **Case study of the episode missed under `sf_all`** by every learned model (all seeds) and the threshold rule. It is found from the per-episode results; the overlapping sensor faults and the leading-sensor rise are read from the simulator files; the explanation sentences are generated from conditions on that data.
+3. **Perturbation strength relative to the fault signal:** per kind and gradual fault type, the leading sensor's precursor rise in normal-operation std, the noise sigma as a fraction of that rise, and the median precursor length against the dropout and stuck segment lengths.
+4. **Drift note:** under `sf_drift`, false alarms inside drift segments are above zero for every learned model and the threshold rule. This suggests the models cannot tell sensor drift from degradation, which motivates Phase 9. The section is emitted only if the data shows this.
+5. **Signal-relative noise grid** (exploratory, evaluation only; ADR 0021 amendment):
+   - noise sigma = 10 / 25 / 50 / 100 % of each sensor's typical rise before FAULT, per kind, from the training episodes;
+   - studies `e1models_snoise` and `aug_snoise`;
+   - early warning, top-label and FAULT ECE, Mondrian FAULT coverage, and the plot `robustness_signal_noise.png`.
+
+   The code patch waits until E4 finishes, because the running workers import those modules.
+6. **Case-study note:** in the live system an all-sensor dropout is quarantined, so the machine goes STALE and then OFFLINE (thresholds read from `config/sources.yaml`) and raises the CRITICAL `machine_offline` alert. The data-quality layer covers this model blind spot.
+
+### Part A (done, 2026-11-15): perturbations, E2 / E3 / sensor faults on the E1 models, calibration, conformal, report
+
+**What was built**
+
+- **Perturbations** (`twin_ml/data/perturb.py`, pure numpy):
+  - noise, MCAR, single-sensor dropout and stuck-sensor segments on the raw series before windowing;
+  - seeded per (condition, run, machine) with CRC-32 keys, identical for every model;
+  - noise scaled by the normal-operation std per kind and sensor (RUNNING rows of the clean training split without an active fault).
+- **Rebuilt test splits** (`twin_ml/data/test_sets.py`): the clean normaliser, vocabulary and config are reused, so forward fill and masks behave as in live use.
+- **Simulator sensor-fault sets:** `uv run poe sim-sensor-faults` writes `data/sim_sf_{all,seen,drift}`, the 200 runs with seed 42 and scenarios that differ from `default.yaml` only in `sensor_faults`. The loader requires identical timestamps, states and fault types, and they are identical for all 30 test runs. About 10 % of the test rows are inside a sensor fault.
+- **Model loading:** `TreeModel.load` (XGBoost heads; trained classes recomputed from the training split) and `SequenceModel.load`. Sequence models return their logits in `Predictions.extra`.
+- **Calibration** (`twin_ml/calibrate/`): temperature scaling (NN); one-vs-rest isotonic or Platt, chosen by run-grouped CV NLL on validation (trees); ECE from per-run bin sums. [ADR 0022](adr/0022-calibration-conformal.md).
+- **Conformal** (`twin_ml/conformal/`):
+  - LAC, randomised APS and Mondrian LAC (requested in the plan review) at α = 0.1, with per-class sums;
+  - time-to-fault absolute-residual intervals, with the certain-miss rate on censored rows.
+- **Run-level statistics** (`twin_ml/evaluate/run_sums.py`): every metric is computed from per-run sums, so the bootstrap, the paired difference (same resampled runs) and the unpaired difference (independent resampling, for E4) all work the same way.
+- **Study runner:**
+  - `python -m twin_ml.experiments.robustness --study …` (poe `robustness`), one worker process per (study, model, seed) (`robust_worker.py`);
+  - resumable through a study config hash (model config, robustness and evaluation settings, dataset key, reused E1 run);
+  - progress JSONL with ETA in `experiments/progress/`.
+  - E1 runs logged before the `model_config_sha` tag existed (baselines, RF, XGBoost) are matched by their logged `model.*` params, which must be exactly equal.
+- **Report:** `python -m twin_ml.experiments.report_robustness` (poe `report-robustness`) reads only MLflow (`metrics.json` and `runstats.npz` per run). It writes [robustness.md](../experiments/results/robustness.md), a compact `robustness.json`, degradation curves per perturbation type, reliability diagrams and coverage plots. Sections are labelled PRIMARY or EXPLORATORY, and only runs whose hash matches the current configs are used.
+- **Configs:** `config/models/robustness.yaml`, `config/scenarios/sf_{all,seen,drift}.yaml`; prepared for B and C: `dataset_e4.yaml`, `dataset_aug.yaml`, poe `dataset-e4` / `dataset-aug`.
+- **Docs:** ADR 0021 (protocol and pre-registration), ADR 0022 (calibration and conformal), ADR 0023 (E4, draft), `docs/experiments.md` § Phase 8, CLAUDE.md §5.
+
+**How to run**
+
+```text
+uv run poe sim-sensor-faults                            # once, about 30 s
+uv run poe robustness --study e1models --skip-existing  # 17 study runs, 19 conditions each
+uv run poe report-robustness                            # about 30 s
+```
+
+**Measured times (this laptop, CPU only)**
+
+- **Study:** the e1models study took about 73 min for 17 runs: 3954 s after the resume, plus about 7 min before the interruption.
+- **Per run:**
+  - persistence about 70 s; threshold 40 s;
+  - RF 300–370 s (retraining about 2 min, then evaluation);
+  - XGBoost 110–130 s; LSTM and GRU 280–300 s; Transformer about 385 s.
+- **Per condition:** a perturbed test split takes about 5 s (trees) to 15 s (NN) to build, predict and evaluate.
+
+**Results (all numbers in [robustness.md](../experiments/results/robustness.md); short record only)**
+
+- **Reused models:** every one reproduces its stored E1 clean test predictions exactly (max |Δp| 0.0), and the RF retrain reproduces E1 bit for bit.
+- **Primary, `noise_20` / `mcar_20` / `sf_all`, +30 s:**
+  - Every learned model keeps its earlier warning than the threshold baseline. Lead relative to the threshold WARNING improves by 53–67 s, and the CI excludes zero in 3/3 seeds for every model and condition.
+  - Miss rate and false alarms per hour are not different from the threshold baseline (CIs include zero). Under `sf_all` every model and the threshold rule miss 1 of 26 episodes.
+- **Calibration (primary):** ECE after calibration is about 0.001–0.003 for XGBoost and the sequence models under all three conditions. The RF is the exception under noise: its ECE is 0.021 at `noise_20`. Its probabilities move away from the validation-fitted map, and its marginal Mondrian coverage collapses (about 0.02), although its alarms are unaffected.
+- **Conformal (primary), FAULT-class coverage at a target of 0.90:**
+  - **Marginal LAC: 0.** The NORMAL-dominated threshold excludes FAULT.
+  - **APS: about 0.50–0.62.**
+  - **Mondrian LAC: 0.81–0.93** for the learned models. The exception is the RF under `noise_20` at 1.00, because its sets grow to include FAULT while NORMAL coverage collapses. The Transformer is lowest, under `mcar_20` and `sf_all`.
+  - Only the class-conditional method gives a usable per-class guarantee, and even it falls below target under perturbation.
+- **Exploratory:** stuck sensors hurt most.
+  - At `stuck_30`, XGBoost loses about 0.10 macro F1 and 40 s of lead, with more false alarms (CI excludes zero in 3/3 seeds), and misses 2 of 26 episodes.
+  - Noise and MCAR barely change anything.
+  - Dropout raises the Transformer's false alarms (0.63 per hour at `dropout_30`).
+  - Simulator drift (`sf_drift`) raises false alarms inside sensor-fault segments for every model and for the threshold rule.
+
+**Tests:** `uv run poe test`: pytest 749 passed, 50 skipped (TimescaleDB, Mosquitto and Playwright tests; services not running). Vitest 163 passed. `uv run poe lint` clean. `uv run poe minimal-data-check` 14 passed. New test files:
+- `test_ml_perturb.py` (also checks the pre-registration against ADR 0021);
+- `test_ml_calibration.py`;
+- `test_ml_conformal.py`;
+- `test_ml_robustness_e2e.py`: E1 runs → study runs in workers → resume → report numbers equal the MLflow metrics; sensor-fault labels kept;
+- import guards for the new modules.
+
+**Known limitations (Part A)**
+
+- **Baseline conformal sets are degenerate,** because the baselines output one-hot probabilities (noted in the report).
+- **Exchangeability:** split conformal assumes exchangeable windows; windows within a run are dependent (ADR 0022).
+- **APS** can return empty sets (randomised); they count as not covered.
+- **26 gradual episodes** give wide CIs on miss rate and lead.
+- **Interruption:** the e1models study was interrupted once by my own schema change mid-run. It resumed with `--skip-existing`; the hashes are unchanged and no run is duplicated in the report.
+
 ## Backlog (not scheduled)
 
 - **Buffer telemetry:** a BufferLevel event (buffer id, level, capacity, ts) published by the simulator publishers, consumed by the adapters, stored as an event stream and sent on the WebSocket. Until then the 3D twin shows buffers as FULL / EMPTY / FLOWING / UNKNOWN, inferred from the neighbours' states (ADR 0016). The simulator already records `buffer_in` / `buffer_out`, but only as dataset label columns.

@@ -21,7 +21,7 @@ import pytest
 from twin_ml.config import DatasetConfig, EvalConfig, ModelConfig, NnConfig, load_model_config
 from twin_ml.data.dataset import Dataset
 from twin_ml.experiments.report_e1 import build_report
-from twin_ml.testing import CONFIG_DIR, REPO_ROOT, require_xgboost
+from twin_ml.testing import REPO_ROOT, TINY, require_xgboost, tiny_config
 from twin_ml.train import tracking
 from twin_ml.train.isolated import (
     TrainingProcessError,
@@ -30,67 +30,6 @@ from twin_ml.train.isolated import (
     run_isolated,
 )
 from twin_ml.train.trainer import RunResult
-
-TINY: dict[str, dict[str, Any]] = {
-    "persistence": {"type": "persistence"},
-    "threshold": {"type": "threshold", "sim_config": str(CONFIG_DIR / "simulator.yaml")},
-    "rf": {
-        "type": "rf",
-        "class_weight": {"power": 0.5, "max": 50.0},
-        "classifier": {"n_estimators": 8, "max_depth": 6, "min_samples_leaf": 2},
-        "regressor": {"n_estimators": 8, "max_depth": 6, "min_samples_leaf": 2},
-        "n_jobs": 2,
-    },
-    "xgb": {
-        "type": "xgb",
-        "class_weight": {"power": 0.5, "max": 50.0},
-        "classifier": {
-            "n_estimators": 20,
-            "max_depth": 3,
-            "learning_rate": 0.3,
-            "subsample": 1.0,
-            "colsample_bytree": 1.0,
-            "min_child_weight": 1.0,
-        },
-        "regressor": {
-            "n_estimators": 20,
-            "max_depth": 3,
-            "learning_rate": 0.3,
-            "subsample": 1.0,
-            "colsample_bytree": 1.0,
-            "min_child_weight": 1.0,
-        },
-        "early_stopping_rounds": 5,
-        "n_jobs": 2,
-    },
-}
-
-NN_TRAINING: dict[str, Any] = {
-    "early_stopping": {
-        "min_epochs": 1,
-        "max_epochs": 3,
-        "patience": 1,
-        "ema_alpha": 0.5,
-        "min_delta": 0.0,
-    },
-    "lr_schedule": {"type": "plateau", "factor": 0.5, "patience": 0, "min_lr": 1e-5},
-    "batch_size": 128,
-    "lr": 0.003,
-    "weight_decay": 0.0,
-    "grad_clip": 1.0,
-    "focal_gamma": 0.0,
-    "huber_delta": 0.1,
-    "loss_weights": {"cls": 1.0, "ttf": 0.5, "fault_type": 0.3},
-    "eval_batch_size": 1024,
-    "num_threads": 2,
-}
-for _kind in ("lstm", "gru", "transformer"):
-    TINY[_kind] = {
-        "type": _kind,
-        "class_weight": {"power": 0.5, "max": 50.0},
-        "arch": {"hidden": 16, "layers": 2, "dropout": 0.1, "heads": 2, "ff_mult": 2},
-        "training": NN_TRAINING,
-    }
 
 EXPECTED_KEYS = (
     "h10.operating.macro_f1",
@@ -104,12 +43,6 @@ EXPECTED_KEYS = (
     "latency.p50_ms",
     "latency.p95_ms",
 )
-
-
-def tiny_config(model: str, tmp_path: Path) -> ModelConfig:
-    path = tmp_path / f"{model}.yaml"
-    path.write_text(json.dumps(TINY[model]), encoding="utf-8")  # JSON is valid YAML
-    return load_model_config(path)
 
 
 def run_one(

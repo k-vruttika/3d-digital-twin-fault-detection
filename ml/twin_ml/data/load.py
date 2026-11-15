@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Iterator
-from dataclasses import dataclass
+from collections.abc import Iterable, Iterator, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +30,8 @@ class MachineSeries:
     sensors: FloatArray  # (T, 5), NaN = missing; built by select_inputs only
     state: list[str]
     fault_type: list[str]
+    # evaluation-only label columns requested by name (e.g. ``sensor_fault``); never inputs
+    labels: dict[str, list[str]] = field(default_factory=dict)
 
 
 def read_manifest(source_dir: Path) -> dict[str, Any]:
@@ -54,9 +56,17 @@ def verify_files(source_dir: Path, manifest: dict[str, Any]) -> None:
 
 
 def iter_series(
-    source_dir: Path, manifest: dict[str, Any], run_ids: Iterable[str], line: LineConfig
+    source_dir: Path,
+    manifest: dict[str, Any],
+    run_ids: Iterable[str],
+    line: LineConfig,
+    extra_labels: Sequence[str] = (),
 ) -> Iterator[MachineSeries]:
-    """Per-machine series of the given runs, each sorted by time, in line order."""
+    """Per-machine series of the given runs, each sorted by time, in line order.
+
+    ``extra_labels``: further string label columns kept in ``MachineSeries.labels`` for
+    evaluation only (they never reach the feature code).
+    """
     wanted = set(run_ids)
     for entry in manifest["run_entries"]:
         run_id = entry["run_id"]
@@ -64,7 +74,7 @@ def iter_series(
             continue
         table = pq.read_table(
             source_dir / entry["files"]["parquet"],
-            columns=[*LABEL_COLUMNS, *ALLOWED_INPUT_COLUMNS],
+            columns=[*LABEL_COLUMNS, *extra_labels, *ALLOWED_INPUT_COLUMNS],
         )
         cols = {
             name: table.column(name).to_numpy(zero_copy_only=False) for name in table.column_names
@@ -84,4 +94,5 @@ def iter_series(
                 sensors=select_inputs(inputs),
                 state=[str(s) for s in cols["state"][sel]],
                 fault_type=[str(s) for s in cols["fault_type"][sel]],
+                labels={c: [str(v) for v in cols[c][sel]] for c in extra_labels},
             )

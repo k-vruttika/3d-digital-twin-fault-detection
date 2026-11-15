@@ -35,6 +35,7 @@ CI_METRICS = (
     "false_alarms_per_h",
 )
 NA = "–"  # en dash: a value that does not exist (never zero)  # noqa: RUF001
+LF = "\n"  # results are written with LF on every OS (the repo uses eol=lf)
 SUBSETS = ("operating", "stopped", "gradual", "jam", "all")
 SUBSET_TITLES = {
     "operating": "(a) operating now (RUNNING or WARNING), main result",
@@ -812,9 +813,10 @@ def build_report(
         report["plots"]["curves"] = curves_path.name
         paths.append(curves_path)
     md_path = out / f"{name}.md"
-    md_path.write_text(render_markdown(report), encoding="utf-8")
+    # LF on every OS (the repo uses eol=lf; Windows write_text would emit CRLF)
+    md_path.write_text(render_markdown(report), encoding="utf-8", newline=LF)
     json_path = out / f"{name}.json"
-    json_path.write_text(json.dumps(_clean(report), indent=1), encoding="utf-8")
+    json_path.write_text(json.dumps(_clean(report), indent=1), encoding="utf-8", newline=LF)
     return [md_path, json_path, *paths]
 
 

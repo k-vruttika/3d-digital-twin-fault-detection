@@ -117,12 +117,19 @@ class SequenceModel:
     def _x(self, split: SplitData, idx: npt.NDArray[np.int64]) -> torch.Tensor:
         return torch.from_numpy(split.sequence(idx))
 
-    def _forward_probs(
+    def _forward(
         self, split: SplitData, batch: int
-    ) -> tuple[list[npt.NDArray[np.float32]], npt.NDArray[np.float32], npt.NDArray[np.float32]]:
+    ) -> tuple[
+        list[npt.NDArray[np.float32]],
+        list[npt.NDArray[np.float32]],
+        npt.NDArray[np.float32],
+        npt.NDArray[np.float32],
+    ]:
+        """(probs per horizon, logits per horizon, ttf / cap, fault-type probs)."""
         assert self.net is not None
         self.net.eval()
         probs: list[list[npt.NDArray[np.float32]]] = [[] for _ in self.horizons]
+        logit_parts: list[list[npt.NDArray[np.float32]]] = [[] for _ in self.horizons]
         ttf: list[npt.NDArray[np.float32]] = []
         ft: list[npt.NDArray[np.float32]] = []
         with torch.no_grad():
@@ -130,11 +137,17 @@ class SequenceModel:
                 logits, t, f = self.net(self._x(split, idx))
                 for i, lg in enumerate(logits):
                     probs[i].append(torch.softmax(lg, dim=1).numpy())
+                    logit_parts[i].append(lg.numpy())
                 ttf.append(t.numpy())
                 ft.append(torch.softmax(f, dim=1).numpy())
         n_ft = self.n_fault_types
+
+        def cat(parts: list[npt.NDArray[np.float32]]) -> npt.NDArray[np.float32]:
+            return np.concatenate(parts) if parts else np.zeros((0, len(HEALTH)), np.float32)
+
         return (
-            [np.concatenate(p) if p else np.zeros((0, len(HEALTH)), np.float32) for p in probs],
+            [cat(p) for p in probs],
+            [cat(p) for p in logit_parts],
             np.concatenate(ttf) if ttf else np.zeros(0, np.float32),
             np.concatenate(ft) if ft else np.zeros((0, n_ft), np.float32),
         )
@@ -303,12 +316,24 @@ class SequenceModel:
 
     # ------------------------------------------------------------------ inference
     def predict(self, split: SplitData) -> Predictions:
-        probs, ttf, ft = self._forward_probs(split, self.cfg.training.eval_batch_size)
+        """Probabilities per horizon; ``extra["logits"]`` holds the logits (calibration)."""
+        probs, logits, ttf, ft = self._forward(split, self.cfg.training.eval_batch_size)
         return Predictions(
             probs=dict(zip(self.horizons, probs, strict=True)),
             ttf=(ttf * self.ttf_cap_s).astype(np.float32),
             fault_type=ft,
+            extra={"logits": dict(zip(self.horizons, logits, strict=True))},
         )
+
+    def load(self, path: Path, horizons: Sequence[int], window: int) -> None:
+        """Restore a saved ``model.pt`` (state dict) for inference (Phase 8)."""
+        self.horizons = tuple(horizons)
+        self.net = SequenceNet(
+            self.cfg, len(self.horizons), self.n_fault_types, window, len(SEQUENCE_CHANNELS)
+        )
+        state = torch.load(path, map_location="cpu", weights_only=True)
+        self.net.load_state_dict(state)
+        self.net.eval()
 
     def predict_one(self, split: SplitData, i: int) -> None:
         assert self.net is not None

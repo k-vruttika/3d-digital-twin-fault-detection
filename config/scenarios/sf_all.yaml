@@ -1,0 +1,33 @@
+# Phase 8 sensor-fault test set sf_all (ADR 0021): identical to default.yaml except for the
+# sensor_faults section, so with the same base seed (42) the physics, machine faults and load
+# match data/sim exactly (the sensor-fault plan has its own RNG stream). Types: [stuck, drift, dropout].
+# lubrication_loss is held out (simulator.yaml) and therefore never sampled here.
+name: sf_all
+seed: 42
+duration_s: 3600
+start_ts: "2026-01-01T00:00:00Z"
+load_ranges: [low, medium, high]      # one band sampled per run
+load_process: { tau_s: 300, sigma_frac: 0.15 }
+ambient_c: [18, 28]
+threshold_perturbation_pct: 10
+source: { arrival_interval_s: 6.5, jitter_frac: 0.1 }
+faults:
+  random:
+    rate_per_machine_per_hour: 0.5
+    types: [bearing_wear, overheating, spindle_imbalance, belt_jam]
+    include_held_out: false
+    earliest_onset_s: 120
+  scheduled: []
+sensor_faults:
+  random: { rate_per_machine_per_hour: 1.0, types: [stuck, drift, dropout], earliest_onset_s: 60 }
+  scheduled: []
+recovery:
+  auto: true
+  jam_clear_s: [30, 120]
+  repair_delay_s: [120, 600]
+  maintenance_duration_s: 600
+commands: []
+# Job-to-job spindle speed changes on the CNC (SET_SPEED through the command path).
+# 7500 RPM keeps the CNC cycle time (6 s x 8000/7500 = 6.4 s) below the 6.5 s arrival interval.
+speed_changes:
+  - { machine: CNC-01, interval_s: [300, 900], speed_rpm: [7500, 10000] }

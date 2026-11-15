@@ -61,3 +61,27 @@ def test_training_parents_load_no_ml_library() -> None:
     # train / train-all only start workers; each worker loads one model's library (ADR 0020).
     parents = ("twin_ml.train.__main__", "twin_ml.experiments.e1", "twin_ml.train.isolated")
     assert _loaded(parents, ("torch", "sklearn", "xgboost", "mlflow")) == []
+
+
+PHASE8_PURE = (
+    "twin_ml.data.perturb",
+    "twin_ml.calibrate",
+    "twin_ml.calibrate.ece",
+    "twin_ml.calibrate.temperature",
+    "twin_ml.calibrate.trees",
+    "twin_ml.conformal.classification",
+    "twin_ml.conformal.regression",
+    "twin_ml.evaluate.run_sums",
+    "twin_ml.experiments.robust_eval",
+)
+
+
+def test_phase8_modules_load_no_simulator_or_heavy_library() -> None:
+    # calibration imports scikit-learn lazily, only inside the tree calibrators
+    watch = ("twin_sim", "torch", "sklearn", "xgboost", "mlflow")
+    assert _loaded(PHASE8_PURE, watch) == []
+
+
+def test_phase8_parents_load_no_ml_library() -> None:
+    parents = ("twin_ml.experiments.robustness", "twin_ml.experiments.robust_worker")
+    assert _loaded(parents, ("torch", "sklearn", "xgboost", "mlflow")) == []
