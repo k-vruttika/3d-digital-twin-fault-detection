@@ -5,6 +5,8 @@ Not used by production code. Importing this module loads neither torch nor sciki
 
 from __future__ import annotations
 
+import os
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -19,8 +21,39 @@ from twin_ml.data.labels import STATE_TO_HEALTH, STATES
 
 REPO_ROOT = Path(__file__).resolve().parents[2]  # ml/twin_ml/testing.py -> repo
 CONFIG_DIR = REPO_ROOT / "config"
+XGBOOST_REQUIRED_ENV = "LINETWIN_REQUIRE_XGBOOST"  # set to 1 in CI: a broken XGBoost must fail
 ML_SIM_RUNS = 6
 ML_SIM_DURATION_S = 1500
+
+
+@cache
+def xgboost_import_error() -> str | None:
+    """None when xgboost imports, else why not (on macOS usually the missing OpenMP runtime)."""
+    try:
+        import xgboost  # noqa: F401
+    except Exception as exc:  # XGBoostError (libomp.dylib not loaded), ImportError, OSError
+        return (
+            f"{type(exc).__name__}: {str(exc).strip().splitlines()[0] if str(exc).strip() else ''}"
+        )
+    return None
+
+
+def require_xgboost() -> None:
+    """Skip the calling test, with a clear message, when xgboost cannot be imported.
+
+    With LINETWIN_REQUIRE_XGBOOST=1 (CI) the test fails instead, so a broken install is never
+    hidden by a skip.
+    """
+    reason = xgboost_import_error()
+    if reason is None:
+        return
+    msg = (
+        f"xgboost cannot be imported ({reason}). On macOS XGBoost needs the OpenMP runtime: "
+        "run `brew install libomp` (see docs/setup.md)."
+    )
+    if os.environ.get(XGBOOST_REQUIRED_ENV) == "1":
+        pytest.fail(msg, pytrace=False)
+    pytest.skip(msg)
 
 
 def dataset_config(source: Path, out: Path, **overrides: Any) -> DatasetConfig:

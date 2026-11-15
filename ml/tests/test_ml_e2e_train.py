@@ -13,7 +13,7 @@ import pytest
 from twin_ml.config import DatasetConfig, EvalConfig, ModelConfig, NnConfig, load_model_config
 from twin_ml.data.dataset import Dataset
 from twin_ml.experiments.report_e1 import build_report
-from twin_ml.testing import CONFIG_DIR
+from twin_ml.testing import CONFIG_DIR, require_xgboost
 from twin_ml.train import tracking
 from twin_ml.train.trainer import run_one
 
@@ -102,6 +102,8 @@ def tiny_config(model: str, tmp_path: Path) -> ModelConfig:
 def test_train_and_log_each_model(
     model: str, ml_dataset: Dataset, ml_eval_cfg: EvalConfig, tmp_path: Path
 ) -> None:
+    if model == "xgb":
+        require_xgboost()
     res = run_one(model, tiny_config(model, tmp_path), 0, ml_dataset, ml_eval_cfg)
     for key in EXPECTED_KEYS:
         assert key in res.metrics, key
@@ -128,6 +130,7 @@ def _artifacts(cfg: EvalConfig, run_id: str) -> list[Any]:
 def test_report_numbers_come_from_mlflow(
     ml_dataset: Dataset, ml_dataset_cfg: DatasetConfig, ml_eval_cfg: EvalConfig, tmp_path: Path
 ) -> None:
+    require_xgboost()  # the report test trains every model type, XGBoost included
     results = {m: run_one(m, tiny_config(m, tmp_path), 0, ml_dataset, ml_eval_cfg) for m in TINY}
     md, js, png, curves = build_report(ml_dataset_cfg, ml_eval_cfg)
     text = md.read_text(encoding="utf-8")

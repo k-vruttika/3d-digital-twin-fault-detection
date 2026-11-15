@@ -171,6 +171,7 @@ None of sections 2 and 3 is needed to run the twin from a JSON/CSV file or the m
 - **Dependencies:** `uv sync --all-packages` installs the ML stack with the rest:
   - PyTorch, CPU build (PyTorch's CPU index on Windows and Linux, PyPI on macOS); no CUDA wheels;
   - scikit-learn and XGBoost (`xgboost-cpu` on Windows and Linux);
+  - **macOS:** XGBoost needs the OpenMP runtime: run `brew install libomp` once (without it, importing XGBoost fails with `Library not loaded: @rpath/libomp.dylib`). The two XGBoost-dependent tests skip with that hint when it is missing locally; CI installs it and sets `LINETWIN_REQUIRE_XGBOOST=1` so they must run there;
   - `mlflow-skinny`.
   
   The first sync downloads a few hundred MB. No GPU is needed: model sizes and the training subsample are chosen for a laptop CPU (measured times in [PROGRESS.md](PROGRESS.md)).

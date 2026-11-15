@@ -29,6 +29,10 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      # XGBoost loads the OpenMP runtime (libomp.dylib), which the macOS runners do not have.
+      - name: OpenMP runtime for XGBoost (macOS)
+        if: runner.os == 'macOS'
+        run: brew install libomp
       # One command per step: on Windows (pwsh) only the last command's exit code would count.
       - name: Install Python dependencies
         run: uv sync --all-packages --locked
@@ -51,6 +55,8 @@ jobs:
         env:
           # Ubuntu: service and e2e tests must run (fail instead of skip). Elsewhere they are skipped.
           LINETWIN_REQUIRE_SERVICES: ${{ runner.os == 'Linux' && '1' || '0' }}
+          # Every OS: the XGBoost tests must run in CI (fail instead of skip if XGBoost cannot load).
+          LINETWIN_REQUIRE_XGBOOST: "1"
       - name: Minimal-mode data path (simulator files, no DB/broker/ML)
         run: uv run --frozen poe minimal-data-check
       - name: Frontend build
