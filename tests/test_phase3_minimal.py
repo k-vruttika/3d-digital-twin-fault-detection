@@ -30,6 +30,8 @@ FORBIDDEN = (
     "torch",
     "sklearn",
     "xgboost",
+    "mlflow",
+    "twin_ml",
     "onnxruntime",
 )
 

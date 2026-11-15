@@ -1,0 +1,29 @@
+# LSTM on raw normalised windows (twin_ml.models.nn): shared encoder + heads for
+# health at each horizon, time to fault (censoring-aware) and fault type.
+type: lstm
+class_weight: {power: 0.5, max: 50.0}
+arch:
+  hidden: 64
+  layers: 2
+  dropout: 0.1
+training:
+  early_stopping:                    # on an EMA of val macro F1; best checkpoint by raw val macro F1
+    min_epochs: 10                   # LR halvings start around epochs 6-10 (diagnostics)
+    max_epochs: 16                   # curves observed to 16; gains small by then
+    patience: 3                      # epochs without an EMA improvement > min_delta
+    ema_alpha: 0.4                   # weight of the newest epoch (1 = no smoothing)
+    min_delta: 0.002
+  lr_schedule:                       # reduce-on-plateau on the validation loss
+    type: plateau
+    factor: 0.5
+    patience: 1
+    min_lr: 0.00001
+  batch_size: 256
+  lr: 0.002
+  weight_decay: 0.0001
+  grad_clip: 1.0
+  focal_gamma: 0.0                   # 0 = weighted cross-entropy
+  huber_delta: 0.1                   # on ttf / cap
+  loss_weights: {cls: 1.0, ttf: 0.5, fault_type: 0.3}
+  eval_batch_size: 4096
+  num_threads: null                  # torch default (all cores)

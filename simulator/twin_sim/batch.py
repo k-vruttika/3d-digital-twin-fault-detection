@@ -26,6 +26,16 @@ from twin_sim.scenario import make_run_plan
 
 EXPORT_FORMATS = ("csv", "jsonl")
 MANIFEST_NAME = "manifest.json"
+# Manifest fields that change between identical regenerations (time, machine, invocation).
+# ``content_sha256`` hashes the manifest without them, so it identifies the data itself.
+VOLATILE_MANIFEST_FIELDS = (
+    "git_commit",
+    "created_at",
+    "generation_time_s",
+    "workers",
+    "cli_args",
+    "content_sha256",
+)
 
 log = get_logger(__name__)
 
@@ -77,6 +87,7 @@ def run_one(task: RunTask) -> dict[str, Any]:
         "run_index": plan.run_index,
         "seed": {"entropy": plan.base_seed, "spawn_key": [plan.run_index]},
         "files": files,
+        "sha256": {kind: file_sha256(task.out_dir / name) for kind, name in files.items()},
         "rows": table.num_rows,
         "load_range": plan.load_range,
         "ambient_c": plan.ambient_c,
@@ -92,6 +103,20 @@ def run_one(task: RunTask) -> dict[str, Any]:
 
 def _sha256_json(obj: Any) -> str:
     return hashlib.sha256(json.dumps(obj, sort_keys=True).encode()).hexdigest()
+
+
+def file_sha256(path: Path) -> str:
+    """sha256 of a file's bytes, read in chunks."""
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def content_sha256(manifest: dict[str, Any]) -> str:
+    """Hash of the manifest without its volatile fields (stable for identical data)."""
+    return _sha256_json({k: v for k, v in manifest.items() if k not in VOLATILE_MANIFEST_FIELDS})
 
 
 def _git_commit() -> str | None:
@@ -161,6 +186,7 @@ def generate(
         "held_out_fault_types": [f.value for f in sim.faults.held_out_types()],
         "run_entries": entries,
     }
+    manifest["content_sha256"] = content_sha256(manifest)
     (out_dir / MANIFEST_NAME).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     log.info("generate.done", runs=runs, seconds=round(elapsed, 2))
     return manifest

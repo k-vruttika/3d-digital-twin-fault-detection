@@ -193,7 +193,8 @@ def test_file_path_imports_no_network_or_db_library() -> None:
         "build_adapter(AdapterKind.FILE, s, load_line_config('config/line.yaml'),"
         " root=Path('.'), clock=SystemClock())\n"
         "bad = [m for m in ('aiomqtt', 'paho', 'asyncua', 'websockets', 'httpx', 'asyncpg',"
-        " 'sqlalchemy', 'torch', 'sklearn', 'xgboost', 'fastapi', 'uvicorn') if m in sys.modules]\n"
+        " 'sqlalchemy', 'torch', 'sklearn', 'xgboost', 'mlflow', 'twin_ml', 'fastapi',"
+        " 'uvicorn') if m in sys.modules]\n"
         "print(','.join(bad))\n"
     )
     result = subprocess.run(

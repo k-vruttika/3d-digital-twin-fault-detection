@@ -1,0 +1,14 @@
+# Random Forest on window summary features (twin_ml.features.summary).
+type: rf
+class_weight: {power: 0.5, max: 50.0}   # (n / (k * n_c)) ** power, capped
+classifier:
+  n_estimators: 200
+  max_depth: 18
+  min_samples_leaf: 4
+  max_features: sqrt
+regressor:                           # time to fault, trained on known (uncensored) rows only
+  n_estimators: 150
+  max_depth: 18
+  min_samples_leaf: 8
+  max_features: 0.5
+n_jobs: -1

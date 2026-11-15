@@ -146,6 +146,35 @@ sequence = [
     { cmd = "pytest tests/test_phase1_integration.py tests/test_phase2_minimal.py tests/test_phase3_minimal.py tests/test_phase4_minimal.py tests/test_phase5_frontend_contract.py", env = { LINETWIN_MINIMAL_DATA_DIR = "data/sim_quick" } },
 ]
 
+# ML (Phase 7, Milestone B): dataset, training, E1 report. Configs in config/models/.
+[tool.poe.tasks.dataset]
+help = "Regenerate data/sim (200 runs x 1 h, default scenario) and build the windowed ML dataset -> data/ml/"
+sequence = [
+    { ref = "sim" },
+    { cmd = "python -m twin_ml.data build" },
+]
+
+[tool.poe.tasks.train]
+help = "Train + evaluate one model on the E1 dataset, logged to MLflow, e.g. `uv run poe train --model rf --seeds 0,1,2`"
+cmd = "python -m twin_ml.train --model ${model} --seeds ${seeds}"
+args = [
+    { name = "model", required = true, help = "persistence | threshold | rf | xgb | lstm | gru | transformer" },
+    { name = "seeds", default = "", help = "comma-separated seeds (default: config/models/eval.yaml)" },
+]
+
+[tool.poe.tasks.train-all]
+help = "E1: baselines + every model x 3 seeds (config/models/eval.yaml); extra args pass through, e.g. --skip-existing"
+cmd = "python -m twin_ml.experiments.e1"
+
+[tool.poe.tasks.report-e1]
+help = "Write experiments/results/E1_clean.md + .json + lead-time plot from the MLflow runs"
+cmd = "python -m twin_ml.experiments.report_e1"
+
+[tool.poe.tasks.mlflow-ui]
+help = "MLflow UI on the local store (full mlflow in an isolated uv tool environment)"
+cmd = "uv tool run --from mlflow==3.17.2 mlflow ui --backend-store-uri mlruns --port 5000"
+env = { MLFLOW_ALLOW_FILE_STORE = "true" }
+
 # Event store (config/storage.yaml; sqlite by default, timescale needs `up`).
 [tool.poe.tasks.db-migrate]
 help = "Apply pending event-store migrations to the configured backend"
@@ -213,14 +242,14 @@ strict = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-# ML code is research-heavy; relaxed until the ML phases tighten it.
+# ML code: typed, but untyped helper defs are tolerated (research code).
 module = ["twin_ml", "twin_ml.*"]
 strict = false
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
-# pyarrow and asyncpg ship no type information.
-module = ["pyarrow", "pyarrow.*", "asyncpg", "asyncpg.*"]
+# pyarrow, asyncpg, scikit-learn and mlflow ship no (complete) type information.
+module = ["pyarrow", "pyarrow.*", "asyncpg", "asyncpg.*", "sklearn", "sklearn.*", "xgboost", "xgboost.*", "mlflow", "mlflow.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]

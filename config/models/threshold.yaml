@@ -1,0 +1,4 @@
+# Baseline: last observed vib / temp / current vs the NOMINAL (unperturbed) per-kind warning
+# and fault thresholds of the simulator config.
+type: threshold
+sim_config: config/simulator.yaml

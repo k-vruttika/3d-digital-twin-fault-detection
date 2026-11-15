@@ -1,0 +1,26 @@
+# E1 evaluation, tracking and report settings (ADR 0019 / 0020, docs/experiments.md).
+experiment: E1_clean
+tracking_dir: mlruns                 # MLflow local file store (gitignored)
+seeds: [0, 1, 2]                     # model seeds; the data split is fixed (dataset.yaml)
+models: [persistence, threshold, rf, xgb, lstm, gru, transformer]   # train-all order
+
+subsets:
+  operating: [RUNNING, WARNING]      # (a) main result: machine operating now
+  stopped: [FAULT, MAINTENANCE]      # (b) already faulted or under repair
+
+early_warning:
+  sustain_s: 3                       # an alarm = WARNING/FAULT predicted for this many
+                                     # consecutive seconds of windows
+latency:
+  warmup_calls: 50
+  timed_calls: 500
+  num_threads: 1                     # batch size 1, single thread (edge-like inference)
+
+bootstrap:
+  n_resamples: 1000                  # resample test runs with replacement
+  seed: 11
+  ci: 0.95
+
+report:
+  out_dir: experiments/results
+  name: E1_clean

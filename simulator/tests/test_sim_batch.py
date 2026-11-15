@@ -10,7 +10,7 @@ import pytest
 from twin_common.config.line import LineConfig
 from twin_common.contracts import Reading
 from twin_sim.__main__ import main
-from twin_sim.batch import MANIFEST_NAME, generate
+from twin_sim.batch import MANIFEST_NAME, content_sha256, file_sha256, generate
 from twin_sim.config import ScenarioConfig, SimConfig
 from twin_sim.recorder import SCHEMA
 
@@ -43,6 +43,41 @@ def test_generate_writes_files_and_manifest(
         readings = [Reading.model_validate_json(x) for x in lines]
         assert len(readings) == 480
         assert set(entry["thresholds"]) == {"CNV-01", "CNC-01", "INSP-01", "CNV-02"}
+
+
+def test_manifest_hashes_files_and_content(
+    line_cfg: LineConfig, sim_cfg: SimConfig, tmp_path: Path
+) -> None:
+    sc = ScenarioConfig(name="h", duration_s=60)
+
+    def gen(out: Path, workers: int) -> dict[str, object]:
+        return generate(
+            line=line_cfg,
+            sim=sim_cfg,
+            scenario=sc,
+            runs=2,
+            base_seed=5,
+            out_dir=out,
+            exports=("csv",),
+            workers=workers,
+            cli_args={"out": str(out)},
+        )
+
+    first = gen(tmp_path / "a", 1)
+    second = gen(tmp_path / "b", 2)
+    for entry in first["run_entries"]:  # type: ignore[attr-defined]
+        for kind, name in entry["files"].items():
+            assert entry["sha256"][kind] == file_sha256(tmp_path / "a" / name)
+    # Identical data -> identical content hash, despite different paths, workers and times.
+    assert first["content_sha256"] == second["content_sha256"] == content_sha256(first)
+    assert first["cli_args"] != second["cli_args"]
+    on_disk = json.loads((tmp_path / "a" / MANIFEST_NAME).read_text(encoding="utf-8"))
+    assert on_disk["content_sha256"] == first["content_sha256"]
+    # Different data -> different content hash.
+    other = generate(
+        line=line_cfg, sim=sim_cfg, scenario=sc, runs=2, base_seed=6, out_dir=tmp_path / "c"
+    )
+    assert other["content_sha256"] != first["content_sha256"]
 
 
 def test_generate_rejects_bad_args(

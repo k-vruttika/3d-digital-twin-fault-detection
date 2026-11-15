@@ -22,7 +22,17 @@ from twin_common.contracts import Reading
 from twin_common.enums import MachineState
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-FORBIDDEN_MODULES = ("asyncpg", "aiomqtt", "asyncua", "torch", "sqlalchemy")
+FORBIDDEN_MODULES = (
+    "asyncpg",
+    "aiomqtt",
+    "asyncua",
+    "torch",
+    "sklearn",
+    "xgboost",
+    "mlflow",
+    "sqlalchemy",
+    "twin_ml",
+)
 
 
 @pytest.fixture(scope="module")

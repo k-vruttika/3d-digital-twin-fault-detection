@@ -8,7 +8,7 @@ import pytest
 
 from twin_common.aio import new_event_loop
 
-pytest_plugins = ["twin_sim.testing", "twin_backend.testing"]
+pytest_plugins = ["twin_sim.testing", "twin_backend.testing", "twin_ml.testing"]
 
 
 def pytest_asyncio_loop_factories(config: pytest.Config, item: pytest.Item) -> Mapping[str, object]:

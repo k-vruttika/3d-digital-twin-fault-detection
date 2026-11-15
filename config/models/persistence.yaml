@@ -1,0 +1,2 @@
+# Baseline: the current health class continues (reads `state` by design; not a model input).
+type: persistence

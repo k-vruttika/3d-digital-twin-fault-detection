@@ -26,6 +26,8 @@ OPTIONAL_MODULES = (
     "torch",
     "sklearn",
     "xgboost",
+    "mlflow",
+    "twin_ml",
     "onnxruntime",
     "shap",
     "captum",

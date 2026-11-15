@@ -46,7 +46,7 @@ SERVICES:     Docker Compose (uv run poe up): TimescaleDB (PostgreSQL 16) + Mosq
 - **Python 3.11**, managed with `uv`. FastAPI, Uvicorn, Pydantic v2, pydantic-settings, asyncio
 - **Messaging:** Mosquitto 2 via Docker Compose (shared settings in `config/mosquitto.d/`, container entry `config/mosquitto.docker.conf`; native fallback entry `config/mosquitto.conf`) + `aiomqtt`; OPC UA via `asyncua`
 - **Storage:** PostgreSQL 16 with the TimescaleDB extension via Docker Compose (hypertables and continuous aggregates allowed), via `asyncpg`/SQLAlchemy 2. SQLite implementation for minimal mode and tests; Parquet (pyarrow) for datasets
-- **ML:** PyTorch, scikit-learn, XGBoost, SHAP, Captum, `river` (ADWIN), MLflow (local file store), ONNX / onnxruntime
+- **ML:** PyTorch (CPU build: PyTorch CPU index on Linux/Windows, PyPI on macOS), scikit-learn, XGBoost (`xgboost-cpu` on Linux/Windows), SHAP, Captum, `river` (ADWIN), MLflow (`mlflow-skinny`, local file store `mlruns/`), ONNX / onnxruntime (ADR 0020)
 - **Frontend:** TypeScript (strict), Vite, React, Three.js (used directly, NOT react-three-fiber), Chart.js
 - **Quality:** ruff, mypy, pytest, pytest-asyncio, Vitest, ESLint, pre-commit, GitHub Actions; frontend dev tools `openapi-typescript` (API types, ADR 0017), Playwright with `@playwright/test` (screenshots, dashboard e2e) and Testing Library + jsdom (component tests)
 - **Ops:** Prometheus metrics endpoint (`/metrics`), Locust for load testing. Dev tasks are poethepoet (`poe`) tasks in the root `pyproject.toml`, run as `uv run poe <task>`, identical on Windows, Linux and macOS
@@ -70,7 +70,7 @@ linetwin/
 │  ├─ mosquitto.d/           # Mosquitto settings shared by container and native fallback
 │  ├─ mosquitto.docker.conf  # Mosquitto entry config inside the container
 │  ├─ mosquitto.conf         # Mosquitto entry config for the native fallback
-│  └─ models/*.yaml          # per-model training configs
+│  └─ models/                # ML: dataset.yaml, eval.yaml, one <model>.yaml per model/baseline
 ├─ common/twin_common/       # shared Pydantic contracts (Reading, Command, ...), config loaders
 ├─ simulator/twin_sim/       # physics, machines, line, scenarios, publishers (mqtt, opcua, mock server), CLI
 ├─ backend/twin_backend/
@@ -84,8 +84,9 @@ linetwin/
 │  ├─ whatif/
 │  └─ api/                   # REST routers, WS gateway, auth
 ├─ ml/twin_ml/
-│  ├─ data/                  # windowing, labels, splits, perturbations
-│  ├─ features/
+│  ├─ data/                  # windowing, labels, splits, build (python -m twin_ml.data build), perturbations
+│  ├─ features/              # allowed inputs, normalisation, window summaries (no twin_sim, no torch)
+│  ├─ baselines/             # persistence, static threshold
 │  ├─ models/                # rf, xgb, lstm, gru, transformer, autoencoder, iforest
 │  ├─ train/  calibrate/  conformal/  explain/  evaluate/
 │  ├─ datasets/              # metropt3, azure_pdm, cmapss loaders
@@ -101,7 +102,7 @@ linetwin/
 │     ├─ dashboard/          # React dashboard: state/ (model, session, replay), components/, charts/
 │     ├─ api/                # REST + WS client; openapi.json + schema.gen.ts generated (poe api-docs)
 │     └─ dev/                # dev page entry and synthetic data mode
-├─ data/                     # sim/, external/ (gitignored)
+├─ data/                     # sim/, ml/ (built datasets), external/ (gitignored)
 ├─ experiments/results/      # generated reports and plots only
 ├─ tests/                    # cross-package integration / e2e tests
 └─ docs/

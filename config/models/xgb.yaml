@@ -1,0 +1,19 @@
+# XGBoost on window summary features (twin_ml.features.summary).
+type: xgb
+class_weight: {power: 0.5, max: 50.0}
+classifier:
+  n_estimators: 600
+  max_depth: 6
+  learning_rate: 0.08
+  subsample: 0.8
+  colsample_bytree: 0.8
+  min_child_weight: 2.0
+regressor:
+  n_estimators: 600
+  max_depth: 6
+  learning_rate: 0.08
+  subsample: 0.8
+  colsample_bytree: 0.8
+  min_child_weight: 2.0
+early_stopping_rounds: 30            # on the validation loss of each head
+n_jobs: -1

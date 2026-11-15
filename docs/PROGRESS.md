@@ -47,6 +47,163 @@ uv run poe screenshots                 # screenshots of all of the above (dashbo
 
 The same two flows run automatically as the Playwright end-to-end tests (`uv run poe browsers` once, then `uv run poe test`).
 
+## Phase 7: ML dataset and models, E1 (done, 2026-11-14)
+
+The first phase of Milestone B (research). It was delivered in two parts:
+
+- **Part A:** setup, dataset, features, baselines, Random Forest and XGBoost, the evaluation and report pipeline.
+- **Part B:** LSTM, GRU and Transformer, the full E1 run over three seeds, the final report and the docs.
+
+The review changes are included: sample weights compensate the subsample, the report has bootstrap CIs, and `twin_sim` is isolated.
+
+### What was built
+
+- **Setup:**
+  - This machine has no NVIDIA GPU (`nvidia-smi` is absent; Intel Arc graphics), so everything uses the CPU build of PyTorch.
+  - New dependencies in `twin-ml`:
+    - `torch` 2.15.0 (CPU index on Linux and Windows, PyPI on macOS);
+    - `scikit-learn` 1.9.1;
+    - XGBoost 3.2.0 (`xgboost-cpu` on Linux and Windows);
+    - `mlflow-skinny` 3.17.2;
+    - plus `twin-sim`, numpy, pyarrow and matplotlib.
+  - Details and the reasons for each version: [ADR 0020](adr/0020-ml-models-training-tracking.md).
+- **Simulator manifest:** a sha256 per data file and a `content_sha256` (the manifest without its volatile fields), so identical regenerations hash the same. The dataset build verifies the files against it.
+- **Dataset** (`twin_ml.data`, `python -m twin_ml.data build`; [ADR 0019](adr/0019-ml-dataset-labels-splits.md)):
+  - 30 s windows per machine series; strides train 5 s, val 5 s, test 1 s.
+  - Targets: health at +10 s and +30 s; time to fault capped at 600 s with a censoring flag; fault type.
+  - Split by run, 70 / 15 / 15 (140 / 30 / 30 runs).
+  - Normaliser fitted on training rows only.
+  - Forward fill plus missing masks; the engineered `vib_norm` channel.
+  - Training-only subsample of far-normal windows (keep 0.25), with compensating sample weight 4.
+  - Output: `data/ml/<dataset_key>/` (`meta.json` + one `.npz` per split).
+- **Inputs:** `ALLOWED_INPUT_COLUMNS` (5 sensors) plus the kind is the only door into features. Sequence models see (30 × 14) windows; trees see 50 summary features.
+- **Baselines:** persistence (reads `state` by design) and the static threshold rule (nominal per-kind limits from `simulator.yaml`). The simulator's own WARNING onset is the reference for relative lead times.
+- **Models:**
+  - RF and XGBoost (`models/trees.py`): one head per target; the time-to-fault regressor trains on known rows only.
+  - LSTM, GRU and Transformer (`models/nn.py`): shared encoder, four heads, censoring-aware time-to-fault loss (`train/losses.py`), early stopping on validation macro F1.
+  - Every classifier gets class weights on top of the sample weights.
+- **Training and tracking:**
+  - `python -m twin_ml.train` (config-driven, `config/models/*.yaml`) logs to MLflow (local file store `mlruns/`): tags with both manifest hashes, flattened params, about 200 metrics, and artifacts (`metrics.json` with per-episode lead times, `splits.json`, `test_predictions.npz`, XGBoost/torch models).
+  - `twin_ml.experiments.e1` runs the whole of E1, with `--skip-existing` to resume.
+- **Evaluation** (`twin_ml.evaluate`):
+  - classification metrics per horizon and subset: (a) operating, (b) FAULT/MAINTENANCE, (c) before a gradual fault vs before a belt jam, and all windows;
+  - time-to-fault MAE on known rows; fault-type macro F1;
+  - early warning: lead time, lead relative to the simulator WARNING, miss rate, false alarms per hour;
+  - latency p50/p95 at batch size 1 on one thread;
+  - seeded bootstrap over whole test runs (1000 resamples, 95 % CI).
+- **Report:** `python -m twin_ml.experiments.report_e1` reads only MLflow and writes [E1_clean.md](../experiments/results/E1_clean.md), `E1_clean.json` and `E1_clean_lead_times.png`, with mean ± std over seeds, the bootstrap CIs and the episode counts per machine kind.
+- **poe tasks:** `dataset`, `train --model X [--seeds …]`, `train-all`, `report-e1`, `mlflow-ui`.
+- **Docs:** [experiments.md](experiments.md) (new), ADRs 0019 and 0020, setup.md §7, CLAUDE.md §4 and §5.
+
+### How to run
+
+```text
+uv run poe dataset                 # data/sim (200 x 1 h, default scenario, seed 42) + data/ml/<key>/
+uv run poe train --model xgb       # one model, seeds 0,1,2 (or --seeds 0)
+uv run poe train-all               # E1: baselines + 5 models x 3 seeds (--skip-existing to resume)
+uv run poe report-e1               # experiments/results/E1_clean.md / .json / lead-time plot
+uv run poe mlflow-ui               # optional: browse mlruns/ at http://127.0.0.1:5000
+```
+
+### Measured times (this laptop: Intel Core Ultra 5 125H, 18 logical CPUs, 16 GB RAM, Windows 11, CPU only)
+
+| Step | Time |
+|---|---|
+| `poe dataset`: simulator, 200 runs × 3600 s | 11.8 s |
+| `poe dataset`: windowed build (5.5 s inside the builder) | about 9 s |
+| Full `train-all` (2 baselines + 15 trained runs, each with test evaluation, bootstrap and latency) | 74 min |
+
+Train time per run (mean ± std over the three seeds, from `E1_clean.md`):
+
+| Model | Train time |
+|---|---|
+| RF | 123 ± 3 s |
+| XGBoost | 19 ± 1 s |
+| LSTM | 228 ± 52 s (7–11 epochs at about 24 s) |
+| GRU | 328 ± 26 s (5–9 epochs at 37–68 s) |
+| Transformer | 674 ± 106 s (7–9 epochs at 76–87 s) |
+
+- **Test evaluation per run:** 3–23 s of prediction over 424,920 test windows (XGBoost 3.4 s, Transformer about 20 s), plus the bootstrap.
+- **Epoch-time variance:** GRU epoch times varied between runs (27–33 s in a first measurement run, 37–68 s inside `train-all`), with identical results: the seed-0 run reproduced its epochs and validation scores exactly. Wall-clock times on this laptop depend on load and are approximate.
+
+### Results
+
+Every number is in [E1_clean.md](../experiments/results/E1_clean.md), generated from MLflow; none is repeated here. In short, for the record:
+
+- **Operating windows, +30 s:** all five models beat both baselines on macro F1. At +10 s the threshold rule is the strongest; the learned models rarely predict FAULT 10 s ahead.
+- **Early warning:** every model detects all 26 gradual episodes and raises its sustained alarm before the simulator's own threshold WARNING, by a few tens of seconds on average (CIs in the report). There are almost no false alarms on clean data.
+- **Belt jams** are not anticipated by any model or baseline, as expected: jams have no precursors.
+- **Already faulted windows** (subset b): persistence is best by construction.
+
+These are clean-data results. E2–E5 will stress them.
+
+### Tests
+
+pytest collects 745 tests (693 in Phase 6). With the services down, 695 passed and 50 skipped. 61 of the tests are in `ml/tests`; the extended guards and the manifest test come on top. The service-dependent tests did not run this phase because Docker was not up; nothing they cover changed.
+
+- **Windows and labels** (`test_ml_labels_windows.py`):
+  - window ends and strides; tail windows dropped; the +h target equals the state h rows ahead;
+  - gathers stay inside the window; the §6 mapping;
+  - censoring rule; episodes and episode types; forward fill with a leading gap.
+- **Sample weights:**
+  - the subsample keeps every fault-near window;
+  - **the weighted class distribution after subsampling equals the unsubsampled one** (synthetic, and on the built dataset against a keep-1.0 build);
+  - class weights from the subsample match the full set.
+- **Leakage** (`test_ml_dataset_build.py`):
+  - run-level split disjoint, complete and deterministic (140 / 30 / 30 for 200 runs);
+  - no run in two splits; windows never cross series;
+  - the normaliser equals a refit on training rows, and is unchanged when the val/test data is multiplied by 3.
+- **Input restrictions:** permuting every forbidden column (state, run_time, seq, quality, fault_type, time_to_fault_s, ttf_censored, root_cause_machine, load_range, sensor_fault, buffers) in the Parquet files leaves the raw, normalised, mask, summary and sequence inputs bit-identical, while the labels change. Feature names are restricted.
+- **Baselines** (`test_ml_baselines.py`): persistence on a hand-built series; the threshold rule at and just below every warning and fault limit for each kind; the limits equal the nominal config.
+- **Metrics** (`test_ml_metrics.py`):
+  - confusion matrix, P/R/F1 and macro F1 by hand; the macro over present classes;
+  - average precision against scikit-learn's documented example (0.8333), ties and no positives;
+  - MAE excluding censored and capped rows;
+  - sustained alarms, rising edges, lead and relative lead, false alarms per hour, the summary;
+  - bootstrap determinism, the CI brackets the point estimate, resampling of whole runs;
+  - latency percentiles.
+- **Losses** (`test_ml_losses.py`): censored rows cost nothing at or above the bound and the hinge below it; Huber on known rows; weighted means; focal loss against a hand computation.
+- **End to end** (`test_ml_e2e_train.py`, quick-scenario data, 6 runs × 1500 s):
+  - persistence, threshold, rf, xgb, lstm, gru and transformer each train, evaluate and log one MLflow run with the expected metric keys, tags (dataset key, content hash) and artifacts;
+  - the report's numbers equal the MLflow metrics;
+  - a report without runs fails clearly;
+  - GRU training gives identical predictions for the same seed and different ones for another seed.
+- **Imports** (`test_ml_imports.py`, fresh subprocess):
+  - features, normalize, summary, dataset, labels, windows, models.base / trees, evaluate and persistence load neither `twin_sim` nor torch, sklearn, xgboost or mlflow;
+  - only `data.build` and `baselines.threshold` load `twin_sim`;
+  - only `models.nn` loads torch.
+- **Guards:** every minimal-mode and backend import guard now also lists `mlflow` and `twin_ml` (`OPTIONAL_MODULES` too).
+- **Simulator:** the file hashes match the files; `content_sha256` is equal for two generations with different paths and worker counts, and differs for another seed.
+
+### Verified here (Windows 11, services not running)
+
+| Check | Result |
+|---|---|
+| `uv run poe lint` | passes (ruff, format, mypy strict incl. `ml/tests`, eslint, tsc) |
+| `uv run poe test` | pytest 695 passed, 50 skipped (TimescaleDB / Mosquitto / Playwright tests; services were not running); Vitest 163 passed |
+| `uv run poe minimal-data-check` | 14 passed |
+| `uv run poe report-e1` run twice | the outputs differ only in the generation timestamp |
+
+### Known limitations
+
+- **Clean data only:** noise, missing data, shifted conditions and unseen faults are E2–E5. The missing-mask channels are in place but all zero on this data.
+- **Small episode count:** 26 gradual episodes in 30 test runs (CNC 12, conveyor 9, inspection 5). The bootstrap CIs on the lead times are correspondingly wide.
+- **Noisy validation macro F1:** it moves by about ±0.05 between epochs, so early stopping with patience 3 often stops after 5–11 epochs. The best epoch's weights are kept. Not tuned further.
+- **No calibration yet:** probabilities are uncalibrated (`Prediction.calibrated = false`). Calibration and conformal sets are the next phases.
+- **Random Forests are not saved** (hundreds of MB); retrain from the seed.
+- **MLflow file store:** in maintenance mode in MLflow 3.x and enabled with `MLFLOW_ALLOW_FILE_STORE=true`. `mlflow migrate-filestore` moves the runs to SQLite if needed.
+- **Not run:** the CI matrix (there is no remote). Linux and macOS rely on the platform markers for torch and xgboost.
+
+### Deviations from the plan / CLAUDE.md
+
+- **`mlflow-skinny` instead of `mlflow`:** full mlflow 3.17 pins `pyarrow < 26`, which conflicts with the simulator. The full UI runs isolated via `uv run poe mlflow-ui`.
+- **XGBoost 3.2.0, not the latest:** 3.3 and later need Python 3.12. `xgboost-cpu` is used on Linux and Windows to avoid the CUDA/NCCL dependency.
+- **Subset (c)** (gradual vs jam) is restricted to operating windows, so it measures warning before the fault. A first version also counted windows already in FAULT, which made jam "recall" look high.
+- **Simulator change:** `batch.py` writes file hashes and `content_sha256` into the manifest.
+- **Test fixtures:** a new plugin `twin_ml.testing` is registered in the root `conftest.py`.
+- **New files outside the CLAUDE.md layout** (§5 updated): `ml/twin_ml/baselines/`, `twin_ml/config.py`, `twin_ml/testing.py`, `config/models/dataset.yaml` and `eval.yaml`.
+- **Results committed:** `experiments/results/E1_clean.md`, `.json` and `.png`.
+
 ## Phase 6: Dashboard (done, 2026-11-14)
 
 Delivered in two parts:
@@ -1099,3 +1256,64 @@ pytest now runs 221 tests: 76 in `simulator/tests` and 3 in `tests/test_phase1_i
 - `Prediction.ttfS` and `ttfInterval` are nullable, where `null` means no fault is expected within the horizon.
 - Test directories have no `__init__.py`, and test file names are unique repo-wide (see ADR 0001).
 - `help` and `install` targets were added on top of the requested dev/minimal/test/lint/fmt/sim.
+
+## Phase 7 follow-ups (completed 2026-11-15)
+
+Learning curves and robust early stopping for the sequence models, 3-seed reruns, paired bootstrap comparisons, interpretation notes, regenerated E1 (`experiments/results/E1_clean.md`, plus `E1_clean_learning_curves.png`).
+
+### What was built
+
+- **Learning curves:** per-epoch train and validation loss (total and per head), validation macro F1 per horizon, its EMA and the learning rate. They are stored in each run's `metrics.json` and logged to MLflow as `curve.*` step metrics.
+- **Early stopping** (`twin_ml/train/early_stopping.py`, unit tested; used by `models/nn.py`): an EMA of the validation macro F1 with `min_epochs`, `patience`, `min_delta` and a `max_epochs` cap. The best checkpoint is chosen by raw validation macro F1. Reduce-on-plateau on the validation loss.
+- **Resumable reruns:** every run is tagged `model_config_sha`; `train-all --skip-existing` skips a (model, seed) only if it finished with the same hash.
+- **Paired bootstrap** (`evaluate/bootstrap.py: paired_bootstrap`, `experiments/paired.py`): both sides on the same resampled test runs. Every model vs the threshold baseline, and the best sequence model vs the best tree model per horizon.
+- **Report:** interpretation notes; early warning first (primary), classification second; sections for paired comparisons, sequence-model training with learning curves, and changes since the previous configuration. `docs/experiments.md` has the same notes.
+
+### Settings (config/models/{lstm,gru,transformer}.yaml)
+
+Reduce-on-plateau for all three; `max_epochs: 16`; `min_epochs: 10`; `patience: 3` over `min_delta: 0.002`; `ema_alpha: 0.4`. Config hashes: lstm `40059aaad95e`, gru `5d9055af6981`, transformer `dc9c17caa015`. Choices were based on seed-0 diagnostics (16 epochs, MLflow `E1_curves_none` / `E1_curves_plateau`, not part of E1): constant LR gave a noisy validation score that stopped old runs on unlucky dips; plateau reduced the noise and raised +10 s macro F1 for all three.
+
+### 3-seed reruns (all finished with the same config hash)
+
+| Run | Epochs | Best epoch | Train time | MLflow run |
+|---|---|---|---|---|
+| lstm 0 | 16 | 15 | 614.7 s | `f518d3cea1b9418487381d5c1861b3da` |
+| lstm 1 | 15 | 15 | 318.9 s | `dbc96b9eda2447a695e3628750d4b368` |
+| lstm 2 | 11 | 8 | 257.1 s | `eeb1d4c738ac42f18463d6b9d0c8c324` |
+| gru 0 | 16 | 16 | 561.1 s | `d3e33dc9d4834cba9b4e957e95953b9c` |
+| gru 1 | 11 | 8 | 607.1 s | `8b455effceae40df9745c318620504d1` |
+| gru 2 | 10 | 6 | 341.2 s | `d1d7f578f2a448aab814bbc75527ac08` |
+| transformer 0 | 10 | 4 | 734.9 s | `c6fc4d445aed4667ace11c5588816ce0` |
+| transformer 1 | 16 | 15 | 1213.6 s | `bdd20370808142da8cfde21aaed924a7` |
+| transformer 2 | 10 | 6 | 819.1 s | `e9103c658a124f12b8a70d8ba6598eca` |
+
+Training time varies with machine load (the same model took 257 to 615 s for LSTM). LSTM seed 0 ran earlier; LSTM seed 1 had been stopped once by request and was rerun. The last `train-all` invocation (lstm seed 1 to transformer seed 2) took 5011 s.
+
+### Results (from the regenerated E1 report; 3 seeds, mean over seeds)
+
+- **Early warning (primary):** all learned models detect every gradual episode (miss rate 0.000) with about 0 false alarms per hour. Mean lead at +30 s: rf 283 s, xgb 289, lstm 296, gru 293, transformer 294 (threshold 226, persistence 229).
+- **Paired vs threshold (+30 s):** every learned model warns earlier than the threshold baseline, with the CI excluding zero in 3/3 seeds: lead gain 57 s (rf), 63 (xgb), 70 (lstm), 67 (gru), 68 (transformer). Persistence is not different from threshold (+3 s, CI [-11, 15]). Macro F1 vs threshold at +30 s: rf +0.042 and gru +0.046 (CI excludes zero), xgb +0.027, lstm +0.035, transformer +0.041 (CI includes zero).
+- **Paired best sequence vs best tree:** +10 s transformer - xgb: lead +13 s [4, 22] (CI excludes zero in 2/3 seeds), macro F1 +0.005 (no). +30 s lstm - xgb: lead +7 s [-4, 17] (no), macro F1 +0.008 (no). Sequence models are not clearly better than the trees.
+- **+10 s macro F1** is below the threshold baseline for every learned model (-0.04 for rf, about -0.10 for the others). Models warn earlier than the simulator's WARNING label, which the per-window metric counts as errors; FAULT recall at +10 s is low (0.03 to 0.14).
+
+### Learning curves: have they flattened by epoch 16? Not clearly
+
+- The three runs that reached the cap (lstm 0, gru 0, transformer 1) had their best epoch at 15, 16 and 15, and their validation EMA was still rising (about +0.001 to +0.008 per epoch over the last epochs, after the LR drops). A larger cap might gain a little; this was not tested.
+- Six of nine runs stopped on patience at 10 to 15 epochs, mostly right after `min_epochs`. Four of them (lstm 2, gru 2, transformer 0, transformer 2) stopped at 10 to 11 epochs with the learning rate still at its initial value (no plateau drop yet), so they did not get the annealing phase that the longer runs got. Their EMAs were noisy and flat rather than converged.
+- Seed-to-seed spread is large (transformer +10 s macro F1 ±0.030, train time ±256 s), which is partly this difference in stopping point. Epoch-count variance is therefore a limitation of the sequence-model results.
+
+### Changes vs the previous configuration (E1 report table)
+
+Epochs rose from 9.3 / 6.7 / 8.3 to 14.0 / 12.3 / 12.0 (lstm / gru / transformer) and train time from 228 / 328 / 674 s to 397 / 503 / 923 s. Macro F1 at +10 s rose (lstm 0.646 to 0.666, gru 0.636 to 0.666, transformer 0.652 to 0.662). At +30 s and in lead times the changes are within the seed spread (lead 294 to 296, 296 to 293, 296 to 294 s).
+
+### Verification
+
+`uv run poe lint` clean (ruff, mypy, ESLint, tsc). `uv run poe test`: 703 passed, 50 skipped (services not running: TimescaleDB, MQTT); frontend 163 passed. `uv run poe minimal-data-check`: 14 passed.
+
+### Known limitations / decisions
+
+- Early stopping interacts with `min_epochs: 10`: some seeds stop before the first LR drop (see above). Options for later: raise `min_epochs`, or compare at a fixed 16 epochs. Not done, to keep to the planned settings.
+- `E1_clean.md` is regenerated from MLflow; it contains the older runs only in the changes table.
+- Decision: results were not tuned further after seeing the test metrics.
+
+Suggested commit message: `Phase 7 follow-ups: learning curves, EMA early stopping, 3-seed sequence-model reruns, paired bootstrap comparisons, regenerated E1`

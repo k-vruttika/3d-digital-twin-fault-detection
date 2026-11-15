@@ -165,3 +165,15 @@ Details: [frontend.md](frontend.md).
 ## 6. Minimal mode reminder
 
 None of sections 2 and 3 is needed to run the twin from a JSON/CSV file or the mock server. `config/sources.yaml` ships with `active: file` and `config/storage.yaml` with `backend: sqlite`, and minimal mode never requires Docker (CLAUDE.md §1 and §7). `uv run poe minimal` is the entry point.
+
+## 7. ML (Milestone B)
+
+- **Dependencies:** `uv sync --all-packages` installs the ML stack with the rest:
+  - PyTorch, CPU build (PyTorch's CPU index on Windows and Linux, PyPI on macOS); no CUDA wheels;
+  - scikit-learn and XGBoost (`xgboost-cpu` on Windows and Linux);
+  - `mlflow-skinny`.
+  
+  The first sync downloads a few hundred MB. No GPU is needed: model sizes and the training subsample are chosen for a laptop CPU (measured times in [PROGRESS.md](PROGRESS.md)).
+- **Run E1:** `uv run poe dataset`, `uv run poe train-all`, `uv run poe report-e1`. Details: [experiments.md](experiments.md).
+- **MLflow UI:** `uv run poe mlflow-ui` runs the full MLflow UI in an isolated `uv tool` environment, on the local store `mlruns/` (gitignored).
+- **Isolation:** the backend and minimal mode never import torch, scikit-learn, XGBoost, MLflow or `twin_ml`; tests enforce this.

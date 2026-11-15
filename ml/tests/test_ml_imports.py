@@ -1,0 +1,57 @@
+"""Import isolation: inference-side modules load neither twin_sim nor heavy ML libraries."""
+
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+
+from twin_ml.testing import REPO_ROOT
+
+# What Phase 11 needs to run inference inside the backend, without the simulator.
+INFERENCE_MODULES = (
+    "twin_ml.config",
+    "twin_ml.features",
+    "twin_ml.features.inputs",
+    "twin_ml.features.normalize",
+    "twin_ml.features.summary",
+    "twin_ml.data.dataset",
+    "twin_ml.data.labels",
+    "twin_ml.data.windows",
+    "twin_ml.models.base",
+    "twin_ml.models.trees",
+    "twin_ml.evaluate.evaluator",
+    "twin_ml.evaluate.metrics",
+    "twin_ml.evaluate.early_warning",
+    "twin_ml.evaluate.bootstrap",
+    "twin_ml.evaluate.latency",
+    "twin_ml.baselines.persistence",
+)
+
+
+def _loaded(modules: tuple[str, ...], watch: tuple[str, ...]) -> list[str]:
+    script = (
+        "import importlib, json, sys\n"
+        f"for m in {list(modules)!r}: importlib.import_module(m)\n"
+        f"print(json.dumps(sorted(w for w in {list(watch)!r} "
+        "if any(k == w or k.startswith(w + '.') for k in sys.modules))))\n"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", script], cwd=REPO_ROOT, capture_output=True, text=True, check=True
+    )
+    loaded: list[str] = json.loads(out.stdout.strip().splitlines()[-1])
+    return loaded
+
+
+def test_inference_modules_do_not_import_the_simulator_or_heavy_libraries() -> None:
+    watch = ("twin_sim", "torch", "sklearn", "xgboost", "mlflow")
+    assert _loaded(INFERENCE_MODULES, watch) == []
+
+
+def test_simulator_only_where_allowed() -> None:
+    assert _loaded(("twin_ml.data.build",), ("twin_sim",)) == ["twin_sim"]
+    assert _loaded(("twin_ml.baselines.threshold",), ("twin_sim",)) == ["twin_sim"]
+
+
+def test_torch_only_in_the_sequence_models() -> None:
+    assert _loaded(("twin_ml.models.nn",), ("torch", "twin_sim")) == ["torch"]

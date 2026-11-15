@@ -3,11 +3,36 @@ name = "twin-ml"
 version = "0.1.0"
 description = "LineTwin ML: data, models, calibration, conformal, explanation, experiments"
 requires-python = ">=3.11,<3.12"
-# Heavy ML dependencies (torch, sklearn, xgboost, ...) are added in the ML phases.
-dependencies = ["twin-common"]
+# twin-sim is used only by dataset building and the threshold baseline (ADR 0019); features,
+# models and evaluation must import without it so the backend can run inference later.
+dependencies = [
+    "twin-common",
+    "twin-sim",
+    "numpy>=2.4.6",
+    "pyarrow>=26.0.1",
+    # CPU builds only (ADR 0020). Linux/Windows: PyTorch's CPU index; macOS: PyPI (CPU/MPS).
+    "torch==2.15.0",
+    "scikit-learn==1.9.1",
+    # xgboost-cpu has no CUDA/NCCL dependency; it is not published for macOS, where the
+    # regular wheel is CPU-only anyway. Both install the `xgboost` module. 3.2 is the last
+    # release that supports Python 3.11.
+    "xgboost-cpu==3.2.0; sys_platform != 'darwin'",
+    "xgboost==3.2.0; sys_platform == 'darwin'",
+    # mlflow-skinny: tracking client + file store without the UI server; full mlflow 3.17 pins
+    # pyarrow<26, which conflicts with the simulator (ADR 0020). UI: `uv run poe mlflow-ui`.
+    "mlflow-skinny==3.17.2",
+    "matplotlib>=3.11.2",
+]
 
 [tool.uv.sources]
 twin-common = { workspace = true }
+twin-sim = { workspace = true }
+torch = [{ index = "pytorch-cpu", marker = "sys_platform != 'darwin'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [build-system]
 requires = ["hatchling"]
