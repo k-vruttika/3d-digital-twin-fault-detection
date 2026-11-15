@@ -248,8 +248,8 @@ strict = false
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
-# pyarrow, asyncpg, scikit-learn and mlflow ship no (complete) type information.
-module = ["pyarrow", "pyarrow.*", "asyncpg", "asyncpg.*", "sklearn", "sklearn.*", "xgboost", "xgboost.*", "mlflow", "mlflow.*"]
+# pyarrow, asyncpg, scikit-learn, threadpoolctl and mlflow ship no (complete) type information.
+module = ["pyarrow", "pyarrow.*", "asyncpg", "asyncpg.*", "sklearn", "sklearn.*", "xgboost", "xgboost.*", "threadpoolctl", "threadpoolctl.*", "mlflow", "mlflow.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]

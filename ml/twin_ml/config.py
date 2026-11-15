@@ -247,10 +247,14 @@ def load_eval_config(path: str | Path) -> EvalConfig:
     return load_model(path, EvalConfig)
 
 
-def load_model_config(path: str | Path) -> ModelConfig:
-    p = Path(path)
-    data = read_yaml(p)
+def parse_model_config(data: object, source: str = "<model config>") -> ModelConfig:
+    """Validate a model config given as plain data (e.g. from ``model_dump(mode="json")``)."""
     try:
         return _MODEL_ADAPTER.validate_python(data)
     except ValidationError as exc:
-        raise ConfigError(format_validation_error(str(p), exc)) from exc
+        raise ConfigError(format_validation_error(source, exc)) from exc
+
+
+def load_model_config(path: str | Path) -> ModelConfig:
+    p = Path(path)
+    return parse_model_config(read_yaml(p), str(p))

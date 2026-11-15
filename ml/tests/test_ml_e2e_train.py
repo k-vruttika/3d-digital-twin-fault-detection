@@ -1,10 +1,18 @@
 """Tiny end-to-end training per model type on quick-scenario data, logged to a tmp MLflow
-store, and the E1 report rendered from those runs."""
+store, and the E1 report rendered from those runs.
+
+Every (model, seed) trains in its own worker process, as in ``train-all``: torch and XGBoost
+must never share a process (two OpenMP runtimes crash on macOS; ADR 0020). The workers run
+with faulthandler on, so a crash prints the crashing frame to the test output.
+"""
 
 from __future__ import annotations
 
+import faulthandler
 import json
 import re
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -13,9 +21,15 @@ import pytest
 from twin_ml.config import DatasetConfig, EvalConfig, ModelConfig, NnConfig, load_model_config
 from twin_ml.data.dataset import Dataset
 from twin_ml.experiments.report_e1 import build_report
-from twin_ml.testing import CONFIG_DIR, require_xgboost
+from twin_ml.testing import CONFIG_DIR, REPO_ROOT, require_xgboost
 from twin_ml.train import tracking
-from twin_ml.train.trainer import run_one
+from twin_ml.train.isolated import (
+    TrainingProcessError,
+    build_request,
+    describe_exit,
+    run_isolated,
+)
+from twin_ml.train.trainer import RunResult
 
 TINY: dict[str, dict[str, Any]] = {
     "persistence": {"type": "persistence"},
@@ -96,6 +110,13 @@ def tiny_config(model: str, tmp_path: Path) -> ModelConfig:
     path = tmp_path / f"{model}.yaml"
     path.write_text(json.dumps(TINY[model]), encoding="utf-8")  # JSON is valid YAML
     return load_model_config(path)
+
+
+def run_one(
+    model: str, cfg: ModelConfig, seed: int, ds: Dataset, eval_cfg: EvalConfig
+) -> RunResult:
+    """One (model, seed) in its own worker process, exactly as ``train-all`` runs it."""
+    return run_isolated(model, cfg, seed, ds.path, eval_cfg)
 
 
 @pytest.mark.parametrize("model", list(TINY))
@@ -218,3 +239,66 @@ def test_report_compares_a_changed_config_with_its_previous_runs(
     rf = next(m for m in summary["models"] if m["model"] == "rf")
     assert rf["run_ids"] == [new.run_id]
     assert summary["previous"][0]["run_ids"] == [old.run_id]
+
+
+# What a worker may load: a tree model never torch, a sequence model never XGBoost (ADR 0020).
+WORKER_SCRIPT = """
+import json, sys
+from twin_ml.train.isolated import main
+assert main(sys.argv[1:3]) == 0
+watch = ("torch", "xgboost", "sklearn")
+print(json.dumps(sorted(w for w in watch
+                        if any(k == w or k.startswith(w + ".") for k in sys.modules))))
+"""
+
+
+@pytest.mark.parametrize(
+    ("model", "loads", "never"),
+    [
+        ("rf", {"sklearn"}, {"torch", "xgboost"}),
+        ("xgb", {"xgboost"}, {"torch"}),
+        ("gru", {"torch"}, {"xgboost"}),
+    ],
+)
+def test_training_worker_loads_only_its_own_library(
+    model: str,
+    loads: set[str],
+    never: set[str],
+    ml_dataset: Dataset,
+    ml_eval_cfg: EvalConfig,
+    tmp_path: Path,
+) -> None:
+    if model == "xgb":
+        require_xgboost()
+    request = build_request(model, tiny_config(model, tmp_path), 0, ml_dataset.path, ml_eval_cfg)
+    req, res = tmp_path / "request.json", tmp_path / "result.json"
+    req.write_text(json.dumps(request), encoding="utf-8")
+    out = subprocess.run(
+        [sys.executable, "-X", "faulthandler", "-c", WORKER_SCRIPT, str(req), str(res)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert out.returncode == 0, out.stderr[-3000:]
+    loaded = set(json.loads(out.stdout.strip().splitlines()[-1]))
+    assert loads <= loaded, loaded
+    assert not never & loaded, loaded
+    assert json.loads(res.read_text(encoding="utf-8"))["model"] == model
+
+
+def test_failed_worker_raises_with_its_exit_status(ml_eval_cfg: EvalConfig, tmp_path: Path) -> None:
+    cfg = tiny_config("persistence", tmp_path)
+    with pytest.raises(TrainingProcessError, match=r"persistence seed 0 .*exit code 1"):
+        run_isolated("persistence", cfg, 0, tmp_path / "no_dataset", ml_eval_cfg)
+    assert not tracking.finished_runs(ml_eval_cfg.tracking_dir, ml_eval_cfg.experiment)
+
+
+def test_describe_exit_names_the_signal() -> None:
+    assert describe_exit(1) == "exit code 1"
+    assert describe_exit(-11) == "signal SIGSEGV"
+
+
+def test_faulthandler_is_on_in_the_test_process() -> None:
+    # pytest's faulthandler plugin; disabling it (-p no:faulthandler) would hide crash frames.
+    assert faulthandler.is_enabled()

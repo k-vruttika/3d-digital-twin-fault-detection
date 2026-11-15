@@ -55,3 +55,9 @@ def test_simulator_only_where_allowed() -> None:
 
 def test_torch_only_in_the_sequence_models() -> None:
     assert _loaded(("twin_ml.models.nn",), ("torch", "twin_sim")) == ["torch"]
+
+
+def test_training_parents_load_no_ml_library() -> None:
+    # train / train-all only start workers; each worker loads one model's library (ADR 0020).
+    parents = ("twin_ml.train.__main__", "twin_ml.experiments.e1", "twin_ml.train.isolated")
+    assert _loaded(parents, ("torch", "sklearn", "xgboost", "mlflow")) == []

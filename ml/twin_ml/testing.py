@@ -6,6 +6,8 @@ Not used by production code. Importing this module loads neither torch nor sciki
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -26,16 +28,28 @@ ML_SIM_RUNS = 6
 ML_SIM_DURATION_S = 1500
 
 
+_XGBOOST_PROBE = """
+try:
+    import xgboost  # noqa: F401
+except Exception as exc:  # XGBoostError (libomp.dylib not loaded), ImportError, OSError
+    text = str(exc).strip()
+    print(f"{type(exc).__name__}: {text.splitlines()[0] if text else ''}")
+"""
+
+
 @cache
 def xgboost_import_error() -> str | None:
-    """None when xgboost imports, else why not (on macOS usually the missing OpenMP runtime)."""
-    try:
-        import xgboost  # noqa: F401
-    except Exception as exc:  # XGBoostError (libomp.dylib not loaded), ImportError, OSError
-        return (
-            f"{type(exc).__name__}: {str(exc).strip().splitlines()[0] if str(exc).strip() else ''}"
-        )
-    return None
+    """None when xgboost imports, else why not (on macOS usually the missing OpenMP runtime).
+
+    Probed in a subprocess: the test process also loads torch, and torch and XGBoost must
+    never share a process (two OpenMP runtimes crash on macOS; ADR 0020).
+    """
+    out = subprocess.run(
+        [sys.executable, "-c", _XGBOOST_PROBE], capture_output=True, text=True, check=False
+    )
+    if out.returncode != 0:
+        return f"import probe exited with code {out.returncode}: {out.stderr.strip()[-500:]}"
+    return out.stdout.strip() or None
 
 
 def require_xgboost() -> None:

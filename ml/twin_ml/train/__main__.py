@@ -1,4 +1,7 @@
-"""CLI: ``python -m twin_ml.train --model rf [--seeds 0,1,2]`` (poe task ``train``)."""
+"""CLI: ``python -m twin_ml.train --model rf [--seeds 0,1,2]`` (poe task ``train``).
+
+Each seed trains in its own worker process (``twin_ml.train.isolated``, ADR 0020).
+"""
 
 from __future__ import annotations
 
@@ -35,7 +38,8 @@ def main(argv: list[str] | None = None) -> int:
 
     from twin_ml.config import load_dataset_config, load_eval_config, load_model_config
     from twin_ml.data.dataset import Dataset, DatasetNotBuiltError, resolve_dataset_dir
-    from twin_ml.train.trainer import BASELINES, run_one
+    from twin_ml.train.isolated import TrainingProcessError, run_isolated
+    from twin_ml.train.trainer import BASELINES
 
     try:
         ds_cfg = load_dataset_config(args.dataset_config)
@@ -51,7 +55,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.model in BASELINES:
         seeds = seeds[:1]  # deterministic: one run
     for seed in seeds:
-        res = run_one(args.model, cfg, seed, ds, eval_cfg)
+        try:
+            res = run_isolated(args.model, cfg, seed, ds.path, eval_cfg)
+        except TrainingProcessError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
         print(f"{res.model} seed {res.seed}: run {res.run_id}, trained in {res.train_s:.1f} s")
     return 0
 

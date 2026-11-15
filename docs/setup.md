@@ -172,6 +172,7 @@ None of sections 2 and 3 is needed to run the twin from a JSON/CSV file or the m
   - PyTorch, CPU build (PyTorch's CPU index on Windows and Linux, PyPI on macOS); no CUDA wheels;
   - scikit-learn and XGBoost (`xgboost-cpu` on Windows and Linux);
   - **macOS:** XGBoost needs the OpenMP runtime: run `brew install libomp` once (without it, importing XGBoost fails with `Library not loaded: @rpath/libomp.dylib`). The two XGBoost-dependent tests skip with that hint when it is missing locally; CI installs it and sets `LINETWIN_REQUIRE_XGBOOST=1` so they must run there;
+  - **macOS caveat, two OpenMP runtimes:** torch ships its own `libomp.dylib`, while XGBoost uses Homebrew's. If both load in one Python process, it can crash with a segmentation fault (exit code 139). For that reason `uv run poe train`, `uv run poe train-all` and the e2e tests train every (model, seed) in its own worker process (`twin_ml.train.isolated`), so torch and XGBoost never meet. Do the same in your own scripts and notebooks: don't import torch and xgboost in the same process on macOS, and don't set `KMP_DUPLICATE_LIB_OK`. Each worker logs `train.openmp` with the OpenMP runtimes it loaded ([ADR 0020](adr/0020-ml-models-training-tracking.md));
   - `mlflow-skinny`.
   
   The first sync downloads a few hundred MB. No GPU is needed: model sizes and the training subsample are chosen for a laptop CPU (measured times in [PROGRESS.md](PROGRESS.md)).

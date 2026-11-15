@@ -20,6 +20,7 @@ uv run poe mlflow-ui                   # browse the runs (http://127.0.0.1:5000)
   - `eval.yaml`: seeds, subsets, early warning, latency, bootstrap, report;
   - one file per model.
 - **Tracking:** MLflow runs go to `mlruns/`, a local file store that is gitignored.
+- **One process per run:** every (model, seed) trains in its own worker process, so torch and XGBoost never share a process (a crash on macOS, [ADR 0020](adr/0020-ml-models-training-tracking.md)). If a worker fails, `train-all` stops; the finished runs are kept, and `--skip-existing` resumes.
 - **Dataset identity:** the report and every run record the simulator manifest's sha256 (file bytes) and its `content_sha256` (stable across identical regenerations).
 
 ## Dataset

@@ -4,6 +4,9 @@ Trains and evaluates every model of ``eval.yaml`` (baselines once, models once p
 current dataset and logs each (model, seed) as its own MLflow run, tagged with the model config
 hash. ``--skip-existing`` resumes: it skips a (model, seed) only if a finished run with the
 same config hash exists, so a changed config is always re-run.
+
+Each (model, seed) trains in its own worker process (``twin_ml.train.isolated``), so torch and
+XGBoost never share a process (two OpenMP runtimes crash on macOS; ADR 0020).
 """
 
 from __future__ import annotations
@@ -59,7 +62,8 @@ def main(argv: list[str] | None = None) -> int:
     from twin_ml.data.dataset import Dataset, DatasetNotBuiltError, resolve_dataset_dir
     from twin_ml.train import tracking
     from twin_ml.train.__main__ import parse_seeds
-    from twin_ml.train.trainer import config_sha, run_one
+    from twin_ml.train.isolated import TrainingProcessError, run_isolated
+    from twin_ml.train.trainer import config_sha
 
     try:
         ds_cfg = load_dataset_config(args.dataset_config)
@@ -86,7 +90,14 @@ def main(argv: list[str] | None = None) -> int:
     started = time.perf_counter()
     todo = pending(models, seeds, {m: config_sha(c) for m, c in cfgs.items()}, done)
     for m, seed in todo:
-        res = run_one(m, cfgs[m], seed, ds, eval_cfg)
+        try:
+            res = run_isolated(m, cfgs[m], seed, ds.path, eval_cfg)
+        except TrainingProcessError as exc:
+            print(
+                f"error: {exc}; finished runs are kept, resume with --skip-existing",
+                file=sys.stderr,
+            )
+            return 1
         print(f"{m} seed {seed}: run {res.run_id}, trained in {res.train_s:.1f} s", flush=True)
     print(f"E1 done in {time.perf_counter() - started:.0f} s; next: uv run poe report-e1")
     return 0
