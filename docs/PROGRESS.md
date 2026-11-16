@@ -1,6 +1,6 @@
 # LineTwin progress
 
-## Phase 8: Robustness, calibration and conformal prediction (IN PROGRESS: Parts A and B done, Part C next; nothing committed yet)
+## Phase 8: Robustness, calibration and conformal prediction (done, 2026-11-16)
 
 - **Pre-registration recorded before any Phase 8 study run:** [ADR 0021](adr/0021-robustness-protocol.md) § Pre-registration, mirrored in `config/models/robustness.yaml` (`primary:`).
   - **Timestamp correction:** this line first said "11:30 UTC", which was a mistake. The file times are `robustness.yaml` 11:10 UTC and ADR 0021 11:19 UTC (local 16:40 / 16:49 +05:30).
@@ -16,21 +16,164 @@
 - **Line endings:** the report generators (`report_robustness`, `report_e1`) write their `.md` / `.json` with LF on every OS. Before this, Windows `write_text` produced CRLF. The robustness e2e test asserts LF.
 - **Checked:** `uv run poe lint` passes and `uv run pre-commit run --all-files` passes.
 
-### Part C (NOT STARTED; next session)
+### Phase 8 summary
 
-**Done and ready for Part C:**
-- **Augmentation dataset built:** `uv run poe dataset-aug` → `data/ml/fe3ac4753945ec7d`. Of the 560 training series, 280 stayed clean and 280 were replaced (noise 81, MCAR 54, dropout 83, stuck 62). The normaliser is identical to E1's (fitted on clean data); val and test are unchanged.
-- **Signal-relative noise extension in place** (ADR 0021 amendment): config `signal_noise`, studies `e1models_snoise` and `aug_snoise`, tests.
-- **Report ready:** the ablation, signal-noise, case-study and drift sections are already in the report generator and fill in once the runs exist.
+- **Built across Parts A–C:**
+  - perturbations, the sensor-fault test sets, calibration (temperature scaling, isotonic / Platt) and conformal prediction (LAC, APS, Mondrian LAC, time-to-fault intervals);
+  - run-level statistics and a resumable study runner;
+  - seven studies: `e1models`, `e4`, `aug`, `e1models_snoise`, `aug_snoise`, and the follow-up `e1models_stdnoise`, `aug_stdnoise`;
+  - one generated report: [robustness.md](../experiments/results/robustness.md) + `robustness.json` + 11 plots.
+- **Decisions:** [ADR 0021](adr/0021-robustness-protocol.md) (protocol, pre-registration, amendment, outcome), [ADR 0022](adr/0022-calibration-conformal.md) (calibration and conformal, results), [ADR 0023](adr/0023-condition-shift-e4.md) (E4, results).
+- **Answer to the research question, short version (details in the report):**
+  - **Noise and missing values at the pre-registered levels:** early warning holds, and every learned model keeps its lead over the threshold rule.
+  - **Calibration and coverage there:** calibration stays good, except the clean-trained RF under noise. Only Mondrian LAC gives a usable FAULT coverage, and it is below target under perturbation.
+  - **Condition shift (E4):** warnings hold, but Mondrian FAULT coverage drops below target for every model.
+  - **Stuck sensors and unseen drift:** these cost lead time and raise false alarms. Augmentation helps against stuck-sensor false alarms but not against drift.
+  - **Noise relative to the fault signal:** at 10–25 % of the precursor rise, false alarms make the warnings useless, and calibration fitted on clean data no longer holds.
+  - **Noise in normal-operation std (follow-up):** for most models, false alarms start rising between 0.3 × and 1 × the normal-operation std.
 
-**Remaining, in order:**
-1. `uv run poe robustness --study aug --skip-existing`: trains all 5 models × 3 seeds on the augmented data and evaluates 19 conditions. Estimate: about 2.5 h of training (E1-sized training set) plus about 1 h of evaluation.
-2. `uv run poe robustness --study e1models_snoise --skip-existing`: evaluation only, about 20 min (the RF is retrained from its seed).
-3. `uv run poe robustness --study aug_snoise --skip-existing`: needs step 1. It reloads XGBoost and the sequence models; the RF is retrained from its seed. About 25 min.
-4. `uv run poe report-robustness`, then check the ablation (seen vs unseen) and signal-noise sections and plots.
-5. Final `uv run poe lint` / `uv run poe test` / `minimal-data-check`; finish ADR 0023 (results pointer); this file's Phase 8 summary and deviations; `docs/experiments.md` results list; a suggested commit message (nothing committed yet).
+### Follow-up (2026-11-16): uniform noise in std units (exploratory)
 
-**How to resume:** every study command is resumable (`--skip-existing`). Progress goes to `experiments/progress/<study>.jsonl` and the logs to `experiments/progress/<study>.log`.
+- **What:** Gaussian noise with sigma = 1, 2, 4, 8 × each sensor's normal-operation std, the same multiple for every sensor. It is evaluation-only, for the E1 models and the augmentation-trained models ([ADR 0021](adr/0021-robustness-protocol.md) § Second amendment).
+  - It uses the scale of the original `noise_<p>` grid (`noise_30` = 0.3 ×). The report puts both grids on one axis, so the onset can be located between them.
+  - Report: § EXPLORATORY uniform noise in std units (onset table, value and Δ tables); plot `robustness_std_noise.png`, with false alarms on a symlog axis.
+- **Code:**
+  - `StdNoiseConfig` / `std_noise` in `robustness.yaml`;
+  - `perturb.std_noise_conditions` (conditions `stdnoise_<m>`, kind noise, level m with the clean normal-operation std);
+  - worker expansion and dispatch;
+  - the report's signal-noise code generalised to a `NoiseGrid` used by both grids. The signal-noise values and section text were checked to be identical before and after the change.
+- **Hashes:** the `std_noise` settings stay out of the shared hash, and enter an extension study's hash only if the study lists the grid. A `--dry-run --skip-existing` of all five earlier studies showed 0 runs to do.
+- **Runs:**
+  - `uv run poe robustness --study e1models_stdnoise --skip-existing`: 17 runs, 1,588 s (26 min).
+  - `uv run poe robustness --study aug_stdnoise --skip-existing`: 17 runs, 1,809 s (30 min).
+  - Run one after the other, no interruptions.
+
+**Results** (+30 s, mean over seeds; onset = lowest level where the paired Δ false alarms per hour is positive with a CI excluding zero in at least 2 of 3 seeds, 1 of 1 for the threshold rule; the original 0.1–0.3 × points included)
+
+| Model | E1 models: last level without a rise → first with a rise (FA/h there) | Augmentation-trained |
+|---|---|---|
+| threshold | 0.3 × → 1 × (0.27) | same rule, same values |
+| RF | 2 × → 4 × (0.36) | 2 × → 4 × (0.66) |
+| XGBoost | 0.3 × → 1 × (0.15) | 1 × → 2 × (2.76) |
+| LSTM | 1 × → 2 × (5.45) | 1 × → 2 × (4.67) |
+| GRU | 0.3 × → 1 × (0.80) | 1 × → 2 × (9.35) |
+| Transformer | 0.3 × → 1 × (0.40) | 0.3 × → 1 × (0.42) |
+
+- **Where false alarms start:**
+  - For the threshold rule, XGBoost, GRU and Transformer (E1 models), false alarms first rise between 0.3 × and 1 × std; at 1 × they are still below 1 per hour.
+  - The LSTM's rise at 1 × is significant in only 1 of 3 seeds.
+  - The RF has no false alarms up to 2 ×. Its probabilities move, though: top-label ECE after calibration is 0.066 at 1 × and 0.161 at 2 ×.
+  - From 2 × the false alarms grow quickly (E1 models at 2 ×: XGBoost 20.2, GRU 26.6, threshold rule 12.2, LSTM 5.5, Transformer 5.9 per hour). By 8 × they reach 63–244 per hour for every model except the RF (23).
+- **Augmentation helps on this axis:** unlike the signal-relative grid, augmentation (noise up to 0.3 × in training) moves the onset one level later for XGBoost and GRU, from 1 × to 2 ×. It also lowers false alarms at 2 × for most models (augmentation vs E1, per hour):
+
+  | Model | Augmentation-trained | E1 |
+  |---|---|---|
+  | XGBoost | 2.8 | 20.2 |
+  | GRU | 9.4 | 26.6 |
+  | Transformer | 2.2 | 5.9 |
+  | LSTM | 4.7 | 5.5 |
+
+  The augmentation-trained RF has slightly more false alarms at 4–8 × (0.66 / 36 vs 0.36 / 23).
+- **Where this sits against the signal-relative grid:** 1 × std is about 1–3 % of the precursor rise on vibration, the leading sensor of most faults, but several times the rise on sensors that barely move before a fault (load). The signal-relative grid at 10 % puts up to 9 × std on vibration. That explains why it broke the recurrent models at once, while uniform noise of 1 × barely does.
+- **Calibration and coverage:**
+  - The FAULT-class ECE after calibration stays at or below about 0.03 up to 1 × for every model, then grows (E1 models: 0.10–0.63 at 4–8 ×).
+  - Mondrian FAULT coverage of the E1 sequence models sits at 0.79–0.86 across 1–2 ×, below the 0.90 target. The trees' coverage goes to 1.00 because their sets grow.
+- **Limitation:** the grid has no point between 0.3 × and 1 ×, so the onset for most models is located only to within that factor of 3.3. A 0.5 × level would narrow it, but it was not run because the requested grid was 1, 2, 4, 8.
+- **Tests:**
+  - `test_ml_signal_noise.py`: std-noise conditions and expansion; the grid keeps every earlier hash, the signal-noise studies included.
+  - `test_ml_report_robustness.py`: both grid plots with partial studies; the onset rule across the base and new grids.
+  - Totals: `uv run poe lint` clean; `uv run poe test` pytest 766 passed, 50 skipped (services not running), Vitest 163 passed; `uv run poe minimal-data-check` 14 passed.
+
+### Part C (done, 2026-11-16): augmentation ablation, signal-relative noise, final report
+
+**Runs**
+
+| Study | Command | Runs | Wall time | Per run |
+|---|---|---|---|---|
+| `aug` | `uv run poe robustness --study aug --skip-existing` | 17 (5 models × 3 seeds + 2 baselines) | 14,403 s (4 h 00 min); the plan ETA said 143 min | RF 505–532 s, XGBoost 208–227 s, LSTM 825–1032 s, GRU 1083–1166 s, Transformer 1975–2105 s |
+| `e1models_snoise` | `uv run poe robustness --study e1models_snoise --skip-existing` | 17 | 1,507 s (25 min) | RF 144–169 s (retrain), others 35–130 s |
+| `aug_snoise` | `uv run poe robustness --study aug_snoise --skip-existing` | 17 | 1,805 s (30 min) | RF 243–251 s (retrain), others 34–131 s |
+
+- **Study order:** the studies ran one after another, never in parallel, because every model uses all cores (`n_jobs: -1`, torch default threads). Running them in parallel would have slowed both and could change torch's floating-point summation order.
+- **Clean runs:** no study was interrupted, and nothing needed `--skip-existing` to resume.
+- **Datasets:** augmentation used `data/ml/fe3ac4753945ec7d` (280 of 560 training series perturbed: noise 81, MCAR 54, dropout 83, stuck 62; clean normaliser; val and test unchanged).
+
+**Results: ablation, augmentation-trained minus clean-trained** (exploratory; paired, seed i vs seed i, +30 s; "significant" = the seed-averaged CI excludes zero and at least 2 of 3 seeds' CIs exclude zero; numbers in [robustness.md](../experiments/results/robustness.md) § ablation)
+
+- **Clean data:**
+  - No change in miss rate or false alarms.
+  - Macro F1 is 0.007–0.018 lower (CIs include zero).
+  - The RF's relative lead is +7 s.
+  - The GRU and Transformer FAULT-class ECE is under 0.001 higher.
+- **Seen types** (noise / MCAR / dropout / stuck grid and `sf_seen`, 16 conditions):
+  - **Miss rate:** unchanged under every condition.
+  - **Fewer false alarms where the clean-trained models suffered most:**
+    - `stuck_30`: RF −0.16 per hour, XGBoost −0.20 per hour (3/3);
+    - XGBoost `dropout_20` / `dropout_30`: −0.07 / −0.11;
+    - Transformer `dropout_30`: −0.53 per hour (2/3).
+    - No model has significantly more false alarms under any seen condition.
+  - **RF calibration under noise is repaired:** ECE −0.020 at `noise_20` and −0.023 at `noise_30` (3/3). The ECE is better in 10 of 16 seen conditions. Its Mondrian FAULT coverage under noise falls by 0.08–0.09, away from the degenerate 1.00 of the clean-trained RF (sets that always contained FAULT).
+  - **Stuck sensors still cost lead:** the augmentation-trained models lose 32–35 s of lead at `stuck_30` against their own clean result (3/3), about as much as the clean-trained models.
+  - **Sequence models under MCAR get worse:**
+    - Mondrian FAULT coverage: LSTM −0.13 / −0.16 at `mcar_20` / `mcar_30`, GRU −0.16 / −0.20, Transformer −0.09 to −0.15 at all MCAR levels.
+    - Absolute coverage is 0.69–0.77 at `mcar_20` / `mcar_30`, below the 0.90 target.
+    - LSTM lead: −14 / −16 s at `mcar_20` / `mcar_30`.
+- **Unseen type** (`sf_drift`):
+  - No significant change in early warning or calibration, apart from the RF's +7 s, which it also has on clean data, and the GRU's FAULT ECE (+0.0008).
+  - False alarms inside drift segments are not reduced (point estimates, augmentation vs clean, per hour): RF 0.47 vs 0.22, XGBoost 0.94 vs 0.47, LSTM 0.22 vs 0.25, GRU 0.51 vs 0.47, Transformer 0.65 vs 0.58. The CIs are wide.
+- **Mixed** (`sf_all`):
+  - No significant change in early warning.
+  - The one episode hidden by a 688 s all-sensor dropout is missed by all 15 augmentation-trained runs, as by the E1 models.
+
+**Results: signal-relative noise** (exploratory; noise sigma = p % of each sensor's typical rise before FAULT; § signal-relative noise and `robustness_signal_noise.png`)
+
+- **How big the noise is:** 10 % of the rise means 0.01 normal-operation std on some sensors (INSPECTION load) and 9.2 std on others (INSPECTION vibration). The original noise grid was at most about 5 % of the rise.
+- **Early warning breaks down through false alarms, not misses.** E1 models, false alarms per hour:
+
+| Level | Threshold | RF | XGBoost | LSTM | GRU | Transformer |
+|---|---|---|---|---|---|---|
+| clean | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.01 |
+| 10 % | 0.00 | 0.44 | 0.36 | 38.0 | 55.9 | 3.7 |
+| 25 % | 1.6 | 37.1 | 34.7 | 141.2 | 159.1 | 26.8 |
+
+  - **10 %:** macro F1 falls from 0.78–0.79 to 0.61–0.68.
+  - **25 %:** macro F1 is 0.24–0.57.
+  - **50–100 %:** the threshold rule reaches 221 false alarms per hour, every model's macro F1 is at most 0.32, the FAULT-class ECE reaches 0.98 (GRU), and the Mondrian sets grow to contain everything (coverage 1.00).
+- **Miss rate stays 0** except for XGBoost (mean over seeds 0.04–0.09 of 26 episodes, CIs include zero). The lead grows towards the episode length because the alarm is already on. Neither counts as success: the report explains both, and the rising-edge false-alarm count falling at 100 % for the recurrent models.
+- **Most robust at 10–25 %:** the threshold rule, then the Transformer and the trees. The recurrent models break first.
+- **Augmentation does not help here** (`aug_snoise`, point estimates on the same perturbed runs; the report gives no paired test between the two studies). At 10 %, false alarms per hour: RF 4.6 (E1 RF 0.44), XGBoost 28.0 (0.36), LSTM 25.0 (38.0), GRU 61.4 (55.9), Transformer 3.3 (3.7). The augmentation noise was at most 30 % of the normal-operation std, far weaker than these levels on the vibration sensors.
+
+**Changes in this part**
+
+- **Report fix (`report_robustness.plot_snoise`):** the report crashed (`ValueError: number sections must be larger than 0`) when only persistence had finished in a signal-noise study, because persistence is never drawn and the legend had no entries. Now the legend is skipped when empty, and the dashed `aug_snoise` lines carry the labels when `e1models_snoise` is absent. Regression test: `ml/tests/test_ml_report_robustness.py::test_plot_snoise_partial_studies`.
+- **Reading notes in the signal-noise section** (generated from the strength data):
+  - the noise size in normal-operation std at the lowest level;
+  - false alarms count rising edges;
+  - lead is capped by the episode length.
+  - These are methodology notes and do not change any metric.
+- **Case-study wording:** "no model was trained on missing data" became "the E1 models were not trained on missing data". A generated line adds how many augmentation-trained runs (learned models only) detect the episode: 0 of 15.
+- **Docs:**
+  - `docs/experiments.md`: reproduce commands for all studies, the E4 / `snoise` conditions, the ablation definition, measured times, the results list;
+  - ADR 0021 § Outcome; ADR 0022 § Results; ADR 0023 § Results.
+
+**Tests:**
+- `uv run poe test`: pytest 763 passed, 50 skipped (TimescaleDB, Mosquitto and Playwright tests; services not running). Vitest 163 passed.
+- `uv run poe lint`: clean.
+- `uv run poe minimal-data-check`: 14 passed.
+- New test: `test_plot_snoise_partial_studies`.
+
+**Known limitations (Phase 8)**
+
+- **The ablation is exploratory and has wide CIs:** 26 episodes, 3 seeds. "Significant" uses the per-seed rule above, without correcting for multiple comparisons, across 16 seen conditions × 7 metrics × 5 models.
+- **No paired test between `e1models_snoise` and `aug_snoise`:** the report puts them side by side only.
+- **Augmentation levels follow the test grid,** which turned out to be weak against the fault signal. Training with signal-relative noise was not tried, so that the extension stays evaluation-only (ADR 0021 amendment).
+- **The calibration and conformal maps are fitted per run and not exported.** Phase 11 has to refit or export them (ADR 0022).
+- **Earlier Part A / B limitations still apply:** degenerate baseline conformal sets, approximate exchangeability, empty randomised APS sets.
+
+**Deviations from the plan / CLAUDE.md**
+
+- **Report generator changed after results were seen:** the plot bug fix, the reading notes and the case-study line. None of them changes a metric, a setting in `robustness.yaml` or the pre-registered primary outcomes.
+- **The `aug` study took 4 h** against the 2.5 h + 1 h planned. Its plan ETA (143 min) used Phase 7 training times and left out the evaluation of 19 conditions.
 
 ### Part B (done, 2026-11-15): E4 condition shift
 

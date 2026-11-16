@@ -88,3 +88,43 @@ def test_extension_studies_keep_earlier_hashes() -> None:
     assert study_config_sha("e1models_snoise", cfg, RCFG, ev, "k", "src") != study_config_sha(
         "e1models_snoise", cfg, other, ev, "k", "src"
     )
+
+
+def test_std_noise_conditions_and_expansion() -> None:
+    from twin_ml.data.perturb import std_noise_conditions
+
+    assert RCFG.std_noise is not None
+    conds = std_noise_conditions(RCFG.std_noise.multiples)
+    assert [c.name for c in conds] == ["stdnoise_1", "stdnoise_2", "stdnoise_4", "stdnoise_8"]
+    assert all(c.kind == "noise" for c in conds)
+    assert [c.level for c in conds] == [1.0, 2.0, 4.0, 8.0]  # sigma = level x normal std
+    assert std_noise_conditions([0.5])[0].name == "stdnoise_0.5"
+    for study in ("e1models_stdnoise", "aug_stdnoise"):
+        assert RCFG.studies[study].extension
+        names = expand_conditions(RCFG.studies[study], RCFG)
+        assert names == ["clean", "stdnoise_1", "stdnoise_2", "stdnoise_4", "stdnoise_8"]
+
+
+def test_std_noise_grid_keeps_earlier_hashes() -> None:
+    """Adding the std-noise grid and its studies leaves every earlier study's hash unchanged,
+    including the signal-noise extension studies; the std-noise studies depend on the grid."""
+    ev = load_eval_config(CONFIG_DIR / "models" / "eval.yaml")
+    cfg = load_model_config(CONFIG_DIR / "models" / "xgb.yaml")
+    std_studies = {"e1models_stdnoise", "aug_stdnoise"}
+    before = RCFG.model_copy(
+        update={
+            "std_noise": None,
+            "studies": {k: v for k, v in RCFG.studies.items() if k not in std_studies},
+        }
+    )
+    for study in ("e1models", "e4", "aug", "e1models_snoise", "aug_snoise"):
+        assert study_config_sha(study, cfg, RCFG, ev, "k", "src") == study_config_sha(
+            study, cfg, before, ev, "k", "src"
+        )
+    assert RCFG.std_noise is not None
+    other = RCFG.model_copy(
+        update={"std_noise": RCFG.std_noise.model_copy(update={"multiples": [1.0]})}
+    )
+    assert study_config_sha("e1models_stdnoise", cfg, RCFG, ev, "k", "src") != study_config_sha(
+        "e1models_stdnoise", cfg, other, ev, "k", "src"
+    )

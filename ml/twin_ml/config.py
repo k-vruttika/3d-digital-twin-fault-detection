@@ -386,6 +386,19 @@ class SignalNoiseConfig(ConfigModel):
         return self
 
 
+class StdNoiseConfig(ConfigModel):
+    """Exploratory uniform noise grid (Part C follow-up): Gaussian sigma per machine kind and
+    sensor = m x that sensor's normal-operation std, the same multiple for every sensor."""
+
+    multiples: list[float] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _multiples(self) -> StdNoiseConfig:
+        if any(m <= 0 for m in self.multiples) or self.multiples != sorted(set(self.multiples)):
+            raise ValueError("multiples must be positive, unique and ascending")
+        return self
+
+
 class RobustnessConfig(ConfigModel):
     experiment: str = Field(min_length=1)  # MLflow experiment of the study runs
     phase_tag: str = Field(min_length=1)
@@ -407,6 +420,7 @@ class RobustnessConfig(ConfigModel):
     progress_dir: Path
     report_name: str = Field(min_length=1)
     signal_noise: SignalNoiseConfig | None = None  # exploratory extension (Part C)
+    std_noise: StdNoiseConfig | None = None  # exploratory extension (Part C follow-up)
 
 
 def load_dataset_config(path: str | Path) -> DatasetConfig:

@@ -77,3 +77,14 @@ Split conformal assumes the calibration and test windows are exchangeable. Windo
 - **Prediction contract:** `Prediction.calibrated`, `conformalSet` and `ttfInterval` can now be filled. Phase 11 (online inference) will use these maps. They are fitted per model run and are not yet exported as artifacts.
 - **Cost of the uncalibrated alarm rule:** a well calibrated tree model could warn later or earlier if its calibrated argmax were used. That variant is not evaluated.
 - **NN logits:** `SequenceModel.predict` now returns the logits in `Predictions.extra["logits"]`.
+
+## Results (2026-11-16)
+
+- **Where:** the calibration and conformal numbers for every study are generated into [robustness.md](../../experiments/results/robustness.md) (tables, `robustness_reliability.png`, `robustness_coverage.png`). `docs/PROGRESS.md` § Phase 8 has a short record.
+- **What they show:**
+  - Calibration on clean validation data gives a small top-label ECE under the pre-registered perturbations. The Random Forest under noise is the exception; augmentation-trained RFs do not have that problem.
+  - Under signal-relative noise, both the top-label and the FAULT-class ECE grow large for every model. Calibration fitted on clean data does not transfer to strong noise.
+  - Marginal LAC never covers FAULT, and APS covers it only partly. Mondrian LAC is the only method close to the per-class target, and it falls below it under the E4 shift and under MCAR for the augmentation-trained sequence models.
+- **Recommendation for Phase 11 (to be decided there):**
+  - Use Mondrian LAC for `Prediction.conformalSet`.
+  - Do not present its clean-data coverage as a guarantee when the data-quality layer or drift detection flags the input; that is the case for `reliability = DEGRADED`.

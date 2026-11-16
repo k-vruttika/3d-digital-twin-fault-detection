@@ -742,6 +742,14 @@ def missed_episode_cases(
             if b >= ep["t_start"] and a <= t_fault
         ]
         observed_last = s_sf.sensors[i1 - span : i1, lead]
+        # augmentation-trained models (MCAR and dropout seen in training) on the same episode
+        aug_runs = [
+            x
+            for m, by_seed in (studies.get("aug") or {}).items()
+            if m not in ("persistence", "threshold")  # baselines are not trained
+            for e in by_seed.values()
+            if (x := keyed(e, cond).get((run, machine, t_fault))) is not None
+        ]
         out.append(
             {
                 "condition": cond,
@@ -759,6 +767,8 @@ def missed_episode_cases(
                 "leading_rise_in_std": float(abs(rise[lead]) / sigma[k][lead]),
                 "sensor_faults": [{"label": lab, "from_s": a, "to_s": b} for lab, a, b in segs],
                 "leading_missing_before_fault": float(np.isnan(observed_last).mean()),
+                "aug_runs": len(aug_runs),
+                "aug_detected": sum(bool(x["detected"]) for x in aug_runs),
             }
         )
     return out
@@ -830,6 +840,7 @@ def build_report(
     report["missed_cases"] = missed_episode_cases(studies, rcfg, root)
     report["live_data_quality"] = _live_data_quality(root)
     report["signal_noise"] = snoise_block(studies, rcfg, eval_cfg)
+    report["std_noise"] = noise_grid_block(STD_GRID, studies, rcfg, eval_cfg)
     report["e4"] = e4_block(studies, rcfg, eval_cfg)
     report["ablation"] = ablation_block(studies, rcfg, eval_cfg)
     out = out_dir or root / eval_cfg.report.out_dir
@@ -845,6 +856,8 @@ def build_report(
         paths += plot_ablation(report, rcfg, out)
     if report["signal_noise"]:
         paths += plot_snoise(report, rcfg, out)
+    if report["std_noise"]:
+        paths += plot_stdnoise(report, rcfg, out)
     name = rcfg.report_name
     md = out / f"{name}.md"
     # LF on every OS (the repo uses eol=lf; Windows write_text would emit CRLF)
@@ -1336,6 +1349,7 @@ def _strength_section(report: dict[str, Any], rcfg: RobustnessConfig) -> list[st
     return lines
 
 
+TIMES = "\u00d7"  # multiplication sign in report text
 SNOISE_METRICS = (
     "miss_rate",
     "lead_mean_s",
@@ -1346,42 +1360,240 @@ SNOISE_METRICS = (
     "ece_fault_cal",
     "cov_mondrian_lac_FAULT",
 )
-SNOISE_STUDIES = (("e1models_snoise", "E1 models"), ("aug_snoise", "augmentation-trained"))
+DEGRADATION_KEYS = ("miss_rate", "lead_mean_s", "false_alarms_per_h", "cov_mondrian_lac_FAULT")
+
+
+class NoiseGrid:
+    """One exploratory evaluation-only noise grid: its studies, x axis and texts."""
+
+    def __init__(
+        self,
+        key: str,
+        studies: tuple[tuple[str, str, str | None], ...],
+        xlabel: str,
+        log_x: bool,
+    ) -> None:
+        self.key = key  # report / JSON key and plot suffix
+        self.studies = studies  # (study, title, base study holding the noise_<p> grid or None)
+        self.xlabel = xlabel
+        self.log_x = log_x
+
+
+SIGNAL_GRID = NoiseGrid(
+    "signal_noise",
+    (("e1models_snoise", "E1 models", None), ("aug_snoise", "augmentation-trained", None)),
+    "noise sigma, % of the typical rise before FAULT",
+    log_x=False,
+)
+STD_GRID = NoiseGrid(
+    "std_noise",
+    (
+        ("e1models_stdnoise", "E1 models", "e1models"),
+        ("aug_stdnoise", "augmentation-trained", "aug"),
+    ),
+    "noise sigma, multiple of the normal-operation std (log scale)",
+    log_x=True,
+)
+NOISE_GRIDS = (SIGNAL_GRID, STD_GRID)
+SNOISE_STUDIES = tuple((s, t) for s, t, _ in SIGNAL_GRID.studies)
+
+
+def _grid_levels(grid: NoiseGrid, rcfg: RobustnessConfig) -> list[float] | None:
+    if grid.key == "signal_noise":
+        return (
+            None if rcfg.signal_noise is None else [float(x) for x in rcfg.signal_noise.levels_pct]
+        )
+    return None if rcfg.std_noise is None else list(rcfg.std_noise.multiples)
+
+
+def _grid_entry(
+    runs: StudyRuns, conds: list[str], rcfg: RobustnessConfig, eval_cfg: EvalConfig
+) -> dict[str, Any]:
+    h = str(rcfg.primary.horizon)
+    return {
+        "models": list(runs),
+        "conditions": conds,
+        "counts": counts(next(iter(runs.values())), "clean", h),
+        "values": {
+            m: {c: {k: stat(runs[m], c, h, k) for k in SNOISE_METRICS} for c in conds} for m in runs
+        },
+        "degradation": {
+            m: {
+                c: compare(runs[m], c, runs[m], "clean", h, SNOISE_METRICS, eval_cfg)
+                for c in conds
+                if c != "clean"
+            }
+            for m in runs
+        },
+    }
+
+
+def noise_grid_block(
+    grid: NoiseGrid, studies: dict[str, StudyRuns], rcfg: RobustnessConfig, eval_cfg: EvalConfig
+) -> dict[str, Any] | None:
+    """Values per level and the paired degradation (level minus clean) of one noise grid.
+
+    For a grid with a base study (the std grid), the base study's ``noise_<p>`` conditions
+    (sigma = p % of the same normal-operation std) are added on the same axis, from the
+    same models, seeds and test runs, so the onset can be located across both grids.
+    """
+    levels = _grid_levels(grid, rcfg)
+    if levels is None:
+        return None
+    from twin_ml.experiments.robust_worker import expand_conditions
+
+    out: dict[str, Any] = {"levels": levels, "studies": {}}
+    if grid.key == "signal_noise":
+        out["levels_pct"] = [round(x) for x in levels]
+    noise_pct = rcfg.perturbations.noise.levels_pct
+    for name, _, base_name in grid.studies:
+        runs = studies.get(name) or {}
+        if not runs or name not in rcfg.studies:
+            continue
+        conds = expand_conditions(rcfg.studies[name], rcfg)
+        entry = _grid_entry(runs, conds, rcfg, eval_cfg)
+        entry["x"] = dict(zip(conds, [0.0, *levels], strict=True))
+        base = studies.get(base_name) or {} if base_name else {}
+        shared = {m: base[m] for m in runs if m in base}
+        if shared:
+            bconds = [f"noise_{p}" for p in noise_pct]
+            b = _grid_entry(shared, ["clean", *bconds], rcfg, eval_cfg)
+            b["study"] = base_name
+            b["x"] = {"clean": 0.0, **{c: p / 100 for c, p in zip(bconds, noise_pct, strict=True)}}
+            entry["base"] = b
+        entry["onset"] = _fa_onset(entry)
+        out["studies"][name] = entry
+    return out if out["studies"] else None
 
 
 def snoise_block(
     studies: dict[str, StudyRuns], rcfg: RobustnessConfig, eval_cfg: EvalConfig
 ) -> dict[str, Any] | None:
-    """Exploratory signal-relative noise grid: values per level and paired degradation."""
-    if rcfg.signal_noise is None:
-        return None
-    from twin_ml.experiments.robust_worker import expand_conditions
+    """Exploratory signal-relative noise grid (kept for callers of the Part C name)."""
+    return noise_grid_block(SIGNAL_GRID, studies, rcfg, eval_cfg)
 
-    out: dict[str, Any] = {"levels_pct": rcfg.signal_noise.levels_pct, "studies": {}}
-    h = str(rcfg.primary.horizon)
-    for name, _ in SNOISE_STUDIES:
-        runs = studies.get(name) or {}
-        if not runs or name not in rcfg.studies:
-            continue
-        conds = expand_conditions(rcfg.studies[name], rcfg)
-        out["studies"][name] = {
-            "models": list(runs),
-            "conditions": conds,
-            "counts": counts(next(iter(runs.values())), "clean", h),
-            "values": {
-                m: {c: {k: stat(runs[m], c, h, k) for k in SNOISE_METRICS} for c in conds}
-                for m in runs
-            },
-            "degradation": {
-                m: {
-                    c: compare(runs[m], c, runs[m], "clean", h, SNOISE_METRICS, eval_cfg)
-                    for c in conds
-                    if c != "clean"
-                }
-                for m in runs
-            },
+
+def _fa_rises(d: dict[str, Any]) -> bool:
+    """A paired false-alarm increase: the seed-averaged CI excludes zero, and so do the CIs
+    of at least 2 seeds (of 1 for a single-seed baseline)."""
+    return bool(
+        d["excludes_zero"] and d["point"] > 0 and d["seeds_excluding_zero"] >= min(2, d["seeds"])
+    )
+
+
+def _fa_onset(entry: dict[str, Any]) -> dict[str, Any]:
+    """Per model: the lowest noise level (base grid first) at which false alarms rise."""
+    out: dict[str, Any] = {}
+    for m in entry["models"]:
+        pts: list[tuple[float, str, dict[str, Any], dict[str, Any]]] = []
+        b = entry.get("base")
+        if b and m in b["degradation"]:
+            pts += [(b["x"][c], c, d, b["values"][m][c]) for c, d in b["degradation"][m].items()]
+        pts += [
+            (entry["x"][c], c, d, entry["values"][m][c]) for c, d in entry["degradation"][m].items()
+        ]
+        pts.sort(key=lambda p: p[0])
+        hit = next((p for p in pts if _fa_rises(p[2]["false_alarms_per_h"])), None)
+        last_quiet = None
+        for p in pts:
+            if hit is not None and p[0] >= hit[0]:
+                break
+            last_quiet = p
+        out[m] = {
+            "first_rise_x": None if hit is None else hit[0],
+            "first_rise_condition": None if hit is None else hit[1],
+            "fa_per_h": None if hit is None else hit[3]["false_alarms_per_h"]["point"],
+            "macro_f1": None if hit is None else hit[3]["macro_f1"]["point"],
+            "last_quiet_x": None if last_quiet is None else last_quiet[0],
         }
-    return out if out["studies"] else None
+    return out
+
+
+def _std_reading_notes(report: dict[str, Any], multiples: list[float]) -> list[str]:
+    """The std grid against the fault signal: sigma as a fraction of the precursor rise."""
+    ps = report.get("perturbation_strength")
+    if not ps or not ps.get("signal_scale"):
+        return []
+    ratios = [
+        (ps["normal_std"][kind][s] / sc[s], kind, s)
+        for kind, sc in ps["signal_scale"].items()
+        for s in sc
+        if sc[s] and ps["normal_std"][kind].get(s)
+    ]
+    if not ratios:
+        return []
+    lo, hi = min(ratios), max(ratios)
+    a, b = min(multiples), max(multiples)
+    return [
+        f"- **Noise size against the fault signal:** sigma = m {TIMES} std is "
+        f"m {TIMES} std / rise of the "
+        f"typical rise before FAULT. At {a:g} {TIMES} it ranges from {lo[0] * a:.1%} of the rise "
+        f"({lo[1]} {lo[2]}) to {hi[0] * a:.0%} ({hi[1]} {hi[2]}); at {b:g} {TIMES} from "
+        f"{lo[0] * b:.0%} to {hi[0] * b:.0%}. The leading sensors of most faults (vibration) "
+        f"have a rise of tens of std, so on them even 8 {TIMES} stays a fraction of the "
+        "rise, while "
+        f"sensors that barely move before a fault are drowned already at 1 {TIMES}.",
+    ]
+
+
+def _artefact_notes() -> list[str]:
+    return [
+        "- **False alarms per hour count rising edges** of the sustained alarm in negative "
+        "windows. When noise keeps the alarm on almost all the time, there are few rising edges "
+        "and the count falls again; read it together with macro F1.",
+        "- **Lead time is capped by the episode length** (alarms before the degradation start do "
+        "not count, and an alarm already on counts at the first window inside the episode). A "
+        "lead that grows with noise means the alarm was on early because of the noise, not an "
+        "earlier detection of the fault; a zero miss rate is not a success in that case.",
+        "",
+    ]
+
+
+def _snoise_reading_notes(report: dict[str, Any], levels: list[int]) -> list[str]:
+    """How to read the grid: noise size in normal-operation std, and two metric artefacts."""
+    lines: list[str] = []
+    ps = report.get("perturbation_strength")
+    if ps and ps.get("signal_scale"):
+        ratios = [
+            (sc[s] / ps["normal_std"][kind][s], kind, s)
+            for kind, sc in ps["signal_scale"].items()
+            for s in sc
+            if ps["normal_std"][kind].get(s)
+        ]
+        if ratios:
+            lo, hi = min(ratios), max(ratios)
+            p = min(levels) / 100
+            lines += [
+                f"- **Noise size against normal variation:** at the lowest level ({min(levels)} %) "
+                f"sigma ranges from {_f(p * lo[0], 2)} normal-operation std ({lo[1]} {lo[2]}) to "
+                f"{_f(p * hi[0], 1)} std ({hi[1]} {hi[2]}), because the precursor rise is much "
+                "larger than the normal variation on some sensors (table above). A level is "
+                "relative to the fault signal, not to the sensor's everyday noise.",
+            ]
+    return [*lines, *_artefact_notes()]
+
+
+def _grid_tables(grid: NoiseGrid, block: dict[str, Any]) -> list[str]:
+    lines: list[str] = []
+    for name, title, _ in grid.studies:
+        st = block["studies"].get(name)
+        if not st:
+            lines += [f"**{title}:** not run yet.", ""]
+            continue
+        lines += [f"**{title}** (`{name}`): {_count_line(st['counts'])}", ""]
+        rows = []
+        for m in st["models"]:
+            for c in st["conditions"]:
+                v = st["values"][m][c]
+                rows.append([m, c, *[_cell(v[k], DIGITS.get(k, 3)) for k in SNOISE_METRICS]])
+        lines += [*_table(["Model", "Condition", *SNOISE_METRICS], rows), ""]
+        rows = []
+        for m in st["models"]:
+            for c, d in st["degradation"][m].items():
+                rows.append([m, c, *[_diff(d[k], DIGITS.get(k, 3)) for k in DEGRADATION_KEYS]])
+        lines += [*_table(["Model", "Condition", *[f"Δ {k}" for k in DEGRADATION_KEYS]], rows)]
+        lines += [""]
+    return lines
 
 
 def _snoise_section(report: dict[str, Any]) -> list[str]:
@@ -1401,37 +1613,99 @@ def _snoise_section(report: dict[str, Any]) -> list[str]:
         "FAULT (table above). At 100 % the noise on the leading sensor is as large as the "
         f"whole precursor rise. +{h} s; paired Δ = level minus clean, same models and runs.",
         "",
+        *_snoise_reading_notes(report, sn["levels_pct"]),
     ]
-    for name, title in SNOISE_STUDIES:
-        st = sn["studies"].get(name)
-        if not st:
-            lines += [f"**{title}:** not run yet.", ""]
-            continue
-        lines += [f"**{title}** (`{name}`): {_count_line(st['counts'])}", ""]
-        rows = []
-        for m in st["models"]:
-            for c in st["conditions"]:
-                v = st["values"][m][c]
-                rows.append([m, c, *[_cell(v[k], DIGITS.get(k, 3)) for k in SNOISE_METRICS]])
-        lines += [*_table(["Model", "Condition", *SNOISE_METRICS], rows), ""]
-        rows = []
-        keys = ("miss_rate", "lead_mean_s", "false_alarms_per_h", "cov_mondrian_lac_FAULT")
-        for m in st["models"]:
-            for c, d in st["degradation"][m].items():
-                rows.append([m, c, *[_diff(d[k], DIGITS.get(k, 3)) for k in keys]])
-        lines += [*_table(["Model", "Condition", *[f"Δ {k}" for k in keys]], rows), ""]
-    return lines
+    return [*lines, *_grid_tables(SIGNAL_GRID, sn)]
 
 
-def plot_snoise(report: dict[str, Any], rcfg: RobustnessConfig, out: Path) -> list[Path]:
-    """Early warning, calibration and coverage vs signal-relative noise level."""
+def _x(v: float | None) -> str:
+    return NA if v is None else f"{v:g} {TIMES}"
+
+
+def _stdnoise_section(report: dict[str, Any]) -> list[str]:
+    sd = report.get("std_noise")
+    lines = [
+        "## EXPLORATORY: uniform noise in std units, where do false alarms start rising?",
+        "",
+    ]
+    if not sd:
+        return [*lines, "Not run yet.", ""]
+    h = report["preregistration"]["horizon"]
+    mult = sd["levels"]
+    noise_pct = report["perturbations"]["noise"]["levels_pct"]
+    lines += [
+        "Added after Part C; the primary outcomes are unchanged. Evaluation only (Random "
+        "Forests are refitted from their seed). Gaussian noise with sigma per machine kind and "
+        f"sensor = {', '.join(f'{m:g}' for m in mult)} {TIMES} that sensor's normal-operation std, "
+        "the same multiple for every sensor. This is the scale of the original `noise_<p>` "
+        f"grid ({', '.join(f'noise_{p} = {p / 100:g} {TIMES}' for p in noise_pct)}), so the two "
+        "grids form one axis; the original points come from the `e1models` / `aug` studies "
+        f"(same models, seeds and test runs). +{h} s; paired Δ = level minus clean.",
+        "",
+        *_std_reading_notes(report, mult),
+        *_artefact_notes(),
+    ]
+    rows = []
+    titles = {n: t for n, t, _ in STD_GRID.studies}
+    for name, st in sd["studies"].items():
+        for m, o in st["onset"].items():
+            if m == "persistence":
+                continue
+            rows.append(
+                [
+                    titles[name],
+                    m,
+                    _x(o["last_quiet_x"]),
+                    _x(o["first_rise_x"]),
+                    NA if o["fa_per_h"] is None else _f(o["fa_per_h"], 2),
+                    NA if o["macro_f1"] is None else _f(o["macro_f1"], 3),
+                ]
+            )
+    lines += [
+        "**Where false alarms start rising** (lowest sigma on the combined axis at which the "
+        "paired Δ false alarms per hour is positive with a CI excluding zero, in at least 2 "
+        "of 3 seeds; 1 of 1 for the threshold rule). *Last level without a rise* is the level "
+        "just below it; the onset lies between the two.",
+        "",
+        *_table(
+            [
+                "Models",
+                "Model",
+                "Last level without a rise",
+                "First level with a rise",
+                "FA/h there",
+                "macro F1 there",
+            ],
+            rows,
+        ),
+        "",
+    ]
+    return [*lines, *_grid_tables(STD_GRID, sd)]
+
+
+def _grid_series(
+    st: dict[str, Any], m: str, k: str
+) -> tuple[list[float], list[dict[str, Any]], list[bool]]:
+    """x, values and a "from the base study" flag per point, ascending in x."""
+    pts = [(st["x"][c], st["values"][m][c][k], False) for c in st["conditions"]]
+    b = st.get("base")
+    if b and m in b["values"]:
+        pts += [(b["x"][c], b["values"][m][c][k], True) for c in b["conditions"] if c != "clean"]
+    pts.sort(key=lambda p: p[0])
+    return [p[0] for p in pts], [p[1] for p in pts], [p[2] for p in pts]
+
+
+def plot_noise_grid(
+    report: dict[str, Any], rcfg: RobustnessConfig, out: Path, grid: NoiseGrid, title: str
+) -> list[Path]:
+    """Early warning, calibration and coverage vs noise level for one grid."""
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    sn = report.get("signal_noise")
-    if not sn:
+    block = report.get(grid.key)
+    if not block:
         return []
     panels = (
         ("miss_rate", "miss rate"),
@@ -1441,19 +1715,29 @@ def plot_snoise(report: dict[str, Any], rcfg: RobustnessConfig, out: Path) -> li
         ("cov_mondrian_lac_FAULT", "Mondrian FAULT coverage"),
         ("macro_f1", "macro F1 (operating)"),
     )
-    xs = [0, *sn["levels_pct"]]
+    solid, dashed_name = grid.studies[0][0], grid.studies[1][0]
+    ticks: set[float] = set()
     fig, axes = plt.subplots(2, 3, figsize=(12, 6.6), facecolor=SURFACE, layout="constrained")
     for ax, (k, label) in zip(axes.flat, panels, strict=True):
         _style(ax)
-        for name, dashed in (("e1models_snoise", False), ("aug_snoise", True)):
-            st = sn["studies"].get(name)
+        for name, dashed in ((solid, False), (dashed_name, True)):
+            st = block["studies"].get(name)
             if not st:
                 continue
             colors = _colors(st["models"])
             for m in st["models"]:
                 if m == "persistence":
                     continue
-                vals = [st["values"][m][c][k] for c in st["conditions"]]
+                xs, vals, from_base = _grid_series(st, m, k)
+                if grid.log_x:  # clean (x = 0) cannot sit on a log axis: drawn as a line
+                    clean = vals[0]["point"]
+                    keep = [i for i, x in enumerate(xs) if x > 0]
+                    xs = [xs[i] for i in keep]
+                    vals = [vals[i] for i in keep]
+                    from_base = [from_base[i] for i in keep]
+                    if not dashed:
+                        ax.axhline(clean, color=colors[m], lw=0.8, ls=(0, (1, 2)), alpha=0.6)
+                ticks.update(xs)
                 y = [v["point"] for v in vals]
                 if not dashed:
                     ax.fill_between(
@@ -1472,36 +1756,72 @@ def plot_snoise(report: dict[str, Any], rcfg: RobustnessConfig, out: Path) -> li
                     ls=(0, (3, 2)) if dashed else "-",
                     marker=None if dashed else "o",
                     ms=4,
-                    label=None if dashed else m,
+                    # dashed lines carry the label only when no solid study is drawn
+                    label=m if not dashed or solid not in block["studies"] else None,
                 )
+                if not dashed and any(from_base):  # base-study points: hollow markers
+                    bx = [x for x, f in zip(xs, from_base, strict=True) if f]
+                    by = [v for v, f in zip(y, from_base, strict=True) if f]
+                    ax.plot(bx, by, ls="none", marker="o", ms=5, mfc=SURFACE, mec=colors[m])
         if k == "cov_mondrian_lac_FAULT":
             ax.axhline(1 - rcfg.conformal.alpha, color=INK2, lw=1, ls=(0, (4, 3)))
+        if grid.log_x and k == "false_alarms_per_h":
+            # the onset (well below 1 per hour) is invisible on a linear axis next to ~200
+            ax.set_yscale("symlog", linthresh=0.1)
+            label = f"{label} (symlog, linear below 0.1)"
         ax.set_title(label, color=INK, fontsize=9.5, loc="left")
-        ax.set_xticks(xs)
-        ax.set_xlabel("noise sigma, % of the typical rise before FAULT", color=INK2, fontsize=8)
+        if grid.log_x:
+            ax.set_xscale("log")
+            tk = sorted(ticks)
+            ax.set_xticks(tk)
+            ax.set_xticklabels([f"{t:g}" for t in tk])
+            ax.minorticks_off()
+        else:
+            ax.set_xticks([0, *block["levels"]])
+        ax.set_xlabel(grid.xlabel, color=INK2, fontsize=8)
     handles, labels = axes.flat[0].get_legend_handles_labels()
-    fig.legend(
-        handles,
-        labels,
-        loc="outside lower center",
-        ncol=len(labels),
-        frameon=False,
-        fontsize=8.5,
-        labelcolor=INK2,
-    )
-    fig.suptitle(
-        f"Signal-relative noise at +{rcfg.primary.horizon} s (exploratory): E1 models solid "
-        "(band = mean 95 % run-bootstrap CI), augmentation-trained dashed; mean over seeds",
-        color=INK,
-        fontsize=9.5,
-        x=0.01,
-        ha="left",
-    )
-    path = out / f"{rcfg.report_name}_signal_noise.png"
+    if labels:  # empty when only persistence has finished (it is never drawn)
+        fig.legend(
+            handles,
+            labels,
+            loc="outside lower center",
+            ncol=len(labels),
+            frameon=False,
+            fontsize=8.5,
+            labelcolor=INK2,
+        )
+    fig.suptitle(title, color=INK, fontsize=9.5, x=0.01, ha="left")
+    path = out / f"{rcfg.report_name}_{grid.key}.png"
     fig.savefig(path, dpi=130, facecolor=SURFACE)
     plt.close(fig)
-    report["plots"]["signal_noise"] = path.name
+    report["plots"][grid.key] = path.name
     return [path]
+
+
+def plot_snoise(report: dict[str, Any], rcfg: RobustnessConfig, out: Path) -> list[Path]:
+    """Early warning, calibration and coverage vs signal-relative noise level."""
+    return plot_noise_grid(
+        report,
+        rcfg,
+        out,
+        SIGNAL_GRID,
+        f"Signal-relative noise at +{rcfg.primary.horizon} s (exploratory): E1 models solid "
+        "(band = mean 95 % run-bootstrap CI), augmentation-trained dashed; mean over seeds",
+    )
+
+
+def plot_stdnoise(report: dict[str, Any], rcfg: RobustnessConfig, out: Path) -> list[Path]:
+    """Degradation vs uniform noise in std units, with the original noise grid on one axis."""
+    return plot_noise_grid(
+        report,
+        rcfg,
+        out,
+        STD_GRID,
+        f"Uniform noise in normal-operation std at +{rcfg.primary.horizon} s (exploratory), "
+        "mean over seeds: E1 models solid (band = mean 95 % run-bootstrap CI), "
+        "augmentation-trained dashed\nhollow markers = original noise grid (e1models / aug "
+        "studies); dotted horizontal = clean value of the E1 model",
+    )
 
 
 def _case_section(report: dict[str, Any]) -> list[str]:
@@ -1550,9 +1870,22 @@ def _case_section(report: dict[str, Any]) -> list[str]:
                 f"{what}, which covers the whole interval from the earliest clean-data alarm "
                 "to the FAULT onset. Forward fill repeats the last values observed before the "
                 "fault segment, so the rising signal is never seen. The missing masks are on, "
-                "but no model was trained on missing data. Neither the models nor the "
-                "threshold rule can raise a sustained alarm before the FAULT.",
+                "but the E1 models were not trained on missing data. Neither the models nor "
+                "the threshold rule can raise a sustained alarm before the FAULT.",
             ]
+            if c.get("aug_runs"):
+                n, k = c["aug_runs"], c["aug_detected"]
+                lines += [
+                    "- **Augmentation-trained models** (MCAR and single-sensor dropout in "
+                    f"training): {k} of {n} runs (each learned model and seed) detect this "
+                    "episode. "
+                    + (
+                        "Training on missing data does not help when every sensor is missing, "
+                        "because there is no signal left to read."
+                        if k == 0
+                        else "So augmentation changes the outcome on this episode for some runs."
+                    ),
+                ]
             live = report.get("live_data_quality")
             if f["label"] == "dropout" and live:
                 dur = f["to_s"] - f["from_s"]
@@ -1752,6 +2085,7 @@ def render_markdown(report: dict[str, Any], rcfg: RobustnessConfig) -> str:
         ),
         *_strength_section(report, rcfg),
         *_snoise_section(report),
+        *_stdnoise_section(report),
         *_case_section(report),
         *_drift_section(report, rcfg),
         *_e4_section(report, rcfg),

@@ -38,6 +38,8 @@ CLEAN = "clean"
 PERTURBATIONS = "perturbations"  # in a study's condition list: the whole grid
 SIGNAL_NOISE = "signal_noise"  # in a study's condition list: the signal-relative noise grid
 SIGNAL_NOISE_PREFIX = "snoise"
+STD_NOISE = "std_noise"  # in a study's condition list: the uniform noise grid in std units
+STD_NOISE_PREFIX = "stdnoise"
 
 
 @dataclass(frozen=True)
@@ -332,3 +334,9 @@ def signal_noise_conditions(levels_pct: Sequence[int]) -> list[Condition]:
     return [
         Condition(condition_name(SIGNAL_NOISE_PREFIX, lv), "noise", lv / 100.0) for lv in levels_pct
     ]
+
+
+def std_noise_conditions(multiples: Sequence[float]) -> list[Condition]:
+    """Uniform noise in normal-operation std units: kind "noise" with sigma = m x normal std,
+    the same multiple for every sensor (``stdnoise_1`` = 1 x std, ``stdnoise_0.5`` = 0.5 x)."""
+    return [Condition(f"{STD_NOISE_PREFIX}_{m:g}", "noise", float(m)) for m in multiples]

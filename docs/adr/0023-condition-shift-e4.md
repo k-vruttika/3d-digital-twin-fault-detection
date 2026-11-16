@@ -51,3 +51,12 @@ E4 asks how a model behaves when the machine runs under operating conditions it 
 - **The shift is in load only.** Load changes temperature, current and vibration levels and the degradation speed. Ambient temperature and CNC speed changes still vary as in E1.
 - **Small numbers:** E4 has fewer training runs than E1. The in-distribution reference `e4_in` has about 23 runs, so its CIs are wide.
 - **New dataset key:** the filtered dataset has its own `dataset_key`. The E1 key is unchanged, because unset optional fields stay out of the fingerprint (tested).
+
+## Results (2026-11-16)
+
+- **Where:** the E4 numbers are generated into [robustness.md](../../experiments/results/robustness.md): § PRIMARY `e4_high` and § EXPLORATORY E4 condition shift, plus the plot `robustness_e4.png`. `docs/PROGRESS.md` § Phase 8 Part B has a short record.
+- **Primary (`e4_high`):**
+  - No model misses a high-load episode, and every model still warns earlier than the threshold rule.
+  - The trees' margin shrinks most.
+  - Mondrian FAULT coverage falls below the 0.90 target for every learned model, so the class-conditional guarantee does not survive the load shift.
+- **Exploratory:** the same model loses lead under the shift: clearly for the trees, within the CI for the sequence models. The comparison with the E1 models on the 7 shared high-load test runs has only 6 episodes and mixes the shift with the training-set size.

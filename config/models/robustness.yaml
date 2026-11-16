@@ -77,10 +77,30 @@ studies:
     conditions: [clean, signal_noise]
     extension: true
 
+  # Exploratory follow-up (after Part C; primary outcomes unchanged): uniform noise in
+  # normal-operation std units, evaluation only. Locates where false alarms start rising
+  # between the original noise grid (up to 0.3 x std) and the signal-relative grid.
+  e1models_stdnoise:
+    models_from: e1
+    dataset_config: config/models/dataset.yaml
+    experiment: E1_clean
+    conditions: [clean, std_noise]
+    extension: true
+  aug_stdnoise:
+    models_from: train
+    dataset_config: config/models/dataset_aug.yaml
+    experiment: P8_aug
+    conditions: [clean, std_noise]
+    extension: true
+
 # Exploratory: Gaussian sigma per kind and sensor = p % of the sensor's typical rise before
 # FAULT (clean training episodes; twin_ml.data.perturb.signal_scale). Finds where early
 # warning breaks down.
 signal_noise: { levels_pct: [10, 25, 50, 100] }
+
+# Exploratory: Gaussian sigma per kind and sensor = m x the sensor's normal-operation std (the
+# scale of the noise_<p> grid), the same multiple for every sensor.
+std_noise: { multiples: [1, 2, 4, 8] }
 
 seen_in_augmentation: [noise, mcar, dropout, stuck]   # drift is never seen in training
 

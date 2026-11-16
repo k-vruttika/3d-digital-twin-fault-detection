@@ -111,9 +111,37 @@ Requested after the Part A results were seen. **None of them changes the pre-reg
   - **Purpose:** to find where early warning breaks down. The original noise grid turned out to be small against the fault signal (at most about 5 % of the precursor rise).
 - **Config hashes:** extension studies (`extension: true`) and the `signal_noise` settings are kept out of the shared part of the study config hash. Adding them therefore leaves every earlier run's hash, and so its validity, unchanged.
 
+## Second amendment (2026-11-16, after the Part C results): uniform noise in std units
+
+Requested after the Part C results were seen. Exploratory and evaluation-only; **the pre-registered primary outcomes and conditions are unchanged.**
+
+- **Grid** (`std_noise` in `robustness.yaml`; studies `e1models_stdnoise` and `aug_stdnoise`): Gaussian noise with sigma = 1, 2, 4, 8 × the sensor's normal-operation std, the same multiple for every sensor.
+- **Why:** to locate where false alarms start rising between the original noise grid (at most 0.3 × std) and the signal-relative grid. The signal-relative grid is many std on some sensors and a fraction of one on others.
+- **One axis with the original grid:** it uses the same scale (normal-operation std) as `noise_<p>`. The report therefore puts both grids on one axis, with the `noise_<p>` points taken from the `e1models` / `aug` studies (same models, seeds and test runs).
+- **Onset rule, fixed before the onset table was generated:** the lowest level at which the paired Δ false alarms per hour is positive and its CI excludes zero, in at least 2 of 3 seeds (1 of 1 for the threshold rule).
+- **Config hashes:**
+  - The `std_noise` settings are kept out of the shared hash.
+  - A study's extension hash adds them only if the study lists that grid.
+  - So every earlier run keeps its hash, the signal-noise studies included. Checked with `--dry-run --skip-existing` on all five earlier studies (0 runs to do) and in `test_ml_signal_noise.py`.
+
 ## Consequences
 
 - **Reproducible from config:** every perturbed test set can be regenerated from the config and seed, and nothing perturbed is stored. Building one takes a few seconds per condition.
 - **Cost:** the RF retraining adds about 2 minutes per seed to the e1models study.
 - **Why perturbations are synthetic:** the noise and gap types are synthetic and independent across sensors. Correlated or physically caused sensor faults are covered only by the simulator sets.
 - **Persistence is unaffected by construction.** Its numbers under perturbation equal its clean numbers.
+
+## Outcome (2026-11-16, Phase 8 complete)
+
+All studies in this ADR ran as specified: `e1models`, `e4`, `aug`, and the extension studies `e1models_snoise` and `aug_snoise`. Every number is in the generated [robustness.md](../../experiments/results/robustness.md); `docs/PROGRESS.md` § Phase 8 has a short record. Findings that affect later phases:
+
+- **Augmentation (exploratory):**
+  - On clean data, misses and false alarms do not change. Macro F1 is 0.01–0.02 lower, but the CIs include zero. The FAULT-class ECE of the GRU and Transformer is slightly higher (under 0.001).
+  - On the types it saw, it mainly cuts the false alarms under stuck sensors and fixes the Random Forest's calibration under noise. It does not remove the lead lost under stuck sensors, and it lowers Mondrian FAULT coverage of the sequence models under MCAR.
+  - On the unseen type (simulator drift), nothing changes: false alarms inside drift segments stay above zero.
+  - The `sf_all` episode hidden by an all-sensor dropout is still missed by every augmentation-trained run.
+- **Signal-relative noise (exploratory):**
+  - Early warning breaks down through false alarms, not misses. Already at 10 % of the precursor rise, the recurrent models raise tens of false alarms per hour; at 25 %, every learned model does.
+  - The growing lead and zero miss rate at high levels are artefacts of an alarm that is on all the time. The report explains how to read them.
+  - Augmentation with the original noise grid (at most 30 % of the normal-operation std) does not help at these levels.
+- **Report wording rule:** a level that is relative to the fault signal can be many normal-operation std on a sensor whose precursor rise is large (vibration). The report prints that range next to the grid.

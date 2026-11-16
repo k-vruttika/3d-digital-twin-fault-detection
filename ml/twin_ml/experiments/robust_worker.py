@@ -64,8 +64,10 @@ def expand_conditions(study: StudyConfig, rcfg: RobustnessConfig) -> list[str]:
     from twin_ml.data.perturb import (
         PERTURBATIONS,
         SIGNAL_NOISE,
+        STD_NOISE,
         grid_conditions,
         signal_noise_conditions,
+        std_noise_conditions,
     )
 
     out: list[str] = []
@@ -76,6 +78,10 @@ def expand_conditions(study: StudyConfig, rcfg: RobustnessConfig) -> list[str]:
             if rcfg.signal_noise is None:
                 raise ValueError("a study lists signal_noise but robustness.yaml has none")
             out += [g.name for g in signal_noise_conditions(rcfg.signal_noise.levels_pct)]
+        elif c == STD_NOISE:
+            if rcfg.std_noise is None:
+                raise ValueError("a study lists std_noise but robustness.yaml has none")
+            out += [g.name for g in std_noise_conditions(rcfg.std_noise.multiples)]
         else:
             out.append(c)
     return out
@@ -91,10 +97,14 @@ def study_config_sha(
 ) -> str:
     """Hash of everything that determines a study run's results (resume key).
 
-    Exploratory extension studies (``extension: true``) and the signal-noise settings are
-    left out of the shared part, so adding them later keeps every earlier run's hash; an
-    extension study's own hash adds its study config and the signal-noise settings.
+    Exploratory extension studies (``extension: true``) and the signal-noise and std-noise
+    settings are left out of the shared part, so adding them later keeps every earlier run's
+    hash; an extension study's own hash adds its study config and the signal-noise settings,
+    plus the std-noise settings if it lists that grid (so the signal-noise studies' hashes
+    did not change when the std-noise grid was added).
     """
+    from twin_ml.data.perturb import STD_NOISE
+
     ext = {k for k, v in rcfg.studies.items() if v.extension}
     shared = rcfg.model_dump(
         mode="json",
@@ -105,6 +115,7 @@ def study_config_sha(
             "progress_dir",
             "reliability_min_count",
             "signal_noise",
+            "std_noise",
         },
     )
     shared["studies"] = {k: v for k, v in shared["studies"].items() if k not in ext}
@@ -125,6 +136,10 @@ def study_config_sha(
             if rcfg.signal_noise is None
             else rcfg.signal_noise.model_dump(mode="json"),
         }
+        if STD_NOISE in rcfg.studies[study].conditions:
+            data["extension"]["std_noise"] = (
+                None if rcfg.std_noise is None else rcfg.std_noise.model_dump(mode="json")
+            )
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()[:12]
 
 
@@ -367,7 +382,12 @@ def run_study(
     from twin_common.logging import get_logger
     from twin_ml.config import load_dataset_config
     from twin_ml.data.dataset import Dataset, resolve_dataset_dir
-    from twin_ml.data.perturb import parse_condition, signal_noise_conditions
+    from twin_ml.data.perturb import (
+        STD_NOISE_PREFIX,
+        parse_condition,
+        signal_noise_conditions,
+        std_noise_conditions,
+    )
     from twin_ml.data.test_sets import load_series, perturbed_split, sensor_fault_split
     from twin_ml.evaluate import run_sums
     from twin_ml.experiments.robust_eval import (
@@ -445,6 +465,15 @@ def run_study(
                     )
                     split = perturbed_split(
                         ds, clean_series, cond, rcfg.perturbations, scale, rcfg.perturbation_seed
+                    )
+                elif name.startswith(f"{STD_NOISE_PREFIX}_"):
+                    assert rcfg.std_noise is not None
+                    cond = next(
+                        c for c in std_noise_conditions(rcfg.std_noise.multiples) if c.name == name
+                    )
+                    # same scale as the noise_<p> grid (normal-operation std), larger multiples
+                    split = perturbed_split(
+                        ds, clean_series, cond, rcfg.perturbations, sigma, rcfg.perturbation_seed
                     )
                 else:
                     cond = parse_condition(name, rcfg.perturbations)
