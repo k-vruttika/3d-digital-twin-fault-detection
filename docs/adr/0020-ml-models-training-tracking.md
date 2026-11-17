@@ -85,3 +85,25 @@ E1 compares baselines and five model families on clean simulator data. Three con
 - **Rejected:** `KMP_DUPLICATE_LIB_OK=TRUE`. It only turns off Intel's check for a second runtime, and both runtimes still compete for the same threads. Using Homebrew's libomp for torch as well would have meant patching wheels per OS.
 - **Tests:** `test_training_worker_loads_only_its_own_library` trains rf, xgb and gru through the worker entry point. It checks that rf loads neither torch nor XGBoost, that xgb never loads torch, and that gru never loads XGBoost. `require_xgboost` checks the XGBoost import in a subprocess, because the pytest process loads torch for the loss and determinism tests.
 - **Consequences:** each run pays about 2 to 4 s of interpreter, MLflow and library start-up. That is small next to training on the full dataset, but it makes the e2e test module slower. Workers inherit stdout and stderr, so their logs show up live in the CLI and in pytest's captured output.
+
+## Amendment 2026-11-17: no torch next to XGBoost in tests, explanations or live inference
+
+- **Problem:** CI on `macos-latest` crashed again with exit code 139, in `ml/tests/test_ml_explain.py`, inside XGBoost (`data.py`, `_meta_from_numpy`). It was the same clash as above. A module-scoped fixture fitted an XGBoost model in the pytest process, and earlier tests had already loaded torch there. The first amendment had isolated training, but tests that use a model directly were not covered, and nothing would have caught the next one before macOS CI.
+- **Decision, tests:**
+  - The XGBoost explanation tests (TreeSHAP additivity, `explain()` for XGBoost) moved to `ml/tests/xgb_isolated_explain.py`. pytest does not collect that file on its own (no `test_` prefix).
+  - `test_ml_explain.py::test_xgboost_explanations_in_own_process` runs it in a fresh pytest process (`twin_ml.testing.run_pytest_isolated`, with faulthandler). It hands over the quick dataset by path, so the child does not rebuild it.
+  - The child asserts that it never loads torch. The Random Forest and GRU explanation tests stay in-process.
+- **Decision, guard:**
+  - Mechanism: the root `conftest.py` checks `sys.modules` after collection and after every test's teardown. If torch and XGBoost are both imported in the pytest process, it fails the session, either as an error at the teardown of the first test after which both are loaded, or as a usage error after collection. The message points here.
+  - The guard runs on every OS, so Linux and Windows CI catch a new clash before macOS crashes on it.
+  - `tests/test_openmp_guard.py` checks the guard in child pytest processes with stand-in modules, so the real libraries are never loaded together.
+  - On Windows (2026-11-17) the whole suite passes with the guard in place. Before the fix, the guard stopped at `test_treeshap_sums_to_margin`.
+- **Decision, Phase 9 code:**
+  - Every Phase 9 worker (`e5_worker`: study runs, explanations, autoencoder shares) handles one (model, seed) per process.
+  - It records the ML libraries and OpenMP runtimes it loaded in `metrics.json` (`process`), and raises if torch and XGBoost are both loaded. The E5 e2e test asserts that XGBoost runs never load torch and that the sequence-model and autoencoder runs never load XGBoost.
+  - `twin_ml.explain` (`explain()`, `attribute()`, `probabilities()`) raises `OpenMPClashError` before using XGBoost if torch is loaded, and before using torch if XGBoost is loaded.
+  - The combined policy and the reports are pure numpy and MLflow.
+- **Consequence for Phase 11 (live inference):**
+  - Tree models (XGBoost) and sequence models (LSTM, GRU, Transformer; also the torch autoencoder) must run in **separate processes**: for example one inference worker process per model family, behind the backend's executor boundary.
+  - One process that loads both would crash on macOS, and `explain()` refuses to do it.
+  - scikit-learn (Random Forest, Isolation Forest) next to torch has run in the same pytest process on all three CI OSes without a crash. It is not covered by the guard; if it ever crashes, extend `OPENMP_CLASH` in the root conftest.

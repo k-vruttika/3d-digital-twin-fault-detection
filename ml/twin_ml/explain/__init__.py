@@ -8,10 +8,17 @@ library: torch is loaded only when a sequence model is explained.
 
 The explained output is the model's predicted alarm class at the horizon: whichever of
 WARNING and FAULT has the higher probability. Positive weights are evidence for it.
+
+**One OpenMP library per process (ADR 0020).** torch and XGBoost each bring an OpenMP runtime,
+and on macOS the two in one process segfault. A process may explain XGBoost models or
+sequence models, never both: :func:`require_alone` raises before either library is used if the
+other one is already loaded. Phase 11 live inference must keep tree and sequence models in
+separate processes.
 """
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -32,6 +39,29 @@ from twin_ml.features.inputs import KINDS
 from twin_ml.features.summary import summary_features
 
 DEFAULT_IG_STEPS = 64  # ADR 0024 / e5.yaml explain.ig_steps
+OPENMP_LIBRARIES = ("torch", "xgboost")  # never in one process (ADR 0020)
+
+
+class OpenMPClashError(RuntimeError):
+    """torch and XGBoost would end up in one process (segfaults on macOS; ADR 0020)."""
+
+
+def require_alone(library: str) -> None:
+    """Raise :class:`OpenMPClashError` if the other library of ``OPENMP_LIBRARIES`` is loaded."""
+    for other in OPENMP_LIBRARIES:
+        if other != library and other in sys.modules:
+            raise OpenMPClashError(
+                f"cannot use {library} for explanations: {other} is already loaded in this "
+                "process, and their two OpenMP runtimes crash on macOS. Explain tree models "
+                "and sequence models in separate processes (ADR 0020, ADR 0026)."
+            )
+
+
+def _require_for(fam: str) -> None:
+    if fam == "xgb":
+        require_alone("xgboost")
+    elif fam == "nn":
+        require_alone("torch")
 
 
 def family(model: Any) -> str:
@@ -67,6 +97,7 @@ def probabilities(
 ) -> npt.NDArray[np.float64]:
     """(B, 3) health probabilities at ``horizon`` for windows given as arrays."""
     fam = family(model)
+    _require_for(fam)
     if fam in ("xgb", "rf"):
         x = summary_features(values, mask, kind)
         return np.asarray(model.heads[f"h{horizon}"].proba(x), dtype=np.float64)
@@ -92,6 +123,7 @@ def attribute(
     """Per-sensor attributions of windows given as (values (B, W, 6), mask (B, W, 5), kind
     one-hot (B, 3)), for ``cls`` or else the predicted alarm class."""
     fam = family(model)
+    _require_for(fam)
     if cls is None:
         cls = _alarm_class(probabilities(model, values, mask, kind, horizon))
     if fam in ("xgb", "rf"):
@@ -149,4 +181,13 @@ def explain(
     return to_parts(normalise(att.sensors)[0], sensor_parts)
 
 
-__all__ = ["Attribution", "attribute", "explain", "family", "probabilities", "to_parts"]
+__all__ = [
+    "Attribution",
+    "OpenMPClashError",
+    "attribute",
+    "explain",
+    "family",
+    "probabilities",
+    "require_alone",
+    "to_parts",
+]

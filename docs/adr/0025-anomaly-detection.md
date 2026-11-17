@@ -65,4 +65,41 @@ The training split gives the training windows. The validation split, with the sa
 - **Training cost is small:** a whole detector study run (training plus three test conditions) took 34–48 s per seed. The measured times are in `docs/PROGRESS.md`.
 - **The autoencoder's validation loss was still falling at epoch 20.** The budget was fixed in advance (ADR 0024) and is not changed after results; a longer budget could lower the normal-score spread.
 - **Window-level only:** no detector is retrained online, and drift in normal operation (for example, slow wear of a healthy machine) would raise its scores over time. That is out of scope here; online drift detection is planned with `river` (ADWIN).
-- **Results:** in the generated [e5_explain.md](../../experiments/results/e5_explain.md) (Part C).
+- **Results:** below, from the generated [e5_explain.md](../../experiments/results/e5_explain.md).
+
+## Results (2026-11-17)
+
+### Primary (ADR 0024 § Pre-registration; detectors at the 99.9th percentile)
+
+| | E5 miss rate | E5 lead vs sim WARNING | Clean false alarms per hour |
+|---|---|---|---|
+| Autoencoder | 0.000 [0.000, 0.000] | 656 s [617, 693] | 0.57 [0.31, 0.89] |
+| Isolation Forest | 0.992 [0.978, 1.000] | 324 s (from 2 / 1 / 0 detected episodes in seeds 0 / 1 / 2, per the runs' logged `e5.p99.9.miss_rate`) | 0.23 [0.12, 0.38] |
+| Threshold rule (reference) | 0.042 [0.010, 0.075] | 23 s [2, 47] | 0.00 |
+
+- **Autoencoder:** it detects every E5 episode, early.
+- **Combined policy:** "supervised OR autoencoder" therefore has a 0 % E5 miss rate for every supervised model, E1 and augmentation-trained (paired vs the model alone, 3/3 seeds). The cost is +0.56 to +0.57 false alarms per hour on clean data.
+- **Isolation Forest:** at the pre-registered threshold it is nearly useless. It misses 0.992 of E5 episodes and 0.974 of the clean seen-type episodes, and an OR with it changes no miss rate significantly.
+
+### Exploratory
+
+- **Percentile trade-off:**
+  - The Isolation Forest at p99 detects nearly all E5 episodes (miss rate 0.003) at 0.91 false alarms per hour.
+  - The autoencoder at p99 / p99.5 has 0.66 / 0.54 false alarms per hour and still misses nothing.
+  - These percentiles were exploratory by design, so the primary result stands unchanged. The autoencoder's clean miss rate at p99.9 is 0.077 [0.011, 0.184]: it misses some seen-type episodes that the supervised models catch.
+- **Score quality:** AUPRC on operating windows is 0.835 (autoencoder) and 0.272 (Isolation Forest) on clean data, 0.357 and 0.149 on E5. The Isolation Forest's summary features separate precursors poorly.
+- **Load shift (E4, detectors trained on low + medium load):**
+  - Autoencoder false alarms per hour: 0.43 on `e4_in` vs 1.10 on `e4_high` (+0.67 [0.20, 1.07], 3/3).
+  - Isolation Forest: 0.23 vs 0.51 (2/3).
+  - A load band outside training alone raises the anomaly false alarms; the supervised E4 models stay at 0.00–0.03.
+- **Sensor drift (`sf_drift`):**
+  - The autoencoder flags 0.239 of the drift segments (time to flag 241 s), but every such alarm also counts as a false fault warning: 2.63 per hour inside drift segments, against 0.22–0.97 for the supervised models.
+  - The Isolation Forest flags 0.046.
+- **Per-sensor reconstruction-error shares (ADR 0024 amendment):** each re-fitted autoencoder reproduced its stored alarms bit for bit. Unit = episode or flagged segment; counts from seed 0.
+  - **Clean, seen types:** the largest share is the fault's leading sensor in every episode (26 of 26; unit agreement 1.000; window agreement 0.996).
+  - **E5:** it never is. The largest share points at vibration, not current, in all 120 episodes: mean shares vib 0.91, current 0.03; unit agreement 0.000, window agreement 0.001. The autoencoder sees the stick-slip vibration bursts, not the current rise the fault trips on.
+  - **`sf_drift`:** 23 of 95 drift segments are flagged (seed 0).
+    - Unit agreement 0.779 [0.603, 0.936], all of it from vibration drifts (18 of 18 agree).
+    - Temperature drifts (3) and current drifts (2) are attributed to vib / load instead (0 agree).
+  - The shares are not attributions in a strict sense (see Decision). They tell an operator where the reconstruction failed, which for E5 and for non-vibration drift is not the sensor that is actually wrong.
+- **Consequence for Phase 11:** keep autoencoder alarms as a separate "unusual behaviour" category without a part highlight (ADR 0024 § Outcome).

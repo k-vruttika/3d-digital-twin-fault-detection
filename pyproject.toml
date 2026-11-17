@@ -201,7 +201,7 @@ help = "Generate the E5 runs (held-out lubrication_loss, seed 42, indices 0-269;
 cmd = "python -m twin_sim generate --runs 270 --duration 3600 --seed 42 --scenario config/scenarios/e5_lubrication_loss.yaml --out data/sim_e5/"
 
 [tool.poe.tasks.e5]
-help = "Phase 9 study runs, e.g. `uv run poe e5 --study e5_anomaly --skip-existing`; `--combine` logs the combined policy"
+help = "Phase 9 study runs, e.g. `uv run poe e5 --study e5_anomaly --skip-existing`; `--combine` logs the combined policy; `--explain`, `--ae-shares`, `--ig-sensitivity` (exploratory follow-ups, e5_followup.yaml)"
 cmd = "python -m twin_ml.experiments.e5"
 
 [tool.poe.tasks.report-e5]

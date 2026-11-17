@@ -77,4 +77,48 @@ The module imports neither the simulator nor, at import time, any ML library (im
 - **What agreement measures:** a high agreement rate means the model leans on the signal the physics says leads the fault. It does not prove that the explanation is faithful; the deletion test addresses that, within its limits.
 - **Limits of the deletion test:** replacing a sensor with its training mean creates inputs that may lie outside the training distribution, so a large change can partly reflect that rather than reliance on the sensor.
 - **Limit for lubrication_loss:** for an unseen fault, the supervised models were never taught the current-led signature. Agreement there tests whether their alarms happen to rest on current, and the result has to be read together with whether they alarm at all (E5 miss rate).
-- **Results:** in the generated [e5_explain.md](../../experiments/results/e5_explain.md) (Part C).
+- **Results:** below, from the generated [e5_explain.md](../../experiments/results/e5_explain.md).
+
+## Results (2026-11-17)
+
+### Primary: agreement rate (64 IG steps; E5 episodes explained in seed 0 in brackets)
+
+| Model (method) | Clean, seen types | E5 (`lubrication_loss`) | Pooled (as pre-registered) |
+|---|---|---|---|
+| XGBoost (TreeSHAP) | 1.000 | 0.178 [0.107, 0.257] (90 of 120) | 0.363 |
+| LSTM (IG) | 1.000 | 0.251 [0.166, 0.339] (45 of 120) | 0.650 |
+| GRU (IG) | 0.974 [0.931, 1.000] | 0.228 [0.155, 0.328] (22 of 120) | 0.512 |
+| Transformer (IG) | 1.000 | 0.000 [0.000, 0.000] (7 of 120) | 0.719 |
+
+- **Seen faults:** explanations agree with the physics on every seen fault type (bearing wear and spindle imbalance → vib, overheating → temp), for every model.
+- **Unseen fault:** they do not agree on E5. The models' alarms rest on current in at most a quarter of the explained episodes.
+- **Read clean and E5 separately, not pooled.** The pooled rate weights the conditions by how many episodes a model explains, and the models explain very different numbers of E5 episodes. The Transformer's pooled 0.719 comes almost only from its 26 clean episodes. This is a reading clarification of the pre-registered "overall" rate, not a change of it.
+- An explanation exists only for episodes the model alarms on. On E5 that is a minority of episodes for the sequence models, and it varies by seed (LSTM 45 / 53 / 8, GRU 22 / 53 / 95, Transformer 7 / 33 / 2 of 120).
+
+### Exploratory
+
+- **Deletion test** (Δ p(WARNING) + p(FAULT), top-attributed sensor minus a random other sensor):
+  - **Clean:** +0.836 to +0.907 for every model, and the top sensor moves the prediction more in 0.98–1.00 of the windows. The explanations pass.
+  - **E5, sequence models:** +0.358 to +0.383, so their attributions still identify inputs the prediction depends on, just not the physically expected one.
+  - **E5, XGBoost: the deletion test fails.** −0.046 [−0.062, −0.028]: removing a random other sensor moves the prediction more than removing the top-attributed one, and top > random holds in only 0.530 of the windows. On the unseen fault, XGBoost's TreeSHAP ranking does not identify what the prediction depends on.
+  - Limit: replacing a sensor with its training mean can leave the training distribution (see Consequences).
+- **IG completeness error at the pre-registered 64 steps:** relative error 0.061 (LSTM), 0.048 (GRU) and 0.012 (Transformer) on clean windows, 0.002–0.012 on E5. That is larger than the unit-test networks. It is reported as is; the 64-step results stay primary.
+- **IG step-count sensitivity (ADR 0024 amendment; LSTM, 256 steps, same windows):**
+  - the completeness error falls to 0.0086 (clean) and 0.0002 (E5);
+  - no episode's top sensor changes (0 of 78 clean, 0 of 106 E5 episode explanations over the three seeds), so the agreement rates are identical (Δ 0.000, 0/3);
+  - the step count does not affect the conclusions.
+- **Random Forest (Saabas, not comparable):** 1.000 on clean, 0.000 on E5; deletion test +0.878 / +0.500.
+- **Autoencoder error shares:** they agree with the physics on clean episodes (26 of 26) and point at vibration, not current, in all 120 E5 episodes (ADR 0025 § Results).
+
+### Consequence for the live twin (Phase 11)
+
+- **Seen faults:** the part highlight (`attributions`) can be trusted for warnings of seen fault types; agreement and the deletion test both support it.
+- **Unseen faults:** the same highlight on an unseen fault points at the wrong part (vibration parts instead of the current-led drive), and for XGBoost it is not even faithful to the model.
+- Explanations therefore do not reveal novelty. Phase 11 should show them only with supervised warnings, and show autoencoder-only alarms as "unusual behaviour" without a part highlight (ADR 0024 § Outcome).
+
+## Process isolation for explanations (2026-11-17)
+
+- **Separate processes:** XGBoost (TreeSHAP) and the sequence models (Integrated Gradients, torch) are never explained in the same process. Their OpenMP runtimes crash on macOS when both are loaded (ADR 0020, amendment of 2026-11-17).
+- **Fail-fast check:** `twin_ml.explain.require_alone` runs inside `explain()`, `attribute()` and `probabilities()`, and raises `OpenMPClashError` if the other library is already loaded.
+- **Phase 11:** the live twin's explanation service must explain tree models and sequence models in separate worker processes, the same ones that run their inference.
+- **Tests:** the XGBoost explanation tests run in their own pytest process (`ml/tests/xgb_isolated_explain.py`).

@@ -217,19 +217,68 @@ def test_e5_studies_combine_and_resume(
         if m == "gru" and d["conditions"]["e5"]["windows"]:
             assert r.data.metrics["e5.h30.ig_err_rel"] < 1e-2
 
+    # exploratory Part C follow-ups: AE error shares (re-fit must reproduce the stored
+    # alarms, else the worker fails) and the IG step-count sensitivity
+    fu_path = _write(
+        tmp_path / "e5_followup.yaml",
+        {
+            "ae_shares": {
+                "detector": "autoencoder",
+                "source_study": "e5_anomaly",
+                "precursor_conditions": ["clean", "e5"],
+                "drift_condition": "sf_drift",
+            },
+            "ig_sensitivity": {"models": ["gru"], "ig_steps": 16},
+        },
+    )
+    fu = ["--followup-config", str(fu_path), *common]
+    assert runner.main(["--ae-shares", *fu]) == 0
+    assert runner.main(["--ig-sensitivity", *fu]) == 0
+    (ae_run,) = runs("ae_shares")
+    ad = mlflow.artifacts.load_dict(f"{ae_run.info.artifact_uri}/metrics.json")
+    assert ad["source_run"] == det["autoencoder"].info.run_id
+    assert set(ad["conditions"]) == {"clean", "e5", "sf_drift"}
+    assert all(c["alarms_reproduced"] for c in ad["conditions"].values())
+    assert ad["conditions"]["sf_drift"]["unit"] == "segment"
+    (ig_run,) = runs("explain_ig_steps")
+    gd = mlflow.artifacts.load_dict(f"{ig_run.info.artifact_uri}/metrics.json")
+    assert gd["ig_steps"] == 16
+    base = mlflow.artifacts.load_dict(f"{ex['gru'].info.artifact_uri}/metrics.json")
+    for c in ("clean", "e5"):  # same alarms -> same explained windows
+        assert gd["conditions"][c]["windows"] == base["conditions"][c]["windows"]
+
+    # every worker loaded at most one of torch / xgboost (ADR 0020)
+    never = {"xgb": "torch", "gru": "xgboost", "autoencoder": "xgboost", "iforest": "torch"}
+    for group in (sup, det, ex, {"autoencoder": ae_run}, {"gru": ig_run}):
+        for m, r in group.items():
+            if m not in never:
+                continue
+            d = mlflow.artifacts.load_dict(f"{r.info.artifact_uri}/metrics.json")
+            assert never[m] not in d["process"]["libraries"], (m, d["process"])
+
     # resume: nothing new is logged
     before = len(tracking.finished_runs(tdir, "P9_test", None, "P9"))
     assert runner.main(["--study", "e5_e1models", *common]) == 0
     assert runner.main(["--study", "e5_anomaly", *common]) == 0
     assert runner.main(["--combine", *common]) == 0
     assert runner.main(["--explain", "--models", "xgb,gru", *common]) == 0
+    assert runner.main(["--ae-shares", *fu]) == 0
+    assert runner.main(["--ig-sensitivity", *fu]) == 0
     assert len(tracking.finished_runs(tdir, "P9_test", None, "P9")) == before
     # report: reads MLflow only; its numbers equal the logged metrics
     from twin_ml.experiments.report_e5 import build_report
 
     out = tmp_path / "results"
     e5cfg = load_e5_config(e5_path)
-    paths = build_report(e5cfg, ml_eval_cfg, out_dir=out, models_dir=models_dir)
+    from twin_ml.config import load_e5_followup_config
+
+    paths = build_report(
+        e5cfg,
+        ml_eval_cfg,
+        out_dir=out,
+        models_dir=models_dir,
+        followup=load_e5_followup_config(fu_path),
+    )
     names = {p.name for p in paths}
     assert {"e5_explain.md", "e5_explain.json", "e5_explain_early_warning.png"} <= names
     crlf = bytes([13, 10])
@@ -248,6 +297,14 @@ def test_e5_studies_combine_and_resume(
     assert "## PRIMARY: pre-registered outcomes" in md
     assert "## EXPLORATORY" in md
     assert "overcurrent" in md
+    assert "Autoencoder per-sensor reconstruction-error shares" in md
+    assert "Integrated Gradients at 16 steps vs 64" in md
+    ae_rep = {c["condition"]: c for c in rep["exploratory"]["ae_shares"]}
+    assert set(ae_rep) == {"clean", "e5", "sf_drift"}
+    e5_rate = ae_run.data.metrics.get("e5.ae.agreement_rate")
+    if e5_rate is not None:
+        assert ae_rep["e5"]["overall_unit"]["point"] == pytest.approx(e5_rate, rel=1e-5)
+    assert {r["condition"] for r in rep["exploratory"]["ig_sensitivity"]} == {"clean", "e5"}
 
     assert runner.main(["--study", "nope", *common]) == 2
     assert runner.main([*common]) == 2  # neither --study nor --combine

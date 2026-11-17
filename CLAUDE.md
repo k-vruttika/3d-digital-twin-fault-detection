@@ -70,7 +70,7 @@ linetwin/
 │  ├─ mosquitto.d/           # Mosquitto settings shared by container and native fallback
 │  ├─ mosquitto.docker.conf  # Mosquitto entry config inside the container
 │  ├─ mosquitto.conf         # Mosquitto entry config for the native fallback
-│  └─ models/                # ML: dataset.yaml (+ dataset_e4/_aug), eval.yaml, robustness.yaml (Phase 8), one <model>.yaml per model/baseline
+│  └─ models/                # ML: dataset.yaml (+ dataset_e4/_aug), eval.yaml, robustness.yaml (Phase 8), e5.yaml (Phase 9, pre-registered) + e5_followup.yaml (exploratory), one <model>.yaml per model/baseline, iforest.yaml + autoencoder.yaml (anomaly detectors)
 ├─ common/twin_common/       # shared Pydantic contracts (Reading, Command, ...), config loaders
 ├─ simulator/twin_sim/       # physics, machines, line, scenarios, publishers (mqtt, opcua, mock server), CLI
 ├─ backend/twin_backend/
@@ -87,10 +87,11 @@ linetwin/
 │  ├─ data/                  # windowing, labels, splits, build (python -m twin_ml.data build), perturbations
 │  ├─ features/              # allowed inputs, normalisation, window summaries (no twin_sim, no torch)
 │  ├─ baselines/             # persistence, static threshold
-│  ├─ models/                # rf, xgb, lstm, gru, transformer, autoencoder, iforest
-│  ├─ train/  calibrate/  conformal/  explain/  evaluate/
+│  ├─ models/                # rf, xgb, lstm, gru, transformer; anomaly.py (normal windows, thresholds, iforest), autoencoder.py
+│  ├─ explain/               # explain() (Phase 11 API), trees.py (TreeSHAP, Saabas), ig.py (Integrated Gradients), aggregate.py (→ sensor → part)
+│  ├─ train/  calibrate/  conformal/  evaluate/
 │  ├─ datasets/              # metropt3, azure_pdm, cmapss loaders
-│  └─ experiments/           # E1–E5, ablation runners, report generators
+│  └─ experiments/           # E1–E5, ablation runners, report generators (E5: e5.py / e5_worker.py, explain_eval.py, report_e5.py)
 ├─ frontend/
 │  ├─ index.html             # the React dashboard (uv run poe frontend → /)
 │  ├─ dev.html               # full-screen 3D twin dev page (uv run poe frontend → /dev.html)

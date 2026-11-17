@@ -53,6 +53,49 @@ def xgboost_import_error() -> str | None:
     return out.stdout.strip() or None
 
 
+ISOLATED_DATASET_ENV = "LINETWIN_ISOLATED_ML_DATASET"  # dataset dir handed to an isolated run
+
+
+def run_pytest_isolated(test_file: Path, *, dataset: Dataset | None = None) -> None:
+    """Run ``test_file`` in its own pytest process and fail if any of its tests fail.
+
+    For tests that load XGBoost: the main pytest process also loads torch, and the two must
+    never share a process (two OpenMP runtimes crash on macOS; ADR 0020). The file is named
+    so that pytest does not collect it on its own (no ``test_`` prefix). ``dataset`` is passed
+    by path (``ISOLATED_DATASET_ENV``), so the child does not rebuild the quick dataset. The
+    child runs with faulthandler, so a crash shows its frame in the output.
+    """
+    env = dict(os.environ)
+    if dataset is not None:
+        env[ISOLATED_DATASET_ENV] = str(dataset.path)
+    cmd = [
+        sys.executable,
+        "-X",
+        "faulthandler",
+        "-m",
+        "pytest",
+        str(test_file),
+        "-q",
+        "-p",
+        "no:cacheprovider",
+    ]
+    out = subprocess.run(cmd, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False)
+    if out.returncode != 0:
+        pytest.fail(
+            f"isolated pytest run of {test_file.name} failed (exit code {out.returncode}):\n"
+            f"{out.stdout[-6000:]}\n{out.stderr[-3000:]}",
+            pytrace=False,
+        )
+
+
+def isolated_dataset() -> Dataset:
+    """The dataset handed over by :func:`run_pytest_isolated` (for the child's fixture)."""
+    path = os.environ.get(ISOLATED_DATASET_ENV)
+    if not path:
+        pytest.fail(f"{ISOLATED_DATASET_ENV} is not set; run this file via run_pytest_isolated")
+    return Dataset.open(Path(path))
+
+
 def require_xgboost() -> None:
     """Skip the calling test, with a clear message, when xgboost cannot be imported.
 

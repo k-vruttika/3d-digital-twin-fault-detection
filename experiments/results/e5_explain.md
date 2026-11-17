@@ -1,6 +1,6 @@
 # E5: unseen fault, anomaly detection and explanations
 
-Generated 2026-11-17 07:23 UTC from MLflow experiment `P9_e5` (commit 10f1995) by `python -m twin_ml.experiments.report_e5`. Every number comes from the logged runs; nothing is typed by hand.
+Generated 2026-11-17 10:43 UTC from MLflow experiment `P9_e5` (commit 2d8bff2) by `python -m twin_ml.experiments.report_e5`. Every number comes from the logged runs; nothing is typed by hand.
 
 Protocol and pre-registration: [ADR 0024](../../docs/adr/0024-e5-unseen-fault-protocol.md). Detectors: [ADR 0025](../../docs/adr/0025-anomaly-detection.md). Explanations: [ADR 0026](../../docs/adr/0026-explainability.md).
 
@@ -205,6 +205,23 @@ Wrong = calibrated argmax differs from the true class at +30 s; missed = a WARNI
 | GRU (aug) | 0.462 | 0.061 | 0.428 | 0.021 | 0.029 |
 | Transformer (aug) | 0.705 | 0.010 | 0.218 | 0.021 | 0.046 |
 
+### Seed-to-seed variation on E5 (point estimate per seed)
+
+Explained = number of E5 episodes with at least one alarmed precursor window (explanation study, E1 models; see Data for the episode total).
+
+| Model | Miss rate s0 | Miss rate s1 | Miss rate s2 | Lead (s) s0 | Lead (s) s1 | Lead (s) s2 | Explained s0 | Explained s1 | Explained s2 |
+|---|---|---|---|---|---|---|---|---|---|
+| RF | 0.358 | 0.658 | 0.625 | 551 | 347 | 284 | 77 | 41 | 45 |
+| XGBoost | 0.250 | 0.258 | 0.242 | 622 | 622 | 616 | 90 | 89 | 91 |
+| LSTM | 0.625 | 0.558 | 0.933 | 17 | 15 | -44 | 45 | 53 | 8 |
+| GRU | 0.817 | 0.558 | 0.208 | -27 | 4 | 121 | 22 | 53 | 95 |
+| Transformer | 0.942 | 0.725 | 0.983 | 163 | 128 | 26 | 7 | 33 | 2 |
+| RF (aug) | 0.792 | 0.817 | 0.883 | 149 | 147 | 172 | – | – | – |
+| XGBoost (aug) | 0.283 | 0.275 | 0.275 | 472 | 434 | 583 | – | – | – |
+| LSTM (aug) | 0.708 | 0.858 | 0.792 | -16 | 21 | -55 | – | – | – |
+| GRU (aug) | 0.458 | 0.583 | 0.500 | -2 | 17 | 64 | – | – | – |
+| Transformer (aug) | 0.842 | 0.842 | 0.908 | 134 | 265 | -50 | – | – | – |
+
 ### Sensor drift (`sf_drift`)
 
 Flag rate: share of drift segments with a sustained alarm on a normal-operation window inside the segment. For a detector a flag is the desired outcome; for a fault-warning policy the same alarm is a false fault warning (FA / h inside drift segments).
@@ -295,6 +312,32 @@ Mean |Δ p(WARNING) + p(FAULT)| when the top-attributed sensor vs one random oth
 | Model | Pooled | Clean | E5 |
 |---|---|---|---|
 | RF | 0.336 [0.201, 0.478] | 1.000 [1.000, 1.000] | 0.000 [0.000, 0.000] |
+
+### Autoencoder per-sensor reconstruction-error shares (exploratory follow-up)
+
+Added after the results were seen (ADR 0024 § Amendment). Autoencoder at the primary percentile, re-fitted from its seed; every re-fit reproduced its stored alarms exactly. Share = a sensor's squared reconstruction error / the window's total (vib_norm folded into vib). Windows as for the explanations (alarmed, one per 10 s, at most 30 per unit). Unit agreement: the top sensor of the unit's mean share is the expected one (precursor episodes: the fault type's leading sensor; `sf_drift`: each flagged drift segment's drifting sensor, flagged = sustained alarm on a normal window inside the segment). Window agreement: each window's own top share. The shares are not attributions: an error on one input can raise the reconstruction error of another (ADR 0025).
+
+| Condition | Fault type / drifting sensor | Expected top | Units (seed 0) | Unit agreement | Window agreement | Mean share per sensor |
+|---|---|---|---|---|---|---|
+| **clean** | all | – | 26 / 26 episodes | 1.000 [1.000, 1.000] | 0.996 [0.991, 1.000] |  |
+| clean | bearing_wear | vib | 8 | 1.000 [1.000, 1.000] | 0.994 [0.987, 1.000] | speed 0.27, temp 0.01, vib 0.61, load 0.02, current 0.10 |
+| clean | overheating | temp | 13 | 1.000 [1.000, 1.000] | 0.994 [0.978, 1.000] | speed 0.03, temp 0.53, vib 0.13, load 0.23, current 0.08 |
+| clean | spindle_imbalance | vib | 5 | 1.000 [1.000, 1.000] | 1.000 [1.000, 1.000] | speed 0.29, temp 0.00, vib 0.60, load 0.01, current 0.09 |
+| **e5** | all | – | 120 / 120 episodes | 0.000 [0.000, 0.000] | 0.001 [0.000, 0.002] |  |
+| e5 | lubrication_loss | current | 120 | 0.000 [0.000, 0.000] | 0.001 [0.000, 0.002] | speed 0.04, temp 0.01, vib 0.91, load 0.02, current 0.03 |
+| **sf_drift** | all | – | 23 / 95 flagged segments | 0.779 [0.603, 0.936] | 0.974 [0.938, 0.994] |  |
+| sf_drift | temp | temp | 3 | 0.000 [0.000, 0.000] | 0.000 [0.000, 0.000] | speed 0.11, temp 0.02, vib 0.50, load 0.27, current 0.10 |
+| sf_drift | vib | vib | 18 | 1.000 [1.000, 1.000] | 1.000 [1.000, 1.000] | speed 0.28, temp 0.01, vib 0.61, load 0.02, current 0.08 |
+| sf_drift | current | current | 2 | 0.000 [0.000, 0.000] | 0.000 [0.000, 0.000] | speed 0.07, temp 0.08, vib 0.38, load 0.34, current 0.13 |
+
+### Integrated Gradients at 256 steps vs 64 (exploratory sensitivity check)
+
+Added after the results were seen (ADR 0024 § Amendment). Same models, windows and baseline as the explanation study; only the step count differs. The 64-step results above stay primary. Δ is paired on the same runs.
+
+| Model | Condition | Agreement 64 | Agreement 256 | Δ 256 - 64 | Episodes whose top sensor changed | IG rel. completeness error 64 | IG rel. completeness error 256 | Deletion top - random (256) |
+|---|---|---|---|---|---|---|---|---|
+| LSTM | clean | 1.000 [1.000, 1.000] | 1.000 [1.000, 1.000] | 0.000 [0.000, 0.000] (0/3) | 0 of 78 (all seeds) | 0.0609 [0.0311, 0.0911] | 0.0086 [0.0037, 0.0138] | 0.838 [0.752, 0.901] |
+| LSTM | e5 | 0.251 [0.166, 0.339] | 0.251 [0.166, 0.339] | 0.000 [0.000, 0.000] (0/3) | 0 of 106 (all seeds) | 0.0101 [0.0040, 0.0196] | 0.0002 [0.0000, 0.0006] | 0.369 [0.300, 0.434] |
 
 ## Plots
 

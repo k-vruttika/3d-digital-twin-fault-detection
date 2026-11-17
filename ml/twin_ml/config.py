@@ -575,6 +575,34 @@ def load_e5_config(path: str | Path) -> E5Config:
     return load_model(path, E5Config)
 
 
+class AeSharesConfig(ConfigModel):
+    """Exploratory: the autoencoder's per-sensor reconstruction-error shares (ADR 0024)."""
+
+    detector: Literal["autoencoder"]
+    source_study: str = Field(min_length=1)  # the E5 study whose stored alarms must reproduce
+    precursor_conditions: list[str] = Field(min_length=1)  # episodes, expected sensor per type
+    drift_condition: str = Field(min_length=1)  # drift segments, expected = the drifting sensor
+
+
+class IgSensitivityConfig(ConfigModel):
+    """Exploratory: Integrated Gradients at another step count on the same windows."""
+
+    models: list[str] = Field(min_length=1)
+    ig_steps: int = Field(ge=2)
+
+
+class E5FollowupConfig(ConfigModel):
+    """Exploratory Phase 9 Part C follow-ups, added after the E5 results were seen; kept out of
+    ``e5.yaml`` so the pre-registered settings and every earlier study hash stay unchanged."""
+
+    ae_shares: AeSharesConfig
+    ig_sensitivity: IgSensitivityConfig
+
+
+def load_e5_followup_config(path: str | Path) -> E5FollowupConfig:
+    return load_model(path, E5FollowupConfig)
+
+
 def parse_anomaly_config(data: object, source: str = "<anomaly config>") -> AnomalyModelConfig:
     try:
         return _ANOMALY_ADAPTER.validate_python(data)

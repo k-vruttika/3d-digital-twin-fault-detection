@@ -1,9 +1,129 @@
 # LineTwin progress
 
-## Phase 9: Unseen faults (E5), anomaly detection, explainability (in progress)
+## Phase 9: Unseen faults (E5), anomaly detection, explainability (done, 2026-11-17)
 
 - **Pre-registration before any E5 data or study run:** [ADR 0024](adr/0024-e5-unseen-fault-protocol.md) § Pre-registration, mirrored in `config/models/e5.yaml` (`primary:`), guarded by `ml/tests/test_ml_e5_prereg.py`. Committed by the user as `10f1995` (Phase 9 A1) before `data/sim_e5` was generated.
 - **Smoke runs:** pipeline checks went into the separate MLflow experiment `P9_smoke` (iforest seeds 0–2, autoencoder seed 0, threshold / xgb / lstm seed 0, their combined runs, and an E4 subset). They are not part of any result.
+
+### Phase 9 summary
+
+- **Built across Parts A–C:**
+  - the E5 test set (held-out `lubrication_loss`, 100 runs, 120 episodes);
+  - Isolation Forest and autoencoder detectors on normal-operation windows, with per-kind percentile thresholds;
+  - the combined policy (supervised OR detector) from stored alarms;
+  - explanations (XGBoost TreeSHAP, RF Saabas, Integrated Gradients in torch) mapped to sensors and 3D parts, with the agreement and deletion sanity checks, and the Phase 11 API `twin_ml.explain.explain()`;
+  - one generated report: [e5_explain.md](../experiments/results/e5_explain.md) + `.json` + 5 plots.
+- **Decisions:** [ADR 0024](adr/0024-e5-unseen-fault-protocol.md) (protocol, pre-registration, amendment, outcome), [ADR 0025](adr/0025-anomaly-detection.md) (detectors, combined policy, results), [ADR 0026](adr/0026-explainability.md) (explanations, results, process isolation), [ADR 0020](adr/0020-ml-models-training-tracking.md) amendment of 2026-11-17 (no torch next to XGBoost).
+- **Answer to the research question for an unseen fault type, short version** (details in ADR 0024 § Outcome):
+  - **The supervised models miss 25–88 % of the E5 episodes.** On missed windows the sequence models are wrong with calibrated confidence ≥ 0.9 in 80–97 % of cases.
+  - **The confidence signals do not reveal the novelty:** the Mondrian conformal set size does not grow on E5, and the fault-type head names `bearing_wear` for most precursor windows.
+  - **The autoencoder detects every E5 episode, early** (lead 656 s), at 0.57 false alarms per hour on clean data. That rate rises under the E4 load shift (1.10) and inside drift segments (2.63).
+  - **"Supervised OR autoencoder" reaches 0 % E5 misses** and keeps every supervised warning, at that false-alarm cost.
+  - **Explanations agree with the physics on seen faults but not on the unseen one.** Even the autoencoder's largest error share points at vibration, not current, in every E5 episode.
+  - **Recommendation for Phase 11:** run "supervised OR autoencoder", and show autoencoder-only alarms as a separate "unusual behaviour" category, without a fault type or a part highlight.
+
+### Part C (done, 2026-11-17): report review, exploratory follow-ups, results, macOS CI fix
+
+**Report review.** `experiments/results/e5_explain.md` was reviewed before any conclusion was written. Three reading points are now addressed in the ADRs:
+- the pooled agreement rate has to be read per condition;
+- the IG completeness error at 64 steps;
+- seed-to-seed variation.
+
+To make the third one traceable, the report gained a generated per-seed table (E5 miss rate, lead, explained E5 episodes). No existing number changed: the diff of the regenerated report is additions only, apart from its timestamp line.
+
+**Exploratory follow-ups** (added after the results were seen: ADR 0024 § Amendment, settings in the new `config/models/e5_followup.yaml`; `e5.yaml` is unchanged):
+
+| Study | Command | Runs | Wall time | Per run |
+|---|---|---|---|---|
+| `ae_shares` | `uv run poe e5 --ae-shares --skip-existing` | 3 (autoencoder seeds 0–2) | 102 s | 31–38 s (re-fit included) |
+| `explain_ig_steps` | `uv run poe e5 --ig-sensitivity --skip-existing` | 3 (LSTM seeds 0–2, 256 steps) | 233 s | 69–83 s |
+| report | `uv run poe report-e5` | | 4 min 15 s | |
+
+- Run 10:33–10:39 UTC, one after the other, with no failures. Before the runs, `--explain --dry-run --skip-existing` still showed 0 runs to do, so the earlier explain hashes are unchanged.
+- **Autoencoder error shares:**
+  - The autoencoder weights were never stored, so each seed is re-fitted. Every re-fit reproduced the stored `e5_anomaly` sustained alarms at p99.9 bit for bit on clean, E5 and `sf_drift`; the worker fails otherwise.
+  - Clean episodes: 26 of 26 agree with the expected sensor.
+  - E5: 0 of 120 point at current; vibration has the largest share in every episode (mean share 0.91).
+  - `sf_drift`: 23 of 95 segments are flagged (seed 0), unit agreement 0.779. The vibration drifts agree; the temperature (3) and current (2) drifts do not.
+- **IG at 256 steps (LSTM):** the completeness error falls from 0.061 to 0.0086 (clean). No episode's top sensor changes (0 of 78 clean, 0 of 106 E5). Agreement is identical, so the 64-step results stay primary and unaffected.
+- **Code:**
+  - `explain_eval.thin` / `segment_windows` / `window_agreement_sums`;
+  - `e5_worker.run_ae_shares`, plus a step-count override for `run_explain` (study `explain_ig_steps`; the `explain` hash is unchanged when no override is given);
+  - `e5 --ae-shares` / `--ig-sensitivity` / `--followup-config`;
+  - `E5FollowupConfig`;
+  - report sections for both follow-ups and the per-seed table.
+
+**Results written:** ADR 0024 § Outcome, ADR 0025 § Results and ADR 0026 § Results, each with primary and exploratory parts kept apart. `docs/experiments.md` § Phase 9 has the new commands and the results entry. CLAUDE.md §5 lists `e5.yaml`, `e5_followup.yaml`, `iforest.yaml`, `autoencoder.yaml`, the `explain/` contents and the Phase 9 experiment modules.
+
+**macOS CI fix (exit code 139 in `test_ml_explain.py`):** this was the torch + XGBoost OpenMP clash of ADR 0020 again. A module-scoped fixture fitted XGBoost in the pytest process after other tests had loaded torch.
+- **Tests:**
+  - The XGBoost explanation tests moved to `ml/tests/xgb_isolated_explain.py`, which pytest does not collect directly.
+  - `test_ml_explain.py::test_xgboost_explanations_in_own_process` runs that file in a fresh pytest process (`twin_ml.testing.run_pytest_isolated`), with the quick dataset handed over by path.
+  - The child asserts that it never loads torch. RF and GRU explanation tests stay in-process.
+- **Guard** (root `conftest.py`):
+  - The session fails if torch and XGBoost are both imported in the pytest process, either at the teardown of the first test after which both are loaded, or after collection. The message points to ADR 0020.
+  - Tested by `tests/test_openmp_guard.py` in child processes with stand-in modules.
+  - Before the fix, it stopped the ML suite at `test_treeshap_sums_to_margin`. After the fix, the whole suite passes it on Windows (see Tests below).
+- **Phase 9 code paths:**
+  - `twin_ml.explain` (`explain()`, `attribute()`, `probabilities()`) raises `OpenMPClashError` before using one library while the other is loaded.
+  - The E5 workers record the libraries and OpenMP runtimes they loaded in `metrics.json` (`process`), and raise if both are loaded. The E5 e2e test asserts that XGBoost runs never load torch, and that GRU and autoencoder runs never load XGBoost. Only runs logged after this change carry `process`: the follow-up runs do, the Part A / B runs do not.
+- **Documented:** ADR 0020 (amendment of 2026-11-17) and ADR 0026 (process isolation). Phase 11 live inference must keep tree and sequence models in separate processes.
+- **Not verified here:** there is no Mac on this machine. The macOS CI run is the check.
+
+### How to run (Phase 9, everything)
+
+```text
+uv run poe sim-e5                                   # ~11 s
+uv run poe e5 --study e5_anomaly --skip-existing    # then e5_e1models, e5_aug, e5_e4
+uv run poe e5 --combine --skip-existing
+uv run poe e5 --explain --skip-existing
+uv run poe e5 --ae-shares --skip-existing           # exploratory follow-up
+uv run poe e5 --ig-sensitivity --skip-existing      # exploratory follow-up
+uv run poe report-e5                                # ~4 min
+```
+
+Nothing needs rerunning: every run is in MLflow (`P9_e5`), and `--skip-existing` shows 0 runs to do for each step.
+
+### Tests (end of Phase 9)
+
+- **Totals:**
+  - `uv run poe lint` is clean (ruff, ruff format, mypy on 276 files, tsc, ESLint).
+  - `uv run poe test`: pytest 804 passed, 50 skipped (TimescaleDB, Mosquitto and Playwright tests; services not running); Vitest 163 passed. This is the full suite under the new torch / XGBoost guard on Windows, run at 16:27–16:35 IST (pytest 7 min 47 s).
+  - `uv run poe minimal-data-check`: 14 passed.
+- **New:**
+  - `ml/tests/test_ml_e5_followup.py`: follow-up config, thinning, drift-segment windows, window agreement, and the explain hash unchanged without an override;
+  - `tests/test_openmp_guard.py`: the guard, in child processes;
+  - `ml/tests/xgb_isolated_explain.py`, run by `test_xgboost_explanations_in_own_process`;
+  - `test_explain_refuses_a_second_openmp_library`.
+- **Extended:** `test_ml_e5_e2e.py`. Both follow-ups run in workers, the re-fitted autoencoder reproduces its alarms, the 16-step IG run explains the same windows, the follow-ups resume without logging anything, the report sections match the logged metrics, and no worker loads both torch and XGBoost.
+
+### Known limitations (Phase 9)
+
+- **One unseen fault type in one simulator** (120 episodes). E5 cannot show how the models generalise to unseen faults in general.
+- **The threshold baseline favours E5 by construction:** it checks the very current limit `lubrication_loss` trips on (ADR 0024 interpretation note).
+- **Three seeds, with large seed-to-seed variation** for the E1 sequence models on E5 (GRU miss rate 0.21–0.82). Seed means hide very different models.
+- **No correction for multiple comparisons** across the many exploratory cells.
+- **Conformal guarantees do not hold on E5,** since split conformal assumes exchangeable data. Set size is read as uncertainty only.
+- **Isolation Forest:** at the pre-registered p99.9 it is nearly useless. The lower percentiles look better but were not pre-registered, and nothing was tuned.
+- **Autoencoder:**
+  - its validation loss was still falling at epoch 20 (fixed budget);
+  - its weights are not stored, so the follow-up had to re-fit them (verified bit for bit against the stored alarms);
+  - its error shares are not attributions in a strict sense;
+  - the drift-segment groups are small (seed 0: 3 temperature and 2 current segments flagged).
+- **IG completeness error at 64 steps** is up to 0.061 (relative). The 256-step check shows it does not change any top sensor.
+- **Calibration and conformal maps** are fitted per run and not exported (as in Phase 8). Phase 11 must refit or export them.
+- **macOS fix:** confirmed on Windows only. The guard covers torch + XGBoost, not scikit-learn next to torch, which has not crashed on any CI OS.
+
+### Deviations from the plan / CLAUDE.md
+
+- **Detector configs:** they are a separate config type (`AnomalyModelConfig`), not part of `ModelConfig`.
+- **Report generator timing and fixes:** the generator was written while Part A was running. After the first build, one reporting fix: the "episodes explained" column took the newest seed instead of seed 0. No metric changed.
+- **Changes after results were seen** (all exploratory or reporting, labelled as such):
+  - the two follow-up studies (ADR 0024 amendment), with their own config file so that `e5.yaml` stays as pre-registered;
+  - the per-seed report table;
+  - reading the pre-registered pooled agreement rate per condition.
+- **Autoencoder shares from a re-fit:** the error shares were planned from the original runs. Those stored the shares only pooled, so they could give no run-level CIs. They come from an evaluation-only re-fit instead.
+- **macOS CI fix in Phase 9:** done in this phase on request. It added the root conftest guard, `twin_ml.testing.run_pytest_isolated`, the `explain` fail-fast check and the worker `process` record.
 
 ### Part A (done, 2026-11-17): E5 data, anomaly detectors, E5 / drift / E4 evaluation
 
@@ -38,25 +158,6 @@
 **Tests:** new `test_ml_e5_prereg.py`, `test_ml_e5_data.py`, `test_ml_anomaly.py`, `test_ml_e5_e2e.py` (quick data: E1 runs → both studies in workers → combine → explain → report numbers equal the MLflow metrics → resume logs nothing), import guards for the Phase 9 modules.
 - At the end of Part A (12:21 IST, Part B tests included): `uv run poe lint` clean; `uv run poe test` pytest 796 passed, 50 skipped (services not running), Vitest 163 passed.
 
-### Status at 13:15 IST, 2026-11-17 (in progress; nothing committed)
-
-- **Done:** Part A (runs and tests) and Part B (code, runs, tests). The first Part C step is done too: `experiments/results/e5_explain.md` + `.json` + 5 plots are generated from MLflow (`uv run poe report-e5`), and `tests/test_results_policy.py` passes.
-- **Last check:** at 13:01 IST, `uv run poe lint` was clean; `uv run poe test` gave pytest 796 passed, 50 skipped (services not running), Vitest 163 passed.
-- **Uncommitted changes:** all Phase 9 Part A–C work since `10f1995` (code, configs, tests, ADR 0025 / 0026 drafts, docs/experiments.md § Phase 9, this file, the generated results).
-- **Remaining (Part C):**
-  1. **Review the generated report** before writing conclusions. Points I noticed that the write-up must address (reporting, not tuning):
-     - The **pooled agreement rate** weights the clean and E5 episodes by how many each model explains. A model that alarms on few E5 episodes is dominated by the clean seen-type episodes; the Transformer has 2 of 120 E5 episodes explained (seed 0). Read the per-condition columns, not only the pooled one. The pooling is what ADR 0024 implies ("overall"), so any change must be labelled as a reporting clarification.
-     - **IG completeness error at the pre-registered 64 steps:** relative error about 0.07 (LSTM, clean, seed 0), larger than the unit-test nets. Report as is.
-     - **Explained E5 episodes vary strongly by seed** for the sequence models (LSTM seed 0: 45 of 120, seed 2: 8 of 120).
-  2. ADR 0024 § Outcome, ADR 0025 / 0026 § Results, from the report only.
-  3. CLAUDE.md §5: `config/models/` (`e5.yaml`, `iforest.yaml`, `autoencoder.yaml`) and `ml/twin_ml/explain/` contents.
-  4. Final PROGRESS entry (summary, limitations, deviations) and a suggested commit message.
-- **How to resume:** nothing needs rerunning. Every study, combined and explain run is in MLflow (`P9_e5`), and `--skip-existing` shows 0 to do. To regenerate the report: `uv run poe report-e5` (about 1.5–4.5 min). Check first: `uv run poe e5 --study e5_e1models --dry-run --skip-existing` (expect 0 runs).
-- **Deviations so far:**
-  - The detector configs are a separate config type (`AnomalyModelConfig`), not part of `ModelConfig`.
-  - The report generator (Part C) was written while Part A was running.
-  - One reporting fix after the first report build: the "episodes explained" column took the newest seed instead of seed 0. No metric changed.
-
 ### Part B (done, 2026-11-17): explainability
 
 **Run:** `uv run poe e5 --explain --skip-existing`: 15 runs in 1,416 s (24 min). Per run: XGBoost 20–23 s, LSTM 56–69 s, GRU 83–109 s, Transformer 113–150 s, RF 152–176 s (retrain included). No failures.
@@ -64,7 +165,7 @@
 - `explain/aggregate.py` (feature / channel → sensor → part), `explain/trees.py` (XGBoost TreeSHAP via `pred_contribs`; RF Saabas path contributions), `explain/ig.py` (Integrated Gradients in torch, zero baseline with masks "not missing" and the input's kind, 64 trapezoid steps), `explain/__init__.explain()` (the Phase 11 API; imports neither `twin_sim` nor an ML library at import).
 - `experiments/explain_eval.py`: explained windows (alarmed precursor windows, one per 10 s, at most 30 per episode), agreement sums, deletion test, IG completeness. Run with `uv run poe e5 --explain --skip-existing` (study `explain`).
 - ADR 0025 (anomaly detection) and ADR 0026 (explainability) drafted; their results sections come in Part C.
-- `experiments/report_e5.py` (Part C) is written and has generated `experiments/results/e5_explain.*` (see the status above).
+- `experiments/report_e5.py` (Part C) generates `experiments/results/e5_explain.*`.
 - Tests: `test_ml_explain.py` (maps, TreeSHAP and Saabas additivity, IG on a linear model and completeness on a small net, deletion test on a one-sensor model, window thinning, agreement, `explain()` for XGBoost / RF / GRU, light import).
 
 ## Phase 8: Robustness, calibration and conformal prediction (done, 2026-11-16)

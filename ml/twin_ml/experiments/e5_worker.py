@@ -9,6 +9,9 @@
 * **Anomaly detectors** (``e5_anomaly``, the detector part of ``e5_e4``) are trained on the
   study dataset's normal-operation training windows; thresholds are per-kind percentiles of
   the validation normal-operation scores.
+* **Exploratory follow-ups** (``e5_followup.yaml``): the autoencoder's per-sensor error shares
+  (study ``ae_shares``; the detector is re-fitted and must reproduce its stored alarms) and
+  the IG step-count sensitivity (study ``explain_ig_steps``).
 * Every run stores its per-window *sustained* alarm (primary horizon, every percentile) as
   ``alarms.npz``, which the combined policy (:func:`combine`, run by the parent) reads.
 
@@ -35,7 +38,7 @@ from typing import Any
 
 import numpy as np
 
-from twin_ml.config import E5Config, EvalConfig
+from twin_ml.config import E5Config, E5FollowupConfig, EvalConfig
 
 WORKER_MODULE = "twin_ml.experiments.e5_worker"
 ANOMALY_MODELS = ("iforest", "autoencoder")
@@ -157,6 +160,23 @@ def source_id(
     if is_anomaly(model):
         return "train"
     return str(supervised_source(e5, study, tracking_dir, key, model, seed, cfg).info.run_id)
+
+
+ML_LIBRARIES = ("torch", "xgboost", "sklearn")
+
+
+def process_info() -> dict[str, Any]:
+    """ML libraries and OpenMP runtimes loaded in this worker. torch and XGBoost must never
+    both appear (ADR 0020); recorded in ``metrics.json`` and checked by the e2e test."""
+    from twin_ml.train.isolated import openmp_runtimes
+
+    loaded = [m for m in ML_LIBRARIES if m in sys.modules]
+    if "torch" in loaded and "xgboost" in loaded:
+        raise RuntimeError(
+            "torch and xgboost are both loaded in this E5 worker; their OpenMP runtimes "
+            "crash on macOS (ADR 0020)"
+        )
+    return {"libraries": loaded, "openmp_runtimes": openmp_runtimes()}
 
 
 def _progress(path: Path | None, **event: Any) -> None:
@@ -351,6 +371,7 @@ def run_e5(
             "conditions": details,
             "timings_s": timings,
             "total_s": total_s,
+            "process": process_info(),
         }
         tracking.configure(tdir, experiment or e5.experiment)
         with mlflow.start_run(run_name=f"{study_name}-{model}-seed{seed}") as run:
@@ -679,8 +700,12 @@ def explain_config_sha(
     dataset_key: str,
     source: str,
     e5_content: str | None,
+    study: str = EXPLAIN_STUDY,
+    ig_steps: int | None = None,
 ) -> str:
-    data = {
+    """Resume key of an explanation run. ``study`` / ``ig_steps`` are set only for the
+    exploratory step-count sensitivity study; the ``explain`` study's hash is unchanged."""
+    data: dict[str, Any] = {
         "study": EXPLAIN_STUDY,
         "model": model,
         "model_config": cfg.model_dump(mode="json"),
@@ -691,6 +716,8 @@ def explain_config_sha(
         "source": source,
         "e5_content": e5_content,
     }
+    if ig_steps is not None:
+        data |= {"study": study, "ig_steps_override": ig_steps}
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()[:12]
 
 
@@ -704,8 +731,14 @@ def run_explain(
     tracking_dir: Path | None = None,
     progress: Path | None = None,
     experiment: str | None = None,
+    study_name: str = EXPLAIN_STUDY,
+    ig_steps: int | None = None,
 ) -> dict[str, Any]:
-    """Attributions on alarmed precursor windows; agreement, deletion test, IG completeness."""
+    """Attributions on alarmed precursor windows; agreement, deletion test, IG completeness.
+
+    ``study_name`` / ``ig_steps`` override the study tag and the IG step count for the
+    exploratory sensitivity study (``e5_followup.yaml``); the defaults are the ``explain`` study.
+    """
     import mlflow
 
     from twin_ml.config import load_dataset_config, load_robustness_config
@@ -724,6 +757,7 @@ def run_explain(
     tdir = tracking_dir or root / eval_cfg.tracking_dir
     ex = e5.explain
     h = ex.horizon
+    steps = ex.ig_steps if ig_steps is None else ig_steps
     rcfg = load_robustness_config(root / e5.robustness_config)
     study = e5.studies[EXPLAIN_SOURCE_STUDY]
     ds_cfg = load_dataset_config(root / study.dataset_config)
@@ -772,7 +806,7 @@ def run_explain(
             for i in range(0, allw.size, batch):
                 w = allw[i : i + batch]
                 values, mask, kind = split.gather(w)
-                att = attribute(predictor, values, mask, kind, h, ex.ig_steps)
+                att = attribute(predictor, values, mask, kind, h, steps)
                 sens[i : i + batch] = normalise(att.sensors)
                 if att.completeness_error is not None and att.delta is not None:
                     err_parts.append(att.completeness_error)
@@ -835,7 +869,7 @@ def run_explain(
             _progress(
                 progress,
                 event="condition",
-                study=EXPLAIN_STUDY,
+                study=study_name,
                 model=model,
                 seed=seed,
                 condition=name,
@@ -844,9 +878,12 @@ def run_explain(
         total_s = time.perf_counter() - started
         metrics["time.total_s"] = total_s
         content = e5_content_sha(e5, root)
-        sha = explain_config_sha(model, cfg, e5, eval_cfg, key, got.source, content)
+        sha = explain_config_sha(
+            model, cfg, e5, eval_cfg, key, got.source, content, study_name, ig_steps
+        )
         result = {
-            "study": EXPLAIN_STUDY,
+            "study": study_name,
+            "ig_steps": steps,
             "model": model,
             "family": family(cfg),
             "seed": seed,
@@ -856,13 +893,14 @@ def run_explain(
             "source_run": got.source,
             "conditions": details,
             "total_s": total_s,
+            "process": process_info(),
         }
         tracking.configure(tdir, experiment or e5.experiment)
-        with mlflow.start_run(run_name=f"{EXPLAIN_STUDY}-{model}-seed{seed}") as mrun:
+        with mlflow.start_run(run_name=f"{study_name}-{model}-seed{seed}") as mrun:
             mlflow.set_tags(
                 {
                     "phase": e5.phase_tag,
-                    "study": EXPLAIN_STUDY,
+                    "study": study_name,
                     "model": model,
                     "family": family(cfg),
                     "seed": str(seed),
@@ -882,11 +920,266 @@ def run_explain(
             run_id = mrun.info.run_id
     return {
         "run_id": run_id,
-        "study": EXPLAIN_STUDY,
+        "study": study_name,
         "model": model,
         "seed": seed,
         "total_s": total_s,
         "source": got.source,
+    }
+
+
+# ---------------------------------------------------------------------------- follow-ups
+
+AE_SHARES_STUDY = "ae_shares"  # exploratory, e5_followup.yaml (ADR 0024 amendment)
+IG_SENSITIVITY_STUDY = "explain_ig_steps"  # exploratory, e5_followup.yaml
+
+
+def ae_shares_sha(
+    cfg: Any,
+    e5: E5Config,
+    followup: E5FollowupConfig,
+    eval_cfg: EvalConfig,
+    dataset_key: str,
+    source: str,
+    e5_content: str | None,
+) -> str:
+    """Resume key of an autoencoder error-share run; ``source`` is the detector run whose
+    stored alarms the re-fitted detector must reproduce."""
+    data = {
+        "study": AE_SHARES_STUDY,
+        "model_config": cfg.model_dump(mode="json"),
+        "anomaly": e5.anomaly.model_dump(mode="json"),
+        "explain": e5.explain.model_dump(
+            mode="json",
+            include={"window_stride_s", "max_windows_per_episode", "expected_sensor"},
+        ),
+        "ae_shares": followup.ae_shares.model_dump(mode="json"),
+        "eval": eval_cfg.model_dump(mode="json", include={"subsets", "early_warning", "bootstrap"}),
+        "dataset_key": dataset_key,
+        "source": source,
+        "e5_content": e5_content,
+    }
+    return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()[:12]
+
+
+def ae_source_run(
+    e5: E5Config,
+    followup: E5FollowupConfig,
+    rcfg: Any,
+    eval_cfg: EvalConfig,
+    cfg: Any,
+    key: str,
+    seed: int,
+    tracking_dir: Path,
+    root: Path,
+) -> Any:
+    """The finished detector study run (current config) whose alarms the re-fit must match."""
+    a = followup.ae_shares
+    want = study_config_sha(
+        a.source_study, a.detector, cfg, e5, rcfg, eval_cfg, key, "train", e5_content_sha(e5, root)
+    )
+    runs = latest_valid_runs(
+        tracking_dir, e5.experiment, e5.phase_tag, a.source_study, {(a.detector, seed): want}
+    )
+    run = runs.get((a.detector, seed))
+    if run is None:
+        raise LookupError(
+            f"no finished {a.source_study} {a.detector} seed {seed} run with the current config "
+            f"in {e5.experiment}; run uv run poe e5 --study {a.source_study} first"
+        )
+    return run
+
+
+def _shares(det: Any, split: Any, windows: Any) -> Any:
+    err = det.sensor_errors(split, windows)
+    return err / np.maximum(err.sum(axis=1, keepdims=True), 1e-12)
+
+
+def run_ae_shares(
+    cfg: Any,
+    seed: int,
+    e5: E5Config,
+    followup: E5FollowupConfig,
+    eval_cfg: EvalConfig,
+    root: Path = Path(),
+    tracking_dir: Path | None = None,
+    progress: Path | None = None,
+    experiment: str | None = None,
+) -> dict[str, Any]:
+    """Exploratory: does the autoencoder's largest per-sensor error share point at the fault's
+    leading sensor (precursor episodes) or at the drifting sensor (flagged drift segments)?
+
+    The detector is re-fitted from its seed and must reproduce the source run's stored
+    sustained alarms at the primary percentile on every condition. Windows are selected as in
+    the explanation study (``explain_eval.explained_windows`` / ``segment_windows``). Per run:
+    ``agree`` sums per episode / segment (group ``<c>|ae``) and per window (``<c>|ae_w``).
+    """
+    import mlflow
+
+    from twin_ml.config import load_dataset_config, load_robustness_config
+    from twin_ml.data.dataset import Dataset, resolve_dataset_dir
+    from twin_ml.data.test_sets import extended_fault_types
+    from twin_ml.evaluate import run_sums
+    from twin_ml.experiments import e5_eval, explain_eval
+    from twin_ml.features.inputs import SENSORS
+    from twin_ml.train import tracking
+
+    started = time.perf_counter()
+    tdir = tracking_dir or root / eval_cfg.tracking_dir
+    a, ex = followup.ae_shares, e5.explain
+    rcfg = load_robustness_config(root / e5.robustness_config)
+    ds_cfg = load_dataset_config(root / e5.studies[a.source_study].dataset_config)
+    ds = Dataset.open(resolve_dataset_dir(ds_cfg, root))
+    key = ds.meta["dataset_key"]
+    fault_types = extended_fault_types(ds, [e5.e5_data.fault_type])
+    expected = {
+        fault_types.index(ft): SENSORS.index(s)
+        for ft, s in ex.expected_sensor.items()
+        if ft in fault_types
+    }
+    identity = {i: i for i in range(len(SENSORS))}
+    h = e5.primary.horizon
+    pct = e5.anomaly.primary_percentile
+    source = ae_source_run(e5, followup, rcfg, eval_cfg, cfg, key, seed, tdir, root)
+    ev = _AnomalyEval(e5, ds, cfg, seed, h, fault_types, eval_cfg)
+    splits = _Splits(e5, rcfg, ds, ds_cfg, root)
+    groups: dict[str, run_sums.Sums] = {}
+    details: dict[str, Any] = {}
+    run_ids: dict[str, list[str]] = {}
+    metrics: dict[str, float] = {}
+    b = eval_cfg.bootstrap
+    with tempfile.TemporaryDirectory(prefix="twin_p9_ae_") as tmp_s:
+        tmp = Path(tmp_s)
+        stored = load_alarms(source, tmp)
+        for name in (*a.precursor_conditions, a.drift_condition):
+            t0 = time.perf_counter()
+            split, sf_rows, sf_sensors = splits.get(name)
+            n = split.n_windows
+            if int(stored[f"n:{name}"][0]) != n or str(
+                stored[f"digest:{name}"][0]
+            ) != e5_eval.ends_digest(split):
+                raise ValueError(f"{name}: stored alarms do not match the split's windows")
+            alarm = ev.thr.alarm(ev.det.score(split), split.at_end("kind"), pct)
+            sus = e5_eval.sustained_alarm(split, alarm, eval_cfg.early_warning.sustain_s)
+            ref = e5_eval.unpack_alarm(stored[f"{name}|p{pct:g}"], n)
+            if not np.array_equal(sus, ref):
+                raise RuntimeError(
+                    f"{name}: the re-fitted autoencoder (seed {seed}) does not reproduce the "
+                    f"stored alarms of run {source.info.run_id} "
+                    f"({int((sus != ref).sum())} of {n} windows differ)"
+                )
+            if name == a.drift_condition:
+                if sf_rows is None or sf_sensors is None:
+                    raise ValueError(f"{name} is not a sensor-fault condition")
+                neg = e5_eval.negative_windows(split, eval_cfg, fault_types, h)
+                eps, n_units = explain_eval.segment_windows(
+                    split,
+                    sus & neg,
+                    sf_rows,
+                    sf_sensors,
+                    ex.window_stride_s,
+                    ex.max_windows_per_episode,
+                )
+                exp_map, n_types, names = identity, len(SENSORS), list(SENSORS)
+            else:
+                eps = explain_eval.explained_windows(
+                    split, sus, ex.window_stride_s, ex.max_windows_per_episode
+                )
+                n_units = int(split.arrays["ep_series"].shape[0])
+                exp_map, n_types, names = expected, len(fault_types), list(fault_types)
+            weights = {e.episode: _shares(ev.det, split, e.windows) for e in eps}
+            n_runs = len(split.run_ids)
+            agree, records = explain_eval.agreement_sums(eps, weights, exp_map, n_runs, n_types)
+            agree_w = explain_eval.window_agreement_sums(eps, weights, exp_map, n_runs, n_types)
+            groups[f"{name}|ae"] = {"agree": agree}
+            groups[f"{name}|ae_w"] = {"agree": agree_w}
+            run_ids[name] = split.run_ids
+            by_type: dict[str, Any] = {}
+            for code in sorted({e.fault_type for e in eps}):
+                unit_w = [weights[e.episode] for e in eps if e.fault_type == code]
+                allw = np.concatenate(unit_w)
+                by_type[names[code]] = {
+                    "units": len(unit_w),
+                    "windows": int(allw.shape[0]),
+                    "mean_share": allw.mean(axis=0).tolist(),
+                    "top_counts": np.bincount(
+                        np.argmax(np.stack([u.mean(axis=0) for u in unit_w]), axis=1),
+                        minlength=len(SENSORS),
+                    ).tolist(),
+                }
+            details[name] = {
+                "unit": "segment" if name == a.drift_condition else "episode",
+                "units_total": n_units,
+                "units_explained": len(eps),
+                "windows": int(sum(e.windows.size for e in eps)),
+                "sensors": list(SENSORS),
+                "by_type": by_type,
+                "records": records,
+                "alarms_reproduced": True,
+                "bootstrap": run_sums.bootstrap({"agree": agree}, b.n_resamples, b.seed, b.ci),
+                "seconds": time.perf_counter() - t0,
+            }
+            for g in ("ae", "ae_w"):
+                for m, v in run_sums.point(groups[f"{name}|{g}"]).items():
+                    if np.isfinite(v):
+                        metrics[f"{name}.{g}.{m}"] = float(v)
+            _progress(
+                progress,
+                event="condition",
+                study=AE_SHARES_STUDY,
+                model=a.detector,
+                seed=seed,
+                condition=name,
+                seconds=round(time.perf_counter() - t0, 1),
+            )
+        total_s = time.perf_counter() - started
+        metrics["time.model_s"] = ev.train_s
+        metrics["time.total_s"] = total_s
+        sha = ae_shares_sha(
+            cfg, e5, followup, eval_cfg, key, source.info.run_id, e5_content_sha(e5, root)
+        )
+        result = {
+            "study": AE_SHARES_STUDY,
+            "model": a.detector,
+            "seed": seed,
+            "fault_types": fault_types,
+            "expected_sensor": ex.expected_sensor,
+            "source_run": source.info.run_id,
+            "detector": ev.info,
+            "conditions": details,
+            "total_s": total_s,
+            "process": process_info(),
+        }
+        tracking.configure(tdir, experiment or e5.experiment)
+        with mlflow.start_run(run_name=f"{AE_SHARES_STUDY}-seed{seed}") as mrun:
+            mlflow.set_tags(
+                {
+                    "phase": e5.phase_tag,
+                    "study": AE_SHARES_STUDY,
+                    "model": a.detector,
+                    "family": "anomaly",
+                    "seed": str(seed),
+                    "dataset_key": key,
+                    "source_run_id": source.info.run_id,
+                    "model_config_sha": config_sha_any(cfg),
+                    "study_config_sha": sha,
+                }
+            )
+            mlflow.log_metrics(metrics)
+            mlflow.log_dict(json.loads(json.dumps(result, default=float)), "metrics.json")
+            arrays = run_sums.save_npz_dict(groups)
+            for name, ids in run_ids.items():
+                arrays[f"runs:{name}"] = np.array(ids, dtype=str)
+            np.savez_compressed(tmp / "runstats.npz", **arrays)  # type: ignore[arg-type]
+            mlflow.log_artifact(str(tmp / "runstats.npz"))
+            run_id = mrun.info.run_id
+    return {
+        "run_id": run_id,
+        "study": AE_SHARES_STUDY,
+        "model": a.detector,
+        "seed": seed,
+        "total_s": total_s,
+        "source": source.info.run_id,
     }
 
 
@@ -904,6 +1197,7 @@ def run_e5_isolated(
     tracking_dir: Path | None = None,
     progress: Path | None = None,
     experiment: str | None = None,
+    followup: E5FollowupConfig | None = None,
 ) -> dict[str, Any]:
     request = {
         "study": study,
@@ -916,6 +1210,7 @@ def run_e5_isolated(
         "tracking_dir": None if tracking_dir is None else str(tracking_dir),
         "progress": None if progress is None else str(progress),
         "experiment": experiment,
+        "followup": None if followup is None else followup.model_dump(mode="json"),
     }
     with tempfile.TemporaryDirectory(prefix="twin_p9_req_") as tmp:
         req, res = Path(tmp) / "request.json", Path(tmp) / "result.json"
@@ -941,12 +1236,38 @@ def main(argv: list[str] | None = None) -> int:
     req = json.loads(Path(args[0]).read_text(encoding="utf-8"))
     model = req["model"]
     cfg = (parse_anomaly_config if is_anomaly(model) else parse_model_config)(req["config"])
-    if req["study"] == EXPLAIN_STUDY:
+    followup = (
+        None if req.get("followup") is None else E5FollowupConfig.model_validate(req["followup"])
+    )
+    if req["study"] in (EXPLAIN_STUDY, IG_SENSITIVITY_STUDY):
+        steps = None
+        if req["study"] == IG_SENSITIVITY_STUDY:
+            if followup is None:
+                raise ValueError(f"{IG_SENSITIVITY_STUDY} needs the follow-up config")
+            steps = followup.ig_sensitivity.ig_steps
         out = run_explain(
             model,
             cfg,
             int(req["seed"]),
             E5Config.model_validate(req["e5"]),
+            EvalConfig.model_validate(req["eval_config"]),
+            Path(req["root"]),
+            None if req["tracking_dir"] is None else Path(req["tracking_dir"]),
+            None if req["progress"] is None else Path(req["progress"]),
+            req.get("experiment"),
+            study_name=req["study"],
+            ig_steps=steps,
+        )
+        Path(args[1]).write_text(json.dumps(out), encoding="utf-8")
+        return 0
+    if req["study"] == AE_SHARES_STUDY:
+        if followup is None:
+            raise ValueError(f"{AE_SHARES_STUDY} needs the follow-up config")
+        out = run_ae_shares(
+            cfg,
+            int(req["seed"]),
+            E5Config.model_validate(req["e5"]),
+            followup,
             EvalConfig.model_validate(req["eval_config"]),
             Path(req["root"]),
             None if req["tracking_dir"] is None else Path(req["tracking_dir"]),

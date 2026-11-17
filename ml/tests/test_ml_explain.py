@@ -1,5 +1,8 @@
 """Phase 9 explainability (ADR 0026): sensor maps, TreeSHAP / Saabas additivity, Integrated
-Gradients completeness, the deletion test, agreement sums and the Phase 11 ``explain()``."""
+Gradients completeness, the deletion test, agreement sums and the Phase 11 ``explain()``.
+
+This process loads torch; the XGBoost tests run in their own process (xgb_isolated_explain.py,
+ADR 0020)."""
 
 from __future__ import annotations
 
@@ -22,7 +25,13 @@ from twin_ml.explain.aggregate import (
 )
 from twin_ml.features.inputs import SENSORS, SEQUENCE_CHANNELS
 from twin_ml.features.summary import summary_names
-from twin_ml.testing import CONFIG_DIR, make_split, require_xgboost, tiny_config
+from twin_ml.testing import (
+    CONFIG_DIR,
+    make_split,
+    require_xgboost,
+    run_pytest_isolated,
+    tiny_config,
+)
 
 LINE = load_line_config(CONFIG_DIR / "line.yaml")
 CNC_PARTS = next(m for m in LINE.machines if m.id == "CNC-01").sensor_parts
@@ -56,39 +65,29 @@ def test_to_parts_schema_and_normalisation() -> None:
 
 
 @pytest.fixture(scope="module")
-def tree_models(ml_dataset: Dataset, tmp_path_factory: pytest.TempPathFactory) -> dict[str, object]:
-    require_xgboost()
+def rf_model(ml_dataset: Dataset, tmp_path_factory: pytest.TempPathFactory) -> object:
+    """Random Forest only: XGBoost never loads in this process (torch does; ADR 0020)."""
     from twin_ml.models.trees import TreeModel
 
-    d = tmp_path_factory.mktemp("tree_cfg")
-    out: dict[str, object] = {}
-    for m in ("xgb", "rf"):
-        model = TreeModel(tiny_config(m, d), len(ml_dataset.fault_types), ml_dataset.ttf_cap_s)  # type: ignore[arg-type]
-        np.random.seed(0)
-        model.fit(ml_dataset.split("train"), ml_dataset.split("val"), 0)
-        out[m] = model
-    return out
+    cfg = tiny_config("rf", tmp_path_factory.mktemp("tree_cfg"))
+    model = TreeModel(cfg, len(ml_dataset.fault_types), ml_dataset.ttf_cap_s)  # type: ignore[arg-type]
+    np.random.seed(0)
+    model.fit(ml_dataset.split("train"), ml_dataset.split("val"), 0)
+    return model
 
 
-def test_treeshap_sums_to_margin(ml_dataset: Dataset, tree_models: dict[str, object]) -> None:
-    from twin_ml.explain.trees import xgb_contributions, xgb_margin
-
-    split = ml_dataset.split("val")
-    x = split.summary(np.arange(300))
-    head = tree_models["xgb"].heads["h30"]  # type: ignore[attr-defined]
-    for c in (1, 2):
-        cls = np.full(300, c)
-        contrib, bias = xgb_contributions(head, x, cls)
-        assert contrib.shape == (300, 50)
-        assert np.allclose(contrib.sum(axis=1) + bias, xgb_margin(head, x, cls), atol=1e-4)
+def test_xgboost_explanations_in_own_process(ml_dataset: Dataset) -> None:
+    """TreeSHAP additivity and explain() for XGBoost, in a separate pytest process."""
+    require_xgboost()
+    run_pytest_isolated(Path(__file__).with_name("xgb_isolated_explain.py"), dataset=ml_dataset)
 
 
-def test_saabas_sums_to_probability(ml_dataset: Dataset, tree_models: dict[str, object]) -> None:
+def test_saabas_sums_to_probability(ml_dataset: Dataset, rf_model: object) -> None:
     from twin_ml.explain.trees import saabas_contributions
 
     split = ml_dataset.split("val")
     x = split.summary(np.arange(200))
-    head = tree_models["rf"].heads["h30"]  # type: ignore[attr-defined]
+    head = rf_model.heads["h30"]  # type: ignore[attr-defined]
     proba = head.proba(x)
     cls = np.where(np.arange(200) % 2 == 0, 1, 2)
     contrib, bias = saabas_contributions(head, x, cls)
@@ -193,9 +192,10 @@ def test_explained_windows_thinning_cap_and_agreement() -> None:
     assert sums2[0, 4].tolist() == [1.0, 0.0]
 
 
-def test_explain_api_for_trees_and_sequence_models(
-    ml_dataset: Dataset, tree_models: dict[str, object], tmp_path: Path
+def test_explain_api_for_rf_and_sequence_models(
+    ml_dataset: Dataset, rf_model: object, tmp_path: Path
 ) -> None:
+    """XGBoost's explain() is checked in xgb_isolated_explain.py (own process)."""
     from twin_ml.explain import attribute, explain
     from twin_ml.models.nn import SequenceModel
 
@@ -205,7 +205,7 @@ def test_explain_api_for_trees_and_sequence_models(
     assert isinstance(cfg, NnConfig)
     gru = SequenceModel(cfg, len(ml_dataset.fault_types), ml_dataset.ttf_cap_s)
     gru.fit(ml_dataset.split("train"), split, 0)
-    for model in (tree_models["xgb"], tree_models["rf"], gru):
+    for model in (rf_model, gru):
         out = explain(model, values[0], mask[0], machine_kind="CNC", sensor_parts=CNC_PARTS)
         assert len(out) == 5
         assert {d["sensor"] for d in out} == set(SENSORS)
@@ -219,6 +219,24 @@ def test_explain_api_for_trees_and_sequence_models(
     assert att.delta is not None
     assert (att.completeness_error <= 1e-2 * np.maximum(np.abs(att.delta), 1.0)).all()
     assert set(att.cls.tolist()) <= {1, 2}
+
+
+def test_explain_refuses_a_second_openmp_library(monkeypatch: pytest.MonkeyPatch) -> None:
+    """explain() fails fast instead of loading torch next to XGBoost (or the reverse)."""
+    import sys
+    import types
+
+    from twin_ml.explain import OpenMPClashError, require_alone
+
+    monkeypatch.delitem(sys.modules, "xgboost", raising=False)
+    require_alone("torch")  # nothing else loaded: fine
+    monkeypatch.setitem(sys.modules, "xgboost", types.ModuleType("xgboost"))  # stand-in
+    with pytest.raises(OpenMPClashError, match="ADR 0020"):
+        require_alone("torch")
+    monkeypatch.delitem(sys.modules, "xgboost")
+    monkeypatch.setitem(sys.modules, "torch", sys.modules.get("torch", types.ModuleType("torch")))
+    with pytest.raises(OpenMPClashError, match="separate processes"):
+        require_alone("xgboost")
 
 
 def test_explain_import_is_light() -> None:

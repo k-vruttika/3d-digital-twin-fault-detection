@@ -91,6 +91,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--study", default="", help="e5_e1models | e5_aug | e5_anomaly | e5_e4")
     parser.add_argument("--combine", action="store_true", help="log the combined policy runs")
     parser.add_argument("--explain", action="store_true", help="explanation sanity checks (Part B)")
+    parser.add_argument(
+        "--ae-shares", action="store_true", help="exploratory AE per-sensor error shares (Part C)"
+    )
+    parser.add_argument(
+        "--ig-sensitivity", action="store_true", help="exploratory IG step-count check (Part C)"
+    )
+    parser.add_argument(
+        "--followup-config", type=Path, default=Path("config/models/e5_followup.yaml")
+    )
     parser.add_argument("--models", default="", help="comma-separated; default: the study's")
     parser.add_argument("--seeds", default="", help="comma-separated; default: eval.yaml seeds")
     parser.add_argument("--skip-existing", action="store_true")
@@ -101,8 +110,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--models-dir", type=Path, default=Path("config/models"))
     args = parser.parse_args(argv)
     configure_logging()
-    if sum((bool(args.study), args.combine, args.explain)) != 1:
-        print("error: give exactly one of --study, --combine or --explain", file=sys.stderr)
+    modes = (bool(args.study), args.combine, args.explain, args.ae_shares, args.ig_sensitivity)
+    if sum(modes) != 1:
+        print(
+            "error: give exactly one of --study, --combine, --explain, --ae-shares or "
+            "--ig-sensitivity",
+            file=sys.stderr,
+        )
         return 2
 
     from twin_ml.config import (
@@ -122,6 +136,22 @@ def main(argv: list[str] | None = None) -> int:
         rcfg = load_robustness_config(e5.robustness_config)
         experiment = e5.smoke_experiment if args.smoke else e5.experiment
         seeds = parse_seeds(args.seeds, eval_cfg.seeds)
+        if args.ae_shares or args.ig_sensitivity:
+            from twin_ml.config import load_e5_followup_config
+
+            return run_followup_study(
+                "ae_shares" if args.ae_shares else "ig_sensitivity",
+                e5,
+                load_e5_followup_config(args.followup_config),
+                rcfg,
+                eval_cfg,
+                args.models_dir,
+                root,
+                experiment,
+                seeds,
+                args.skip_existing,
+                args.dry_run,
+            )
         if args.explain:
             return run_explain_study(
                 e5,
@@ -328,6 +358,139 @@ def run_explain_study(
         elapsed_s=round(time.perf_counter() - started),
     )
     print(f"explain done in {time.perf_counter() - started:.0f} s")
+    return 0
+
+
+def followup_shas(
+    kind: str,
+    e5: Any,
+    followup: Any,
+    rcfg: Any,
+    eval_cfg: Any,
+    models_dir: Path,
+    root: Path,
+    seeds: list[int],
+) -> tuple[str, dict[tuple[str, int], str], dict[str, Any]]:
+    """(study name, expected hash per (model, seed), model configs) of a follow-up study."""
+    from twin_ml.config import load_dataset_config
+    from twin_ml.data.dataset import Dataset, resolve_dataset_dir
+    from twin_ml.experiments.e5_worker import (
+        AE_SHARES_STUDY,
+        EXPLAIN_SOURCE_STUDY,
+        IG_SENSITIVITY_STUDY,
+        ae_shares_sha,
+        ae_source_run,
+        e5_content_sha,
+        explain_config_sha,
+        model_config,
+        source_id,
+    )
+
+    tdir = eval_cfg.tracking_dir
+    content = e5_content_sha(e5, root)
+    if kind == "ae_shares":
+        a = followup.ae_shares
+        st = e5.studies[a.source_study]
+        key = Dataset.open(
+            resolve_dataset_dir(load_dataset_config(root / st.dataset_config), root)
+        ).meta["dataset_key"]
+        cfg = model_config(e5, root, models_dir, a.detector)
+        shas = {}
+        for s in [s for s in e5.anomaly.seeds if s in seeds]:
+            src = ae_source_run(e5, followup, rcfg, eval_cfg, cfg, key, s, tdir, root)
+            shas[(a.detector, s)] = ae_shares_sha(
+                cfg, e5, followup, eval_cfg, key, src.info.run_id, content
+            )
+        return AE_SHARES_STUDY, shas, {a.detector: cfg}
+    ig = followup.ig_sensitivity
+    st = e5.studies[EXPLAIN_SOURCE_STUDY]
+    key = Dataset.open(
+        resolve_dataset_dir(load_dataset_config(root / st.dataset_config), root)
+    ).meta["dataset_key"]
+    cfgs = {m: model_config(e5, root, models_dir, m) for m in ig.models}
+    shas = {
+        (m, s): explain_config_sha(
+            m,
+            cfgs[m],
+            e5,
+            eval_cfg,
+            key,
+            source_id(e5, EXPLAIN_SOURCE_STUDY, tdir, key, m, s, cfgs[m]),
+            content,
+            IG_SENSITIVITY_STUDY,
+            ig.ig_steps,
+        )
+        for m in ig.models
+        for s in seeds
+    }
+    return IG_SENSITIVITY_STUDY, shas, cfgs
+
+
+def run_followup_study(
+    kind: str,
+    e5: Any,
+    followup: Any,
+    rcfg: Any,
+    eval_cfg: Any,
+    models_dir: Path,
+    root: Path,
+    experiment: str,
+    seeds: list[int],
+    skip_existing: bool,
+    dry_run: bool,
+) -> int:
+    """Exploratory Part C follow-ups (``e5_followup.yaml``), one worker process per run."""
+    from twin_ml.experiments.e5_worker import E5ProcessError, latest_valid_runs, run_e5_isolated
+
+    study, shas, cfgs = followup_shas(kind, e5, followup, rcfg, eval_cfg, models_dir, root, seeds)
+    tdir = eval_cfg.tracking_dir
+    done = (
+        set(latest_valid_runs(tdir, experiment, e5.phase_tag, study, shas))
+        if skip_existing
+        else set()
+    )
+    todo = [k for k in shas if k not in done]
+    progress = e5.progress_dir / f"{study}.jsonl"
+    print(f"{study}: {len(todo)} runs ({len(done)} done); experiment {experiment}", flush=True)
+    if dry_run:
+        for m, s in todo:
+            print(f"  {m} seed {s}")
+        return 0
+    started = time.perf_counter()
+    for m, s in todo:
+        _write(progress, event="start", study=study, model=m, seed=s)
+        t0 = time.perf_counter()
+        try:
+            res = run_e5_isolated(
+                study,
+                m,
+                cfgs[m],
+                s,
+                e5,
+                eval_cfg,
+                progress=progress,
+                experiment=experiment,
+                followup=followup,
+            )
+        except E5ProcessError as exc:
+            _write(progress, event="failed", study=study, model=m, seed=s, error=str(exc))
+            print(f"error: {exc}; resume with --skip-existing", file=sys.stderr)
+            return 1
+        sec = time.perf_counter() - t0
+        _write(
+            progress,
+            event="finished",
+            study=study,
+            model=m,
+            seed=s,
+            run_id=res["run_id"],
+            seconds=round(sec),
+        )
+        print(f"{m} seed {s}: run {res['run_id']} in {sec:.0f} s", flush=True)
+    _write(
+        progress, event="study_done", study=study, elapsed_s=round(time.perf_counter() - started)
+    )
+    print(f"{study} done in {time.perf_counter() - started:.0f} s")
     return 0
 
 

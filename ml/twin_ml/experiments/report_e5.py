@@ -27,7 +27,7 @@ import numpy as np
 
 from twin_common.config import ConfigError
 from twin_common.logging import configure_logging
-from twin_ml.config import E5Config, EvalConfig
+from twin_ml.config import E5Config, E5FollowupConfig, EvalConfig
 from twin_ml.evaluate import run_sums
 from twin_ml.experiments.report_e1 import (
     AXIS,
@@ -238,7 +238,12 @@ def _entry(run: Any) -> Entry:
 
 
 def collect(
-    e5: E5Config, eval_cfg: EvalConfig, root: Path, models_dir: Path, tracking_dir: Path
+    e5: E5Config,
+    eval_cfg: EvalConfig,
+    root: Path,
+    models_dir: Path,
+    tracking_dir: Path,
+    followup: E5FollowupConfig | None = None,
 ) -> dict[str, Any]:
     from twin_ml.config import load_robustness_config
     from twin_ml.experiments.e5_worker import (
@@ -320,7 +325,58 @@ def collect(
         )
         if t.get("study_config_sha") == want:
             explain[m][s] = _entry(run)
-    return {"studies": studies, "combined": dict(combined), "explain": dict(explain)}
+    out: dict[str, Any] = {
+        "studies": studies,
+        "combined": dict(combined),
+        "explain": dict(explain),
+        "ae_shares": {},
+        "ig_sensitivity": {},
+    }
+    if followup is None:
+        return out
+
+    # exploratory Part C follow-ups (e5_followup.yaml), validated by their own hashes
+    from twin_ml.experiments.e5_worker import (
+        AE_SHARES_STUDY,
+        IG_SENSITIVITY_STUDY,
+        ae_shares_sha,
+    )
+
+    ae: Group = {}
+    det_c = cfg(followup.ae_shares.detector)
+    for run in runs(AE_SHARES_STUDY):
+        t = run.data.tags
+        s = int(t["seed"])
+        src = t.get("source_run_id", "")
+        if det_c is None or s in ae or src not in valid_ids:
+            continue
+        want = ae_shares_sha(det_c, e5, followup, eval_cfg, t.get("dataset_key", ""), src, content)
+        if t.get("study_config_sha") == want:
+            ae[s] = _entry(run)
+    out["ae_shares"] = dict(sorted(ae.items()))
+    ig: dict[str, Group] = defaultdict(dict)
+    steps = followup.ig_sensitivity.ig_steps
+    for run in runs(IG_SENSITIVITY_STUDY):
+        t = run.data.tags
+        m, s = t["model"], int(t["seed"])
+        c = cfg(m)
+        if c is None or s in ig[m]:
+            continue
+        want = explain_config_sha(
+            m,
+            c,
+            e5,
+            eval_cfg,
+            t.get("dataset_key", ""),
+            t.get("source_run_id", ""),
+            content,
+            IG_SENSITIVITY_STUDY,
+            steps,
+        )
+        if t.get("study_config_sha") == want:
+            ig[m][s] = _entry(run)
+    out["ig_sensitivity"] = {m: dict(sorted(g.items())) for m, g in ig.items()}
+    return out
 
 
 def _model_key(m: str) -> tuple[int, str]:
@@ -546,6 +602,19 @@ def build(e5: E5Config, eval_cfg: EvalConfig, data: dict[str, Any]) -> dict[str,
                         tot[k2] += v
                 n = sum(tot.values()) or 1
                 row["fault_type_head"] = {k2: v / n for k2, v in sorted(tot.items())}
+            row["per_seed"] = {
+                str(s): {
+                    mm: run_sums.point(_select(e["sums"][f"e5|{h}"], _fields_for(mm))).get(mm)
+                    for mm in ("miss_rate", "rel_lead_mean_s")
+                }
+                for s, e in sorted(g.items())
+                if f"e5|{h}" in e["sums"]
+            }
+            if study == "e5_e1models" and m in explain:
+                row["explained_per_seed"] = {
+                    str(s): e["detail"]["conditions"].get("e5", {}).get("episodes_explained")
+                    for s, e in sorted(explain[m].items())
+                }
             confidence.append(row)
     drift = []
     for study in SUP_STUDIES:
@@ -639,9 +708,112 @@ def build(e5: E5Config, eval_cfg: EvalConfig, data: dict[str, Any]) -> dict[str,
             "e4": e4,
             "auprc": auprc,
             "ae_sensor_shares": ae_shares,
+            "ae_shares": _ae_shares_section(st, data.get("ae_shares", {})),
+            "ig_sensitivity": _ig_section(
+                st, h, data.get("explain", {}), data.get("ig_sensitivity", {})
+            ),
         },
         "plots": {},
     }
+
+
+def _ae_shares_section(st: Stats, g: Group) -> list[dict[str, Any]]:
+    """Exploratory: the autoencoder's top per-sensor error share vs the expected sensor."""
+    if not g:
+        return []
+    e0 = g[min(g)]
+    d0 = e0["detail"]
+    fts: list[str] = d0.get("fault_types", [])
+    expected: dict[str, str] = d0.get("expected_sensor", {})
+    out = []
+    for cond, info in d0.get("conditions", {}).items():
+        sensors = info["sensors"]
+        drift = info["unit"] == "segment"
+        names = sensors if drift else fts
+        types = []
+        for code, name in enumerate(names):
+            ep = st.stat(g, f"{cond}|ae", f"agreement_rate_t{code}")
+            if not ep["seeds"]:
+                continue
+            shares = [
+                e["detail"]["conditions"][cond]["by_type"][name]["mean_share"]
+                for e in g.values()
+                if name in e["detail"]["conditions"].get(cond, {}).get("by_type", {})
+            ]
+            types.append(
+                {
+                    "type": name,
+                    "expected": name if drift else expected.get(name),
+                    "units": info["by_type"].get(name, {}).get("units", 0),
+                    "unit_rate": ep,
+                    "window_rate": st.stat(g, f"{cond}|ae_w", f"agreement_rate_t{code}"),
+                    "mean_share": dict(zip(sensors, np.mean(shares, axis=0).tolist(), strict=True))
+                    if shares
+                    else {},
+                }
+            )
+        out.append(
+            {
+                "condition": cond,
+                "unit": info["unit"],
+                "units_total": info["units_total"],
+                "units_explained": info["units_explained"],
+                "overall_unit": st.stat(g, f"{cond}|ae", "agreement_rate"),
+                "overall_window": st.stat(g, f"{cond}|ae_w", "agreement_rate"),
+                "types": types,
+                "seeds": len(g),
+            }
+        )
+    return out
+
+
+def _ig_section(
+    st: Stats, h: str, explain: dict[str, Group], ig: dict[str, Group]
+) -> list[dict[str, Any]]:
+    """Exploratory: agreement and completeness at the sensitivity step count vs the primary 64."""
+    out = []
+    for m, g in ig.items():
+        base = explain.get(m, {})
+        if not base:
+            continue
+        common = {s: g[s] for s in sorted(set(g) & set(base))}
+        bcommon = {s: base[s] for s in common}
+        steps = next(iter(common.values()))["detail"].get("ig_steps") if common else None
+        for cond in ("clean", "e5"):
+            key = f"{cond}|{h}"
+            changed = total = 0
+            for s in common:
+                a = {
+                    r["episode"]: r["top"]
+                    for r in common[s]["detail"]["conditions"].get(cond, {}).get("episodes", [])
+                }
+                b = {
+                    r["episode"]: r["top"]
+                    for r in bcommon[s]["detail"]["conditions"].get(cond, {}).get("episodes", [])
+                }
+                for ep in set(a) & set(b):
+                    total += 1
+                    changed += int(a[ep] != b[ep])
+            out.append(
+                {
+                    "model": m,
+                    "label": LABEL.get(m, m),
+                    "condition": cond,
+                    "ig_steps": steps,
+                    "seeds": len(common),
+                    "agree_base": st.stat(bcommon, key, "agreement_rate"),
+                    "agree_sens": st.stat(common, key, "agreement_rate"),
+                    "agree_diff": st.diff(common, key, bcommon, key, ("agreement_rate",))[
+                        "agreement_rate"
+                    ],
+                    "episodes_compared": total,
+                    "top_changed": changed,
+                    "ig_err_base": st.stat(bcommon, key, "ig_err_rel"),
+                    "ig_err_sens": st.stat(common, key, "ig_err_rel"),
+                    "del_diff_sens": st.stat(common, key, "del_diff"),
+                }
+            )
+    return out
 
 
 def _drift_row(st: Stats, g: Group, key: str, label: str, kind: str) -> dict[str, Any]:
@@ -920,6 +1092,39 @@ def render(report: dict[str, Any]) -> str:
             ["Model", *names],
             [[r["label"], *[_fmt(r["fault_type_head"].get(n), 3) for n in names]] for r in heads],
         )
+    seeded = [r for r in report["exploratory"]["confidence"] if r.get("per_seed")]
+    if seeded:
+        seeds = sorted({s for r in seeded for s in r["per_seed"]}, key=int)
+        lines += [
+            "",
+            "### Seed-to-seed variation on E5 (point estimate per seed)",
+            "",
+            "Explained = number of E5 episodes with at least one alarmed precursor window"
+            " (explanation study, E1 models; see Data for the episode total).",
+            "",
+        ]
+        lines += _table(
+            [
+                "Model",
+                *[f"Miss rate s{s}" for s in seeds],
+                *[f"Lead (s) s{s}" for s in seeds],
+                *[f"Explained s{s}" for s in seeds],
+            ],
+            [
+                [
+                    r["label"],
+                    *[_fmt(r["per_seed"].get(s, {}).get("miss_rate"), 3) for s in seeds],
+                    *[_fmt(r["per_seed"].get(s, {}).get("rel_lead_mean_s"), 0) for s in seeds],
+                    *[
+                        NA
+                        if r.get("explained_per_seed", {}).get(s) is None
+                        else str(r["explained_per_seed"][s])
+                        for s in seeds
+                    ],
+                ]
+                for r in seeded
+            ],
+        )
     lines += [
         "",
         "### Sensor drift (`sf_drift`)",
@@ -1038,10 +1243,114 @@ def render(report: dict[str, Any]) -> str:
                     for r in rf
                 ],
             )
+    lines += _render_followups(report["exploratory"])
     if report["plots"]:
         lines += ["", "## Plots", ""]
         lines += [f"![{k}]({v})" for k, v in report["plots"].items()]
     return LF.join(lines) + LF
+
+
+def _render_followups(ex: dict[str, Any]) -> list[str]:
+    """The exploratory Part C follow-ups (``e5_followup.yaml``, ADR 0024 amendment)."""
+    lines: list[str] = []
+    ae = ex.get("ae_shares") or []
+    if ae:
+        lines += [
+            "",
+            "### Autoencoder per-sensor reconstruction-error shares (exploratory follow-up)",
+            "",
+            "Added after the results were seen (ADR 0024 § Amendment). Autoencoder at the primary"
+            " percentile, re-fitted from its seed; every re-fit reproduced its stored alarms"
+            " exactly. Share = a sensor's squared reconstruction error / the window's total"
+            " (vib_norm folded into vib). Windows as for the explanations (alarmed, one per 10 s,"
+            " at most 30 per unit). Unit agreement: the top sensor of the unit's mean share is the"
+            " expected one (precursor episodes: the fault type's leading sensor; `sf_drift`: each"
+            " flagged drift segment's drifting sensor, flagged = sustained alarm on a normal"
+            " window inside the segment). Window agreement: each window's own top share. The"
+            " shares are not attributions: an error on one input can raise the reconstruction"
+            " error of another (ADR 0025).",
+            "",
+        ]
+        rows = []
+        for c in ae:
+            unit = "episodes" if c["unit"] == "episode" else "flagged segments"
+            rows.append(
+                [
+                    f"**{c['condition']}**",
+                    "all",
+                    NA,
+                    f"{c['units_explained']} / {c['units_total']} {unit}",
+                    _cell(c["overall_unit"], 3),
+                    _cell(c["overall_window"], 3),
+                    "",
+                ]
+            )
+            for t in c["types"]:
+                ms = t["mean_share"]
+                share_txt = ", ".join(f"{k} {v:.2f}" for k, v in ms.items())
+                rows.append(
+                    [
+                        c["condition"],
+                        t["type"],
+                        t["expected"] or NA,
+                        str(t["units"]),
+                        _cell(t["unit_rate"], 3),
+                        _cell(t["window_rate"], 3),
+                        share_txt,
+                    ]
+                )
+        lines += _table(
+            [
+                "Condition",
+                "Fault type / drifting sensor",
+                "Expected top",
+                "Units (seed 0)",
+                "Unit agreement",
+                "Window agreement",
+                "Mean share per sensor",
+            ],
+            rows,
+        )
+    ig = ex.get("ig_sensitivity") or []
+    if ig:
+        steps = ig[0]["ig_steps"]
+        lines += [
+            "",
+            f"### Integrated Gradients at {steps} steps vs 64 (exploratory sensitivity check)",
+            "",
+            "Added after the results were seen (ADR 0024 § Amendment). Same models, windows and"
+            " baseline as the explanation study; only the step count differs. The 64-step"
+            " results above stay primary. Δ is paired on the same runs.",
+            "",
+        ]
+        lines += _table(
+            [
+                "Model",
+                "Condition",
+                "Agreement 64",
+                f"Agreement {steps}",
+                f"Δ {steps} - 64",
+                "Episodes whose top sensor changed",
+                "IG rel. completeness error 64",
+                f"IG rel. completeness error {steps}",
+                f"Deletion top - random ({steps})",
+            ],
+            [
+                [
+                    r["label"],
+                    r["condition"],
+                    _cell(r["agree_base"], 3),
+                    _cell(r["agree_sens"], 3),
+                    _diff(r["agree_diff"], 3),
+                    f"{r['top_changed']} of {r['episodes_compared']} (all seeds)",
+                    _cell(r["ig_err_base"], 4),
+                    _cell(r["ig_err_sens"], 4),
+                    _cell(r["del_diff_sens"], 3),
+                ]
+                for r in ig
+            ],
+        )
+    return lines
 
 
 def _fmt(x: Any, digits: int) -> str:
@@ -1233,9 +1542,10 @@ def build_report(
     tracking_dir: Path | None = None,
     out_dir: Path | None = None,
     models_dir: Path = Path("config/models"),
+    followup: E5FollowupConfig | None = None,
 ) -> list[Path]:
     tdir = tracking_dir or eval_cfg.tracking_dir
-    data = collect(e5, eval_cfg, root, models_dir, tdir)
+    data = collect(e5, eval_cfg, root, models_dir, tdir, followup)
     if not any(data["studies"].values()):
         raise LookupError(
             f"no E5 study runs with the current configs in {e5.experiment}; run uv run poe e5"
@@ -1260,15 +1570,27 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--e5-config", type=Path, default=Path("config/models/e5.yaml"))
     parser.add_argument("--eval-config", type=Path, default=Path("config/models/eval.yaml"))
     parser.add_argument("--models-dir", type=Path, default=Path("config/models"))
+    parser.add_argument(
+        "--followup-config",
+        type=Path,
+        default=Path("config/models/e5_followup.yaml"),
+        help="exploratory follow-ups; skipped if the file does not exist",
+    )
     args = parser.parse_args(argv)
     configure_logging()
-    from twin_ml.config import load_e5_config, load_eval_config
+    from twin_ml.config import load_e5_config, load_e5_followup_config, load_eval_config
 
     try:
+        followup = (
+            load_e5_followup_config(args.followup_config)
+            if args.followup_config.is_file()
+            else None
+        )
         paths = build_report(
             load_e5_config(args.e5_config),
             load_eval_config(args.eval_config),
             models_dir=args.models_dir,
+            followup=followup,
         )
     except (ConfigError, LookupError) as exc:
         print(f"error: {exc}", file=sys.stderr)

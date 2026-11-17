@@ -1,0 +1,20 @@
+# Phase 9 Part C: exploratory follow-ups (ADR 0024 § Amendment, 2026-11-17).
+# Added AFTER the E5 results were seen. Nothing here is primary, and e5.yaml (pre-registered) is
+# unchanged. Window selection (one per 10 s, at most 30 per episode / segment) and the expected
+# sensor per fault type are read from e5.yaml `explain:`.
+# Runner: python -m twin_ml.experiments.e5 --ae-shares | --ig-sensitivity
+
+# Autoencoder per-sensor reconstruction-error shares (evaluation only). The detector is re-fitted
+# from its seed (its weights were not stored) and must reproduce the stored primary-percentile
+# alarms of the source study bit for bit, or the run fails.
+ae_shares:
+  detector: autoencoder
+  source_study: e5_anomaly
+  precursor_conditions: [clean, e5]    # top share vs the fault type's leading sensor, per episode
+  drift_condition: sf_drift            # top share vs the drifting sensor, per flagged segment
+
+# Integrated Gradients step-count sensitivity: the same models, windows and baseline as the
+# `explain` study, at another step count. The 64-step results (e5.yaml) stay primary.
+ig_sensitivity:
+  models: [lstm]
+  ig_steps: 256

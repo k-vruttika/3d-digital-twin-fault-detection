@@ -6,6 +6,8 @@
 * :func:`agreement_sums`: per run and fault type, episodes explained and episodes whose top
   sensor (largest mean signed attribution over the episode's windows) is the fault type's
   leading physical signal (``explain.expected_sensor``);
+* :func:`segment_windows` / :func:`window_agreement_sums`: the same selection on flagged
+  sensor-fault segments, and window-level agreement (the exploratory autoencoder shares);
 * :func:`deletion_inputs` / :func:`deletion_sums`: the deletion test. The top-attributed
   sensor's value channels (plus ``vib_norm`` for vib) are replaced by the baseline (0 after
   normalisation), and so are one random other sensor's (seeded per window); the change in
@@ -53,17 +55,85 @@ def explained_windows(
         cand = np.flatnonzero((win_series == sid) & (t_end >= t0) & (t_end < tf) & sustained_alarm)
         if not cand.size:
             continue
-        kept: list[int] = []
-        last = -np.inf
-        for w in cand[np.argsort(t_end[cand], kind="stable")]:
-            if t_end[w] >= last + stride_s:
-                kept.append(int(w))
-                last = t_end[w]
-        sel = np.array(kept, dtype=np.int64)
-        if sel.size > max_windows:
-            sel = sel[np.round(np.linspace(0, sel.size - 1, max_windows)).astype(np.int64)]
+        sel = thin(cand, t_end, stride_s, max_windows)
         out.append(EpisodeWindows(e, int(rw[sel[0]]), int(a["ep_fault_type"][e]), sel))
     return out
+
+
+def thin(
+    cand: npt.NDArray[np.int64],
+    t_end: npt.NDArray[np.float64],
+    stride_s: int,
+    max_windows: int,
+) -> npt.NDArray[np.int64]:
+    """One window per ``stride_s`` (in end-time order), capped at ``max_windows`` evenly spaced."""
+    kept: list[int] = []
+    last = -np.inf
+    for w in cand[np.argsort(t_end[cand], kind="stable")]:
+        if t_end[w] >= last + stride_s:
+            kept.append(int(w))
+            last = t_end[w]
+    sel = np.array(kept, dtype=np.int64)
+    if sel.size > max_windows:
+        sel = sel[np.round(np.linspace(0, sel.size - 1, max_windows)).astype(np.int64)]
+    return sel
+
+
+def segment_windows(
+    split: SplitData,
+    flag: npt.NDArray[np.bool_],
+    sf_rows: npt.NDArray[np.bool_],
+    sf_sensors: npt.NDArray[np.integer[Any]],
+    stride_s: int,
+    max_windows: int,
+) -> tuple[list[EpisodeWindows], int]:
+    """Flagged sensor-fault segments and their flagging windows, plus the segment count.
+
+    A segment is a contiguous run of sensor-fault rows within one series (as in
+    ``e5_eval.drift_flag_sums``); its flagging windows are the ``flag`` windows (sustained alarm
+    on a negative window) ending inside it, thinned like :func:`explained_windows`. The
+    returned records reuse :class:`EpisodeWindows` with ``episode`` = segment index and
+    ``fault_type`` = the faulty sensor's index in ``SENSORS``, so :func:`agreement_sums` with
+    an identity ``expected`` map gives "top share = the faulty sensor".
+    """
+    a = split.arrays
+    lookup = {r: i for i, r in enumerate(split.run_ids)}
+    ends = a["ends"]
+    win_series = split.at_end("series")
+    t_end = split.at_end("t_s").astype(np.float64)
+    rows_series = a["series"]
+    edge = np.diff(np.concatenate([[0], sf_rows.astype(np.int8), [0]]))
+    starts, stops = np.flatnonzero(edge == 1), np.flatnonzero(edge == -1) - 1
+    out: list[EpisodeWindows] = []
+    for i, (r0, r1) in enumerate(zip(starts, stops, strict=True)):
+        sid = int(rows_series[r0])
+        while int(rows_series[r1]) != sid:
+            r1 -= 1
+        cand = np.flatnonzero((win_series == sid) & (ends >= r0) & (ends <= r1) & flag)
+        sensor = int(sf_sensors[r0])
+        if not cand.size or sensor < 0:
+            continue
+        sel = thin(cand, t_end, stride_s, max_windows)
+        out.append(EpisodeWindows(i, lookup[str(a["series_run"][sid])], sensor, sel))
+    return out, int(starts.size)
+
+
+def window_agreement_sums(
+    episodes: list[EpisodeWindows],
+    sensor_weights: Mapping[int, npt.NDArray[np.float64]],
+    expected: Mapping[int, int],
+    n_runs: int,
+    n_types: int,
+) -> npt.NDArray[np.float64]:
+    """(runs, types, 2) [windows, windows whose own top sensor is the expected one]."""
+    sums = np.zeros((n_runs, n_types, 2))
+    for ep in episodes:
+        if ep.fault_type not in expected:
+            continue
+        top = np.argmax(sensor_weights[ep.episode], axis=1)
+        sums[ep.run, ep.fault_type, 0] += float(top.size)
+        sums[ep.run, ep.fault_type, 1] += float((top == expected[ep.fault_type]).sum())
+    return sums
 
 
 def agreement_sums(
