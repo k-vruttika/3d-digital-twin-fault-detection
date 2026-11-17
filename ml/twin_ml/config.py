@@ -423,6 +423,170 @@ class RobustnessConfig(ConfigModel):
     std_noise: StdNoiseConfig | None = None  # exploratory extension (Part C follow-up)
 
 
+# --------------------------------------------------------------------------- Phase 9
+
+
+class IForestConfig(ConfigModel):
+    type: Literal["iforest"]
+    n_estimators: int = Field(ge=1)
+    max_samples: int = Field(ge=2)
+    max_features: float = Field(gt=0, le=1)
+    n_jobs: int = -1
+
+
+class AutoencoderConfig(ConfigModel):
+    type: Literal["autoencoder"]
+    hidden: int = Field(ge=2)
+    latent: int = Field(ge=1)
+    epochs: int = Field(ge=1)
+    batch_size: int = Field(ge=1)
+    lr: float = Field(gt=0)
+    weight_decay: float = Field(ge=0)
+    eval_batch_size: int = Field(ge=1)
+    num_threads: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def _bottleneck(self) -> AutoencoderConfig:
+        if self.latent >= self.hidden:
+            raise ValueError("latent must be smaller than hidden")
+        return self
+
+
+# Kept apart from ModelConfig: detectors are never trained by train-all / the E1 trainer.
+AnomalyModelConfig = Annotated[IForestConfig | AutoencoderConfig, Field(discriminator="type")]
+_ANOMALY_ADAPTER: TypeAdapter[AnomalyModelConfig] = TypeAdapter(AnomalyModelConfig)
+
+
+class E5DataConfig(ConfigModel):
+    source_dir: Path
+    scenario: Path
+    base_seed: int
+    generate_runs: int = Field(ge=1)
+    test_split_runs: bool
+    extra_run_indices: tuple[int, int]  # half-open range of fresh run indices
+    fault_type: str = Field(min_length=1)
+    n_runs: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def _range(self) -> E5DataConfig:
+        lo, hi = self.extra_run_indices
+        if not 0 <= lo <= hi <= self.generate_runs:
+            raise ValueError("extra_run_indices must lie inside 0..generate_runs")
+        return self
+
+
+class AnomalySettings(ConfigModel):
+    normal_states: list[MachineState] = Field(min_length=1)
+    threshold_percentiles: list[float] = Field(min_length=1)
+    primary_percentile: float
+    per_kind: bool
+    models: dict[str, Path] = Field(min_length=1)
+    seeds: list[int] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _percentiles(self) -> AnomalySettings:
+        p = self.threshold_percentiles
+        if p != sorted(set(p)) or not all(0 < x < 100 for x in p):
+            raise ValueError("threshold_percentiles must be unique, ascending, in (0, 100)")
+        if self.primary_percentile not in p:
+            raise ValueError("primary_percentile must be one of threshold_percentiles")
+        return self
+
+
+class CombinedConfig(ConfigModel):
+    supervised: list[str] = Field(min_length=1)
+    detectors: list[str] = Field(min_length=1)
+    percentiles: list[float] = Field(min_length=1)
+
+
+class ConfidenceConfig(ConfigModel):
+    high: float = Field(gt=0, lt=1)
+
+
+class ExplainConfig(ConfigModel):
+    horizon: int
+    window_stride_s: int = Field(ge=1)
+    max_windows_per_episode: int = Field(ge=1)
+    ig_steps: int = Field(ge=2)
+    deletion_seed: int
+    primary_models: list[str] = Field(min_length=1)
+    exploratory_models: list[str]
+    expected_sensor: dict[str, str] = Field(min_length=1)
+
+
+class E5PrimaryConfig(ConfigModel):
+    """Pre-registered primary outcomes of E5 (ADR 0024); the test checks them against the ADR."""
+
+    horizon: int
+    reference: str
+    early_warning: dict[str, str] = Field(min_length=1)  # outcome -> condition
+    groups: list[str] = Field(min_length=1)
+    anomaly_percentile: float
+    conformal: list[str] = Field(min_length=1)
+    conformal_conditions: list[str] = Field(min_length=2)
+    explanation: list[str] = Field(min_length=1)
+    explanation_models: list[str] = Field(min_length=1)
+
+
+class E5StudyConfig(ConfigModel):
+    kind: Literal["supervised", "anomaly", "mixed"]
+    dataset_config: Path
+    source_experiment: str | None = None  # where reused supervised models are found
+    source_phase: str | None = None
+    models: list[str] = Field(min_length=1)
+    conditions: list[str] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _source(self) -> E5StudyConfig:
+        if self.kind != "anomaly" and not (self.source_experiment and self.source_phase):
+            raise ValueError("supervised studies need source_experiment and source_phase")
+        return self
+
+
+class E5Config(ConfigModel):
+    experiment: str = Field(min_length=1)
+    smoke_experiment: str = Field(min_length=1)
+    phase_tag: str = Field(min_length=1)
+    robustness_config: Path
+    e5_data: E5DataConfig
+    anomaly: AnomalySettings
+    combined: CombinedConfig
+    confidence: ConfidenceConfig
+    explain: ExplainConfig
+    primary: E5PrimaryConfig
+    studies: dict[str, E5StudyConfig] = Field(min_length=1)
+    eta_train_s: dict[str, float]
+    eta_condition_s: dict[str, float]
+    progress_dir: Path
+    report_name: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _consistent(self) -> E5Config:
+        if self.primary.anomaly_percentile != self.anomaly.primary_percentile:
+            raise ValueError("primary.anomaly_percentile must equal anomaly.primary_percentile")
+        if self.anomaly.primary_percentile not in self.combined.percentiles:
+            raise ValueError("combined.percentiles must include the primary percentile")
+        if set(self.combined.detectors) - set(self.anomaly.models):
+            raise ValueError("combined.detectors must be anomaly models")
+        return self
+
+
+def load_e5_config(path: str | Path) -> E5Config:
+    return load_model(path, E5Config)
+
+
+def parse_anomaly_config(data: object, source: str = "<anomaly config>") -> AnomalyModelConfig:
+    try:
+        return _ANOMALY_ADAPTER.validate_python(data)
+    except ValidationError as exc:
+        raise ConfigError(format_validation_error(source, exc)) from exc
+
+
+def load_anomaly_config(path: str | Path) -> AnomalyModelConfig:
+    p = Path(path)
+    return parse_anomaly_config(read_yaml(p), str(p))
+
+
 def load_dataset_config(path: str | Path) -> DatasetConfig:
     return load_model(path, DatasetConfig)
 

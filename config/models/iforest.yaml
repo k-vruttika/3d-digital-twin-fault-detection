@@ -1,0 +1,7 @@
+# Isolation Forest anomaly detector on window summary features (twin_ml.features.summary).
+# Trained on normal-operation training windows only (e5.yaml anomaly.normal_states; ADR 0024).
+type: iforest
+n_estimators: 200
+max_samples: 256                     # per tree (sklearn's "auto" for large inputs)
+max_features: 1.0
+n_jobs: -1

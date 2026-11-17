@@ -1,0 +1,109 @@
+# Phase 9: unseen fault (E5), anomaly detection, explainability (ADR 0024).
+# Every setting here was fixed before any E5 data was generated and before any Phase 9 study run.
+# Runner: python -m twin_ml.experiments.e5 --study <name>. Report: twin_ml.experiments.report_e5.
+experiment: P9_e5                      # MLflow experiment of the study runs
+smoke_experiment: P9_smoke             # pipeline checks only; never part of a result
+phase_tag: P9
+# Calibration, conformal, ECE bins and the sensor-fault sets are reused unchanged from Phase 8.
+robustness_config: config/models/robustness.yaml
+
+# E5 test data: the held-out fault type, decided in advance (ADR 0024). Generated with
+#   python -m twin_sim generate --runs 270 --duration 3600 --seed 42 --scenario <scenario>
+# The CLI seed (42, as data/sim) overrides the scenario file's own seed, so the E1 test-split
+# run indices share load band, ambient, thresholds and noise streams with the clean test runs.
+e5_data:
+  source_dir: data/sim_e5
+  scenario: config/scenarios/e5_lubrication_loss.yaml
+  base_seed: 42
+  generate_runs: 270                   # run indices 0..269 are generated
+  test_split_runs: true                # use the 30 E1 test-split run indices
+  extra_run_indices: [200, 270]        # plus fresh indices 200..269 (half-open), never in a split
+  fault_type: lubrication_loss         # the only fault type in these runs
+  # 100 runs in total, fixed before generation; no runs are added after the data is seen.
+  n_runs: 100
+
+# Anomaly detectors: trained on normal-operation training windows only.
+anomaly:
+  normal_states: [RUNNING]             # window end state; plus no fault in the window, NORMAL at +30 s
+  threshold_percentiles: [99.0, 99.5, 99.9]   # of validation normal-operation scores
+  primary_percentile: 99.9             # primary; 99.0 and 99.5 are exploratory
+  per_kind: true                       # one threshold per machine kind
+  models:                              # model configs (config/models/<name>.yaml)
+    iforest: config/models/iforest.yaml
+    autoencoder: config/models/autoencoder.yaml
+  seeds: [0, 1, 2]
+
+# Combined policy: alarm = supervised alarm OR anomaly alarm (sustained alarms, eval.yaml).
+combined:
+  supervised: [threshold, rf, xgb, lstm, gru, transformer]
+  detectors: [iforest, autoencoder]
+  percentiles: [99.0, 99.5, 99.9]      # 99.9 primary
+
+# Exploratory: are wrong predictions made with high confidence (calibrated top-label prob)?
+confidence:
+  high: 0.9
+
+# Explainability sanity checks (Part B).
+explain:
+  horizon: 30
+  window_stride_s: 10                  # explained precursor windows: one every 10 s
+  max_windows_per_episode: 30
+  ig_steps: 64                         # Integrated Gradients, trapezoid rule
+  deletion_seed: 17                    # random-sensor draw of the deletion test
+  primary_models: [xgb, lstm, gru, transformer]   # XGBoost TreeSHAP, sequence-model IG
+  exploratory_models: [rf]             # Saabas path attributions, reported separately
+  expected_sensor:                     # the leading physical signal of each fault type
+    bearing_wear: vib
+    overheating: temp
+    spindle_imbalance: vib
+    lubrication_loss: current
+
+# Pre-registered primary outcomes (ADR 0024). Fixed before any E5 data or study run; never
+# changed after results are seen. Everything else in the report is exploratory.
+primary:
+  horizon: 30
+  reference: threshold                 # early-warning outcomes are paired against this baseline
+  early_warning:                       # outcome -> condition it is measured on
+    miss_rate: e5
+    rel_lead_mean_s: e5
+    false_alarms_per_h: clean
+  groups: [e5_e1models, e5_aug, anomaly, combined]
+  anomaly_percentile: 99.9
+  conformal: [size_mondrian_lac]       # E5 vs clean operating windows, per supervised model
+  conformal_conditions: [e5, clean]
+  explanation: [agreement_rate]
+  explanation_models: [xgb, lstm, gru, transformer]
+
+studies:
+  e5_e1models:                         # the E1 models, reused (RF retrained from its seed)
+    kind: supervised
+    dataset_config: config/models/dataset.yaml
+    source_experiment: E1_clean
+    source_phase: E1
+    models: [persistence, threshold, rf, xgb, lstm, gru, transformer]
+    conditions: [clean, e5, sf_drift]
+  e5_aug:                              # the augmentation-trained models of Phase 8, reused
+    kind: supervised
+    dataset_config: config/models/dataset_aug.yaml
+    source_experiment: P8_aug
+    source_phase: P8
+    models: [rf, xgb, lstm, gru, transformer]
+    conditions: [clean, e5, sf_drift]
+  e5_anomaly:                          # detectors trained on the E1 training split
+    kind: anomaly
+    dataset_config: config/models/dataset.yaml
+    models: [iforest, autoencoder]
+    conditions: [clean, e5, sf_drift]
+  e5_e4:                               # load shift: E4 models and detectors trained on low + medium
+    kind: mixed
+    dataset_config: config/models/dataset_e4.yaml
+    source_experiment: P8_E4
+    source_phase: P8
+    models: [threshold, rf, xgb, lstm, gru, transformer, iforest, autoencoder]
+    conditions: [e4_high, e4_in]
+
+# Rough times for the progress ETA only (Phase 8 measurements; detectors estimated).
+eta_train_s: { persistence: 0, threshold: 0, rf: 123, xgb: 0, lstm: 0, gru: 0, transformer: 0, iforest: 30, autoencoder: 120 }
+eta_condition_s: { persistence: 4, threshold: 5, rf: 25, xgb: 15, lstm: 20, gru: 25, transformer: 40, iforest: 10, autoencoder: 10 }
+progress_dir: experiments/progress
+report_name: e5_explain

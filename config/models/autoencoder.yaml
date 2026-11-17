@@ -1,0 +1,11 @@
+# Small MLP autoencoder on raw normalised windows (6 value channels x 30 s), conditioned on the
+# machine kind. Trained on normal-operation training windows only (ADR 0024).
+type: autoencoder
+hidden: 64
+latent: 16
+epochs: 20                           # fixed budget; the best epoch by validation normal loss is kept
+batch_size: 512
+lr: 0.001
+weight_decay: 0.0
+eval_batch_size: 8192
+num_threads: null                    # null = torch default
