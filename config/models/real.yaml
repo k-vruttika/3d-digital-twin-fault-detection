@@ -1,0 +1,112 @@
+# Phase 10: validation on real public data (ADR 0027). Every setting here was fixed before any
+# model was trained on real data. Datasets: config/models/real_<name>.yaml (windows, labels,
+# splits, in rows of each dataset's own grid); facts: config/datasets/<name>.yaml.
+# Runner (Part B): python -m twin_ml.experiments.real. Report: twin_ml.experiments.report_real.
+experiment: P10_real                   # MLflow experiment (audit, study runs)
+smoke_experiment: P10_smoke            # pipeline checks only; never part of a result
+phase_tag: P10
+eval_config: config/models/eval.yaml   # tracking dir, latency settings (seeds and bootstrap below)
+robustness_config: config/models/robustness.yaml   # calibration, conformal, ECE bins,
+                                                    # perturbation grid (reused unchanged)
+seeds: [0, 1, 2]
+bootstrap:                             # machine-level (Azure); none for MetroPT-3
+  n_resamples: 1000
+  seed: 11
+  ci: 0.95
+
+datasets:
+  metropt3:
+    dataset_config: config/models/real_metropt3.yaml
+    sustain: 3                         # rows (3 min): alarm sustained over 3 windows
+    lookbacks: [120, 360, 1440]        # rows: 2 h, 6 h, 24 h before the reported start
+    primary_lookback: 360              # 6 h
+    evaluable_min_coverage: 0.5        # a failure counts for a lookback only if >= 50 % of
+                                       # that lookback has data; else "not evaluable"
+    supervised: []                     # none: no failure lies in the training period
+    detectors: [iforest, autoencoder]
+    baselines: [threshold, zscore]
+    zscore_trailing: 1440              # rows (24 h) before the window
+  azure_pdm:
+    dataset_config: config/models/real_azure.yaml
+    sustain: 3                         # rows (3 h)
+    horizon: 24                        # primary head: health at t + 24 h
+    lookbacks: [48]                    # rows: warning band 24 h + horizon 24 h
+    primary_lookback: 48
+    evaluable_min_coverage: 0.5
+    supervised: [rf, xgb, lstm, gru, transformer]
+    detectors: [iforest, autoencoder]
+    baselines: [persistence, threshold, zscore]
+    zscore_trailing: 168               # rows (7 days) before the window
+
+models_dir: config/models              # supervised and detector configs, as in Phases 7-9
+
+# Detectors: fitted on normal training windows (RUNNING, no fault in the window, NORMAL at the
+# horizon); thresholds per kind from validation normal windows.
+anomaly:
+  threshold_percentiles: [99.0, 99.5, 99.9]
+  primary_percentile: 99.9
+  per_kind: true
+
+# Baselines (no training; parameters fixed here, never tuned).
+baselines:
+  threshold:                           # any sensor's window mean outside the training normal
+    low_pct: 0.1                       # window means' [p0.1, p99.9], per kind and sensor
+    high_pct: 99.9
+  zscore:                              # z = (window mean - trailing mean) / trailing std over
+    z: 3.0                             # the zscore_trailing rows before the window; alarm if
+    min_std: 1.0e-6                    # max |z| over sensors > z (std floor avoids 0 division)
+  persistence: observable_only         # FAULT now -> FAULT; the WARNING band is not observable
+
+# Best supervised model (Azure): chosen on validation only, never on test.
+selection:
+  metric: pr_auc_mean                  # mean of WARNING and FAULT one-vs-rest PR-AUC
+  subset: operating
+  horizon: 24
+  split: val                           # seed mean of the validation metric; highest wins
+
+# Combined policy: best supervised OR autoencoder (primary); every supervised model x both
+# detectors x every percentile (exploratory).
+combined:
+  primary: [best_supervised, autoencoder]
+  exploratory_detectors: [iforest, autoencoder]
+
+# Exploratory variants and tests (definitions fixed now).
+exploratory:
+  error_rule:                          # Azure: alarm if an error occurred in the window
+    codes: [any, error1, error2, error3, error4, error5]
+  error_xgb:                           # Azure: XGBoost with per-hour error counts as inputs
+    dataset_config: config/models/real_azure_err.yaml
+    model: xgb
+  holdout:                             # Azure: 20 % of machines held out entirely
+    dataset_config: config/models/real_azure_holdout.yaml
+    fraction: 0.2
+    seed: 2027
+    models: [best_supervised, autoencoder]
+  robustness:                          # Azure, test only, Phase 8 perturbation functions
+    conditions: [noise_10, noise_20, noise_30, mcar_5, mcar_10, mcar_20, mcar_30]
+    models: [best_supervised, autoencoder, threshold, zscore]
+  fa_by_month: [metropt3]              # false alarms per day by test month
+  explain:
+    window_stride: 1                   # Azure: every alarmed precursor window (1 h apart)
+    metropt_window_stride: 10          # MetroPT-3: one every 10 min
+    max_windows_per_episode: 30
+    ig_steps: 64
+    air_leak_plausible: [tp2, tp3, h1, dv_pressure, reservoirs, motor_current, comp, mpg, dv_electric, lps]
+
+# Pre-registered primary outcomes (ADR 0027 § Pre-registration). Fixed before any model was
+# trained on real data; never changed after results are seen. Everything else is exploratory.
+primary:
+  azure_pdm:
+    horizon: 24
+    lookback: 48
+    outcomes: [detection_rate, lead_mean_h, false_alarms_per_day]
+    groups: [best_supervised, autoencoder, combined, threshold, zscore, persistence]
+    reference: threshold               # paired machine bootstrap against this baseline
+    combined_vs: best_supervised       # the combined policy is also paired against this
+    anomaly_percentile: 99.9
+  metropt3:
+    lookback: 360
+    outcomes: [warned, lead_min, warned_count, false_alarms_per_day, chance_expected]
+    groups: [autoencoder, iforest, threshold, zscore]
+    anomaly_percentile: 99.9
+    evaluable_min_coverage: 0.5

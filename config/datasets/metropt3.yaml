@@ -1,0 +1,64 @@
+# MetroPT-3: facts about the public dataset (Phase 10, ADR 0027). Not a model setting.
+# Loader: twin_ml.datasets.metropt3. The files are never downloaded automatically.
+name: metropt3
+title: MetroPT-3 (air production unit of a metro train compressor)
+provider: UCI Machine Learning Repository, "MetroPT-3 Dataset" (Davari, Veloso, Ribeiro, Gama; INESC TEC)
+licence: CC BY 4.0
+origin: real                 # operational data from a metro train
+download: >-
+  Download the MetroPT-3 dataset from the UCI Machine Learning Repository and place
+  "MetroPT3(AirCompressor).csv" (and, optionally, "Data Description_Metro.pdf") in
+  data/external/metropt3/.
+dir: data/external/metropt3
+files:
+  telemetry: MetroPT3(AirCompressor).csv
+optional_files:
+  description: Data Description_Metro.pdf
+timestamp_column: timestamp
+timestamp_format: "%Y-%m-%d %H:%M:%S"
+# Neither the CSV nor the failure table states a time zone. Both are read as the same naive
+# local clock, without conversion.
+time_zone: unstated
+kind: APU                    # one machine, one kind
+machine_id: APU-01
+
+# Signals in file order. type: analog (bar / A / degC) or digital (0/1 electrical signal).
+# Semantics and units from "Data Description_Metro.pdf" (Attribute Information). part: the
+# component of the air production unit the signal belongs to (explanations, ADR 0026).
+sensors:
+  - {name: tp2,             column: TP2,             type: analog,  unit: bar,  part: compressor,         description: pressure on the compressor}
+  - {name: tp3,             column: TP3,             type: analog,  unit: bar,  part: pneumatic_panel,    description: pressure generated at the pneumatic panel}
+  - {name: h1,              column: H1,              type: analog,  unit: bar,  part: cyclonic_separator, description: pressure drop when the cyclonic separator filter discharges}
+  - {name: dv_pressure,     column: DV_pressure,     type: analog,  unit: bar,  part: air_dryer,          description: "pressure drop when the towers discharge the air dryers; zero when the compressor works under load"}
+  - {name: reservoirs,      column: Reservoirs,      type: analog,  unit: bar,  part: reservoirs,         description: "downstream pressure of the reservoirs, close to TP3"}
+  - {name: oil_temperature, column: Oil_temperature, type: analog,  unit: degC, part: compressor,         description: oil temperature on the compressor}
+  - {name: motor_current,   column: Motor_current,   type: analog,  unit: A,    part: motor,              description: "current of one motor phase: ~0 A off, ~4 A offloaded, ~7 A under load, ~9 A at start"}
+  - {name: comp,            column: COMP,            type: digital, unit: null, part: intake_valve,       description: "air intake valve signal, active when there is no air intake (off or offloaded)"}
+  - {name: dv_electric,     column: DV_eletric,      type: digital, unit: null, part: outlet_valve,       description: "compressor outlet valve signal, active under load"}
+  - {name: towers,          column: Towers,          type: digital, unit: null, part: air_dryer,          description: which drying tower is active}
+  - {name: mpg,             column: MPG,             type: digital, unit: null, part: intake_valve,       description: starts the compressor under load when the APU pressure falls below 8.2 bar}
+  - {name: lps,             column: LPS,             type: digital, unit: null, part: pressure_switches,  description: active when the pressure drops below 7 bar}
+  - {name: pressure_switch, column: Pressure_switch, type: digital, unit: null, part: air_dryer,          description: detects the discharge in the air-drying towers}
+  - {name: oil_level,       column: Oil_level,       type: digital, unit: null, part: compressor,         description: active when the oil is below the expected level}
+  - {name: caudal_impulses, column: Caudal_impulses, type: digital, unit: null, part: flow_meter,         description: pulses counting the air flowing from the APU to the reservoirs}
+
+# The dataset has no labels. Failures come from the company maintenance reports, as listed on
+# the UCI dataset page and in the "Failure Information" table of Data Description_Metro.pdf.
+failure_source: >-
+  UCI MetroPT-3 dataset page and "Data Description_Metro.pdf", table "Failure Information"
+  (company failure reports). Times as printed there (M/D/YYYY H:MM).
+failures:
+  - {id: 1, start: "2020-04-18 00:00:00", end: "2020-04-18 23:59:00", type: air_leak, severity: high stress, report: null}
+  - {id: 2, start: "2020-05-29 23:30:00", end: "2020-05-30 06:00:00", type: air_leak, severity: high stress, report: "Maintenance on 30Apr at 12:00"}
+  - {id: 3, start: "2020-06-05 10:00:00", end: "2020-06-07 14:30:00", type: air_leak, severity: high stress, report: "Maintenance on 8Jun at 16:00"}
+  - {id: 4, start: "2020-07-15 14:30:00", end: "2020-07-15 19:00:00", type: air_leak, severity: high stress, report: "Maintenance on 16Jul at 00:00"}
+
+# Manual check of the failure list against the PDF (no PDF parser is a project dependency).
+pdf_check:
+  date: "2026-11-17"
+  method: manual reading of Data Description_Metro.pdf, page 3, "Failure Information"
+  result: the four start and end times above match the PDF table exactly
+  inconsistencies:
+    - "the PDF numbers the first two failures both #1 (then #3, #4); ids 1-4 here are by date"
+    - "failure 2 (2020-05-29/30) reports maintenance on 30 April at 12:00, a month before the failure; kept verbatim, not corrected and not used"
+    - "the PDF states 15,169,480 instances logged at 1 Hz from February to August 2020; the rows, sampling and span of the CSV are measured by the audit instead of assumed"

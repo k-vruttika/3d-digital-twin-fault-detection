@@ -1,5 +1,55 @@
 # LineTwin progress
 
+## Phase 10: Validation on real public data (in progress)
+
+### Part A (done, 2026-11-17): loaders, audit, mapping, pre-registration
+
+**No model has been trained on real data.** Part A ends with the pre-registration (ADR 0027 § Pre-registration, `config/models/real.yaml` `primary:`, `ml/tests/test_ml_real_prereg.py`), to be committed before Part B starts.
+
+**Built**
+- **Channel schema** ([ADR 0028](adr/0028-channel-schema.md)): `twin_ml/features/schema.py` (`ChannelSchema`, `SIM_SCHEMA`). It is stored in real-data `meta.json` and read by `SplitData`, the normaliser, summaries, the sequence models, the autoencoder, detector thresholds, the explanation maps, perturbations and the early-warning time conversion (`step_s`).
+  - Simulator behaviour is unchanged: the dataset fingerprints are pinned in `test_ml_schema.py`, and simulator `meta.json` / normaliser dicts are as before.
+- **Loaders** (`twin_ml/datasets/`, pyarrow + numpy, no simulator, no ML library):
+  - `metropt3.py`, `azure_pdm.py`;
+  - `common.py`: file check with download instructions, regular-grid resampling, gap segmentation, event → pseudo-state labels, time to fault;
+  - `build.py`: the time-ordered split and the common npz layout, plus `schema`, `rows`, `events`, `series`;
+  - `audit.py`: logged to MLflow `P10_real`;
+  - CLI `python -m twin_ml.datasets build|audit`.
+- **Configs:**
+  - `config/datasets/metropt3.yaml`: the 4 failures with source, the manual PDF check and 3 recorded inconsistencies;
+  - `config/datasets/azure_pdm.yaml`;
+  - `config/models/real_metropt3.yaml`, `real_azure.yaml`, `real_azure_err.yaml` (exploratory error counts), `real_azure_holdout.yaml` (exploratory 20 % machine holdout, seed 2027);
+  - `real.yaml`.
+- **Report:** `twin_ml/experiments/report_real.py` writes `experiments/results/real_data.md` + `.json` + `real_data_metropt3_availability.png`, audit and mapping sections only, from the MLflow audit runs (matched on source sha256, facts and dataset-config fingerprints).
+- **Docs:** `docs/experiments.md` § Phase 10 (every mapping decision and limitation); ADR 0027 (protocol, pre-registration) and ADR 0028; CLAUDE.md §5.
+- **Poe tasks:** `real-audit`, `real-data`, `report-real`.
+
+**Audit findings** (all generated in `real_data.md`)
+- **MetroPT-3:**
+  - 1,516,948 rows, 2020-02-01 to 2020-09-01 03:59:50.
+  - The measured interval is ~10 s (88 % exactly 10 s), not the 1 Hz of the PDF, whose row count is exactly 10× the file's.
+  - 331 gaps over 60 s (909.5 h, the longest 48 h) give 224 series on the 1-minute grid.
+  - All 4 failures lie in the test period and are evaluable at 2 h / 6 h / 24 h; data coverage of the 24 h lookback is 71–100 %.
+- **Azure:**
+  - Exactly hourly, no gaps or missing values.
+  - 719 events (761 rows; 42 two-component events), all stamped at 03:00 or 06:00.
+  - 98.1 % of events have an error in the 24 h before.
+  - Events per split 493 / 112 / 114 (evaluable 473 / 106 / 108).
+
+**Measured times (this laptop):** audit about 5 s for both datasets; all four dataset builds about 2 s each.
+
+**Verified (end of Part A, Windows, services not running):**
+- `uv run poe lint` is clean (290 files).
+- `uv run poe test`: pytest 830 passed, 50 skipped; Vitest 163 passed.
+- `uv run poe minimal-data-check`: 14 passed.
+- After the refactor, `robustness --dry-run --skip-existing` shows 0 runs for all seven Phase 8 studies; `e5 --dry-run --skip-existing` shows 0 runs for all four studies, and `--combine` and `--explain` log nothing.
+
+**Tests:** new `test_ml_schema.py`, `test_ml_real_data.py` (synthetic stand-in files in the exact formats, so CI needs no data), `test_ml_real_local.py` (real files, skipped when absent), `test_ml_real_prereg.py`, and an import guard for the Phase 10 modules.
+
+**Deviations / notes**
+- **No PDF parser:** the failure list was checked against the PDF by reading it (no PDF parser is a dependency). The check is recorded in the facts file.
+- **Episodes per series:** on MetroPT-3, gaps split some failure intervals across series. The build's per-series episode arrays therefore hold 6 entries for 4 failures. The real-data evaluation uses the event table in `meta.json`, not those arrays.
+
 ## Phase 9: Unseen faults (E5), anomaly detection, explainability (done, 2026-11-17)
 
 - **Pre-registration before any E5 data or study run:** [ADR 0024](adr/0024-e5-unseen-fault-protocol.md) § Pre-registration, mirrored in `config/models/e5.yaml` (`primary:`), guarded by `ml/tests/test_ml_e5_prereg.py`. Committed by the user as `10f1995` (Phase 9 A1) before `data/sim_e5` was generated.

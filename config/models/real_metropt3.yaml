@@ -1,0 +1,31 @@
+# MetroPT-3 windowed dataset (Phase 10, ADR 0027). Build: python -m twin_ml.datasets build.
+# Every length below is in rows of the regular grid (step_s seconds per row): 1 row = 1 minute.
+# Fixed before any model was trained on real data (ADR 0027 § Pre-registration).
+facts: config/datasets/metropt3.yaml
+out_dir: data/ml_real                # built dataset: data/ml_real/<dataset_key>/ (gitignored)
+
+step_s: 60                           # 1-min grid: mean of the ~10 s samples in each minute
+                                     # (digital 0/1 signals become duty fractions)
+max_gap_rows: 10                     # more than 10 empty minutes in a row start a new series;
+                                     # shorter gaps stay as missing rows (forward fill + mask)
+window: 60                           # 60 min
+horizons: [1]                        # no supervised model on MetroPT-3; one row only, for the
+                                     # detectors' normal-window rule (NORMAL one row ahead)
+ttf_cap: 1440                        # 24 h (not used by any MetroPT-3 model)
+strides: {train: 1, val: 1, test: 1}
+
+labels:
+  warning_band: 360                  # 6 h before a failure start: pseudo-state WARNING
+  fault_context: 1440                # fault_type = the failure from 24 h before start to end
+  post_failure: 1440                 # 24 h after a failure end: pseudo-state MAINTENANCE
+                                     # (excluded from negatives and from detector training)
+
+split:                               # by time, half-open [start, end), naive local clock
+  train: ["2020-02-01 00:00:00", "2020-03-22 00:00:00"]
+  val:   ["2020-03-22 00:00:00", "2020-04-11 00:00:00"]
+  test:  ["2020-04-11 00:00:00", "2020-09-02 00:00:00"]
+
+normal_keep_frac: 1.0                # no supervised training; detectors use every normal window
+subsample_seed: 7
+error_channels: false
+machine_holdout: null

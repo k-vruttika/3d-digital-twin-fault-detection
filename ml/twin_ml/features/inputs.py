@@ -13,16 +13,18 @@ import numpy as np
 import numpy.typing as npt
 
 from twin_common.enums import MachineKind
+from twin_ml.features.schema import SIM_SCHEMA
 
+# Simulator datasets (SIM_SCHEMA). Real-data datasets carry their own ChannelSchema (ADR 0028).
 # Raw columns a model input may be computed from. The machine kind comes from the line config.
-ALLOWED_INPUT_COLUMNS: tuple[str, ...] = ("speed", "temp", "vib", "load", "current")
+ALLOWED_INPUT_COLUMNS: tuple[str, ...] = SIM_SCHEMA.sensors
 SENSORS = ALLOWED_INPUT_COLUMNS
-VALUE_CHANNELS: tuple[str, ...] = (*SENSORS, "vib_norm")
-MASK_CHANNELS: tuple[str, ...] = tuple(f"{s}_missing" for s in SENSORS)
+VALUE_CHANNELS: tuple[str, ...] = SIM_SCHEMA.value_channels
+MASK_CHANNELS: tuple[str, ...] = SIM_SCHEMA.mask_channels
 KINDS: tuple[MachineKind, ...] = tuple(MachineKind)
-KIND_CHANNELS: tuple[str, ...] = tuple(f"kind_{k.value}" for k in KINDS)
+KIND_CHANNELS: tuple[str, ...] = SIM_SCHEMA.kind_channels
 # Channels of a raw window as the sequence models see it (time x channel).
-SEQUENCE_CHANNELS: tuple[str, ...] = (*VALUE_CHANNELS, *MASK_CHANNELS, *KIND_CHANNELS)
+SEQUENCE_CHANNELS: tuple[str, ...] = SIM_SCHEMA.sequence_channels
 
 _SPEED, _VIB = SENSORS.index("speed"), SENSORS.index("vib")
 

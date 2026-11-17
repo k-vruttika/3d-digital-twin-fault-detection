@@ -17,15 +17,20 @@ import numpy as np
 import numpy.typing as npt
 import torch
 
-from twin_ml.features.inputs import KIND_CHANNELS, SEQUENCE_CHANNELS
+from twin_ml.features.schema import SIM_SCHEMA, ChannelSchema
 
-KIND_IDX = [SEQUENCE_CHANNELS.index(c) for c in KIND_CHANNELS]
+KIND_IDX = [SIM_SCHEMA.sequence_channels.index(c) for c in SIM_SCHEMA.kind_channels]
 
 
-def baseline_of(x: torch.Tensor) -> torch.Tensor:
+def kind_index(schema: ChannelSchema) -> list[int]:
+    return [schema.sequence_channels.index(c) for c in schema.kind_channels]
+
+
+def baseline_of(x: torch.Tensor, schema: ChannelSchema = SIM_SCHEMA) -> torch.Tensor:
     """Zeros for values and masks; the input's own kind channels."""
+    idx = kind_index(schema)
     b = torch.zeros_like(x)
-    b[..., KIND_IDX] = x[..., KIND_IDX]
+    b[..., idx] = x[..., idx]
     return b
 
 
@@ -41,13 +46,14 @@ def integrated_gradients(
     target: torch.Tensor,
     steps: int,
     baseline: torch.Tensor | None = None,
+    schema: ChannelSchema = SIM_SCHEMA,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """IG of ``f(x)[i, target[i]]`` for a batch.
 
     ``f`` maps (B, ...) inputs to (B, classes) scores. Returns (attributions shaped like x,
     completeness error |sum attr - (F(x) - F(b))| per row, F(x) - F(b) per row).
     """
-    b = baseline_of(x) if baseline is None else baseline
+    b = baseline_of(x, schema) if baseline is None else baseline
     rows = torch.arange(x.shape[0])
     alphas = np.linspace(0.0, 1.0, steps + 1)
     weights = trapezoid_weights(steps)

@@ -1,0 +1,30 @@
+# Azure PdM, machine holdout variant (Phase 10, exploratory; added at plan review).
+# Identical to real_azure.yaml, except that 20 % of the machines are held out entirely: train
+# and val use the other machines only, and the test split holds only the held-out machines'
+# test period. The machines are drawn with the seed below, fixed before any result.
+facts: config/datasets/azure_pdm.yaml
+out_dir: data/ml_real
+
+step_s: 3600
+max_gap_rows: 0
+window: 24
+horizons: [12, 24]
+ttf_cap: 168
+strides: {train: 1, val: 1, test: 1}
+
+labels:
+  warning_band: 24
+  fault_context: 48
+  post_failure: 0
+
+split:
+  train: ["2015-01-01 00:00:00", "2015-09-01 00:00:00"]
+  val:   ["2015-09-01 00:00:00", "2015-11-01 00:00:00"]
+  test:  ["2015-11-01 00:00:00", "2016-01-02 00:00:00"]
+
+normal_keep_frac: 0.1
+subsample_seed: 7
+error_channels: false
+machine_holdout:
+  fraction: 0.2                      # 20 of the 100 machines
+  seed: 2027                         # permutation of the sorted machine ids

@@ -20,64 +20,57 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 
-from twin_ml.features.inputs import (
-    KIND_CHANNELS,
-    MASK_CHANNELS,
-    SENSORS,
-    SEQUENCE_CHANNELS,
-    VALUE_CHANNELS,
-)
+from twin_ml.features.schema import SIM_SCHEMA, ChannelSchema
 from twin_ml.features.summary import summary_names
 
 
-def _value_sensor(channel: str) -> str:
-    return channel if channel in SENSORS else "vib"  # vib_norm is derived from vib
-
-
-def summary_feature_sensors() -> list[str | None]:
+def summary_feature_sensors(schema: ChannelSchema = SIM_SCHEMA) -> list[str | None]:
     """Sensor of every tree summary feature (None = kind feature, dropped)."""
     out: list[str | None] = []
-    for name in summary_names():
-        if name.startswith("kind_"):
+    by_len = sorted(schema.value_channels, key=len, reverse=True)
+    for name in summary_names(schema):
+        if name in schema.kind_channels:
             out.append(None)
         elif name.endswith("_missing_frac"):
             out.append(name[: -len("_missing_frac")])
         else:
-            ch = next(
-                c for c in sorted(VALUE_CHANNELS, key=len, reverse=True) if name.startswith(f"{c}_")
-            )
-            out.append(_value_sensor(ch))
+            ch = next(c for c in by_len if name.startswith(f"{c}_"))
+            out.append(schema.value_sensor(ch))
     return out
 
 
-def sequence_channel_sensors() -> list[str | None]:
+def sequence_channel_sensors(schema: ChannelSchema = SIM_SCHEMA) -> list[str | None]:
     """Sensor of every sequence-model input channel (None = kind channel, dropped)."""
     out: list[str | None] = []
-    for ch in SEQUENCE_CHANNELS:
-        if ch in KIND_CHANNELS:
+    for ch in schema.sequence_channels:
+        if ch in schema.kind_channels:
             out.append(None)
-        elif ch in MASK_CHANNELS:
+        elif ch in schema.mask_channels:
             out.append(ch[: -len("_missing")])
         else:
-            out.append(_value_sensor(ch))
+            out.append(schema.value_sensor(ch))
     return out
 
 
-def sensor_matrix(feature_sensors: Sequence[str | None]) -> npt.NDArray[np.float64]:
+def sensor_matrix(
+    feature_sensors: Sequence[str | None], schema: ChannelSchema = SIM_SCHEMA
+) -> npt.NDArray[np.float64]:
     """(features, sensors) 0/1 matrix; kind features have an all-zero row."""
-    m = np.zeros((len(feature_sensors), len(SENSORS)))
+    m = np.zeros((len(feature_sensors), len(schema.sensors)))
     for i, s in enumerate(feature_sensors):
         if s is not None:
-            m[i, SENSORS.index(s)] = 1.0
+            m[i, schema.sensors.index(s)] = 1.0
     return m
 
 
 def to_sensors(
-    attr: npt.NDArray[np.floating[Any]], feature_sensors: Sequence[str | None]
+    attr: npt.NDArray[np.floating[Any]],
+    feature_sensors: Sequence[str | None],
+    schema: ChannelSchema = SIM_SCHEMA,
 ) -> npt.NDArray[np.float64]:
     """(B, features) attributions -> (B, sensors) signed sums."""
     out: npt.NDArray[np.float64] = np.asarray(attr, dtype=np.float64) @ sensor_matrix(
-        feature_sensors
+        feature_sensors, schema
     )
     return out
 
@@ -93,6 +86,7 @@ def normalise(w: npt.NDArray[np.floating[Any]]) -> npt.NDArray[np.float64]:
 def to_parts(
     weights: npt.NDArray[np.floating[Any]] | Sequence[float],
     sensor_parts: Mapping[str, str],
+    schema: ChannelSchema = SIM_SCHEMA,
 ) -> list[dict[str, Any]]:
     """One machine's sensor weights -> ``[{sensor, part, weight}]``, largest |weight| first.
 
@@ -101,7 +95,7 @@ def to_parts(
     w = normalise(np.asarray(weights, dtype=np.float64)[None, :])[0]
     items = [
         {"sensor": s, "part": sensor_parts[s], "weight": float(w[i])}
-        for i, s in enumerate(SENSORS)
+        for i, s in enumerate(schema.sensors)
         if s in sensor_parts
     ]
     return sorted(items, key=lambda d: -abs(d["weight"]))

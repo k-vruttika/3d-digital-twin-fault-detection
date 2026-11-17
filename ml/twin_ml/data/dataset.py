@@ -18,7 +18,8 @@ import numpy as np
 import numpy.typing as npt
 
 from twin_ml.config import SPLITS, DatasetConfig
-from twin_ml.features.inputs import KINDS, FloatArray, MaskArray
+from twin_ml.features.inputs import FloatArray, MaskArray
+from twin_ml.features.schema import SIM_SCHEMA, ChannelSchema
 from twin_ml.features.summary import summary_features
 
 MANIFEST_FILE = "manifest.json"  # == twin_sim.batch.MANIFEST_NAME (checked by a test)
@@ -83,13 +84,22 @@ def resolve_dataset_dir(cfg: DatasetConfig, root: Path = Path()) -> Path:
 
 @dataclass
 class SplitData:
-    """One split of the built dataset. Row arrays have R rows, window arrays N windows."""
+    """One split of the built dataset. Row arrays have R rows, window arrays N windows.
+
+    ``window``, ``horizons`` and ``stride`` count rows; ``schema.step_s`` converts them to
+    seconds (1 s per row for simulator datasets, ADR 0028).
+    """
 
     name: str
     window: int
     horizons: tuple[int, ...]
     stride: int
     arrays: dict[str, npt.NDArray[Any]] = field(repr=False)
+    schema: ChannelSchema = field(default=SIM_SCHEMA)
+
+    @property
+    def step_s(self) -> float:
+        return self.schema.step_s
 
     def __getattr__(self, item: str) -> npt.NDArray[Any]:
         arrays = self.__dict__.get("arrays")
@@ -115,7 +125,7 @@ class SplitData:
         return out
 
     def target(self, horizon: int, idx: npt.NDArray[np.int64] | None = None) -> npt.NDArray[Any]:
-        """Health class ``horizon`` seconds after each window's last sample."""
+        """Health class ``horizon`` rows after each window's last sample."""
         if horizon not in self.horizons:
             raise KeyError(f"horizon {horizon} not in {self.horizons}")
         ends = self.arrays["ends"] if idx is None else self.arrays["ends"][idx]
@@ -136,12 +146,12 @@ class SplitData:
 
     # ------------------------------------------------------------------ inputs
     def gather(self, idx: npt.NDArray[np.int64]) -> tuple[FloatArray, MaskArray, FloatArray]:
-        """Windows ``idx`` -> values (B, W, 6), mask (B, W, 5), kind one-hot (B, kinds)."""
+        """Windows ``idx`` -> values (B, W, value ch.), mask (B, W, sensors), kind one-hot."""
         ends = self.arrays["ends"][idx]
         rows = ends[:, None] + np.arange(-self.window + 1, 1)[None, :]
         values = self.arrays["values"][rows]
         mask = self.arrays["mask"][rows]
-        kind = np.eye(len(KINDS), dtype=np.float32)[self.arrays["kind"][ends]]
+        kind = np.eye(len(self.schema.kinds), dtype=np.float32)[self.arrays["kind"][ends]]
         return values, mask, kind
 
     def sequence(self, idx: npt.NDArray[np.int64]) -> FloatArray:
@@ -154,13 +164,13 @@ class SplitData:
         """Window summary features for the tree models, computed in chunks."""
         all_idx = np.arange(self.n_windows) if idx is None else idx
         parts = [
-            summary_features(*self.gather(all_idx[i : i + chunk]))
+            summary_features(*self.gather(all_idx[i : i + chunk]), schema=self.schema)
             for i in range(0, all_idx.shape[0], chunk)
         ]
         if not parts:
             from twin_ml.features.summary import summary_names
 
-            return np.zeros((0, len(summary_names())), dtype=np.float32)
+            return np.zeros((0, len(summary_names(self.schema))), dtype=np.float32)
         return np.concatenate(parts, axis=0)
 
     def batches(
@@ -186,8 +196,28 @@ class Dataset:
         return cls(path=path, meta=json.loads(meta_path.read_text(encoding="utf-8")))
 
     @property
+    def schema(self) -> ChannelSchema:
+        return ChannelSchema.of_meta(self.meta)
+
+    @property
     def horizons(self) -> tuple[int, ...]:
+        """Horizons in rows (simulator: seconds at 1 Hz; real data: ``meta["rows"]``)."""
+        rows = self.meta.get("rows")
+        if rows is not None:
+            return tuple(int(h) for h in rows["horizons"])
         return tuple(int(h) for h in self.meta["config"]["horizons_s"])
+
+    @property
+    def window(self) -> int:
+        rows = self.meta.get("rows")
+        return int(rows["window"] if rows is not None else self.meta["config"]["window_s"])
+
+    def stride(self, split: str) -> int:
+        key = split if split in SPLITS else "test"
+        rows = self.meta.get("rows")
+        if rows is not None:
+            return int(rows["strides"][key])
+        return int(self.meta["config"]["strides_s"][key])
 
     @property
     def fault_types(self) -> list[str]:
@@ -195,6 +225,9 @@ class Dataset:
 
     @property
     def ttf_cap_s(self) -> float:
+        rows = self.meta.get("rows")
+        if rows is not None:
+            return float(rows["ttf_cap_s"])
         return float(self.meta["config"]["ttf_cap_s"])
 
     def split(self, name: str) -> SplitData:
@@ -207,10 +240,11 @@ class Dataset:
                 arrays = {k: npz[k] for k in npz.files}
             self._splits[name] = SplitData(
                 name=name,
-                window=int(self.meta["config"]["window_s"]),
+                window=self.window,
                 horizons=self.horizons,
-                stride=int(self.meta["config"]["strides_s"][name if name in SPLITS else "test"]),
+                stride=self.stride(name),
                 arrays=arrays,
+                schema=self.schema,
             )
         return self._splits[name]
 

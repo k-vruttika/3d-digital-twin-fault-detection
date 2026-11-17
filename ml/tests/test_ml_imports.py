@@ -105,3 +105,21 @@ def test_phase9_modules_load_no_simulator_or_heavy_library() -> None:
 def test_phase9_parents_load_no_ml_library() -> None:
     parents = ("twin_ml.experiments.e5", "twin_ml.experiments.e5_worker")
     assert _loaded(parents, ("torch", "sklearn", "xgboost", "mlflow")) == []
+
+
+PHASE10_DATA = (
+    "twin_ml.features.schema",
+    "twin_ml.datasets.config",
+    "twin_ml.datasets.common",
+    "twin_ml.datasets.metropt3",
+    "twin_ml.datasets.azure_pdm",
+    "twin_ml.datasets.build",
+    "twin_ml.datasets.audit",
+    "twin_ml.datasets.__main__",
+)
+
+
+def test_phase10_data_modules_load_no_simulator_or_ml_library() -> None:
+    # loaders, build and audit: pyarrow + numpy only (mlflow only inside the audit run)
+    watch = ("twin_sim", "torch", "sklearn", "xgboost", "mlflow")
+    assert _loaded(PHASE10_DATA, watch) == []

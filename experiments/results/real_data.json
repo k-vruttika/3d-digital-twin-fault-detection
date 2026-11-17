@@ -1,0 +1,1008 @@
+{
+ "audits": {
+  "azure_pdm": {
+   "audit": {
+    "audit_time_s": 1.07,
+    "dataset": "azure_pdm",
+    "dataset_config_fingerprint": "218e565e5daabb48786648b2038cd53ca1128c1ca07e2fcb28e878db4bc9ac4a",
+    "errors": {
+     "by_code": {
+      "error1": 1010,
+      "error2": 988,
+      "error3": 838,
+      "error4": 727,
+      "error5": 356
+     },
+     "events_with_error_in_prev_24h": 0.980529,
+     "events_with_error_in_prev_48h": 0.980529,
+     "rows": 3919
+    },
+    "facts": {
+     "fingerprint": "9c6890f96043ae3433fe6c689c1b8b8ff93d1049745744784dee0cc763f34f4c",
+     "licence": "as stated on the Kaggle dataset page",
+     "origin": "public benchmark, likely synthetic",
+     "provider": "Kaggle, \"Microsoft Azure Predictive Maintenance\" (from a Microsoft Azure AI predictive-maintenance tutorial)",
+     "time_zone": "unstated",
+     "title": "Microsoft Azure Predictive Maintenance (PdM_* files)"
+    },
+    "failure_source": "PdM_failures.csv (datetime, machineID, failed component); one row per failed component",
+    "failures": {
+     "by_component": {
+      "comp1": 192,
+      "comp2": 259,
+      "comp3": 131,
+      "comp4": 179
+     },
+     "by_hour_of_day": {
+      "3": 18,
+      "6": 743
+     },
+     "by_month": {
+      "2015-01": 94,
+      "2015-02": 50,
+      "2015-03": 59,
+      "2015-04": 69,
+      "2015-05": 64,
+      "2015-06": 58,
+      "2015-07": 64,
+      "2015-08": 64,
+      "2015-09": 59,
+      "2015-10": 59,
+      "2015-11": 62,
+      "2015-12": 59
+     },
+     "components_per_event": {
+      "1": 677,
+      "2": 42
+     },
+     "events": 719,
+     "first": "2015-01-02 03:00:00",
+     "last": "2015-12-31 06:00:00",
+     "machines_with_failure": 98,
+     "rows": 761,
+     "with_maintenance_row": 743
+    },
+    "label_meaning": "A failure row is the hour a component was recorded as failed (and replaced); failures have no duration. Several rows at the same machine and hour form one event.",
+    "machines": {
+     "age_max": 20,
+     "age_min": 0,
+     "by_model": {
+      "model1": 16,
+      "model2": 17,
+      "model3": 35,
+      "model4": 32
+     },
+     "count": 100
+    },
+    "maintenance": {
+     "by_component": {
+      "comp1": 804,
+      "comp2": 863,
+      "comp3": 808,
+      "comp4": 811
+     },
+     "first": "2014-06-01 06:00:00",
+     "last": "2016-01-01 06:00:00",
+     "rows": 3286
+    },
+    "mapping": {
+     "splits": {
+      "test": {
+       "by_fault_type": {
+        "comp1": 26,
+        "comp2": 40,
+        "comp3": 19,
+        "comp4": 22,
+        "multi": 7
+       },
+       "evaluable_primary": 108,
+       "event_detail": null,
+       "events": 114,
+       "machines": 100,
+       "rows": 147100,
+       "series": 100
+      },
+      "train": {
+       "by_fault_type": {
+        "comp1": 127,
+        "comp2": 149,
+        "comp3": 82,
+        "comp4": 106,
+        "multi": 29
+       },
+       "evaluable_primary": 473,
+       "event_detail": null,
+       "events": 493,
+       "machines": 100,
+       "rows": 582600,
+       "series": 100
+      },
+      "val": {
+       "by_fault_type": {
+        "comp1": 19,
+        "comp2": 43,
+        "comp3": 17,
+        "comp4": 27,
+        "multi": 6
+       },
+       "evaluable_primary": 106,
+       "event_detail": null,
+       "events": 112,
+       "machines": 100,
+       "rows": 146400,
+       "series": 100
+      }
+     },
+     "step_s": 3600
+    },
+    "origin": "public benchmark, likely synthetic",
+    "sensors": [
+     {
+      "max": 255.125,
+      "median": 170.607,
+      "min": 97.3336,
+      "missing": 0,
+      "name": "volt",
+      "p1": 135.397,
+      "p99": 208.132
+     },
+     {
+      "max": 695.021,
+      "median": 447.558,
+      "min": 138.432,
+      "missing": 0,
+      "name": "rotate",
+      "p1": 316.766,
+      "p99": 565.513
+     },
+     {
+      "max": 185.952,
+      "median": 100.426,
+      "min": 51.2371,
+      "missing": 0,
+      "name": "pressure",
+      "p1": 76.8454,
+      "p99": 131.701
+     },
+     {
+      "max": 76.7911,
+      "median": 40.2372,
+      "min": 14.8771,
+      "missing": 0,
+      "name": "vibration",
+      "p1": 28.4462,
+      "p99": 54.2406
+     }
+    ],
+    "sha256": "6af0e60ffdd1e78961ed50ed02c0227d39d209d0f796825fdb9ee90b82472ff2",
+    "telemetry": {
+     "duplicates": 0,
+     "first": "2015-01-01 06:00:00",
+     "gap_total_h": 0.0,
+     "gaps": 0,
+     "intervals": [
+      {
+       "count": 876000,
+       "s": 3600
+      }
+     ],
+     "last": "2016-01-01 06:00:00",
+     "machines": 100,
+     "missing_values": 0,
+     "rows": 876100,
+     "span_days": 365.0
+    }
+   },
+   "run_id": "aa6c795497bd4ac79f133efe5dca1b0e"
+  },
+  "metropt3": {
+   "audit": {
+    "audit_time_s": 3.55,
+    "daily_coverage": {
+     "first_day": "2020-02-01",
+     "share": [
+      0.8215,
+      0.8076,
+      1.0,
+      1.0,
+      0.8542,
+      0.5687,
+      0.8097,
+      0.9972,
+      0.8361,
+      0.8583,
+      0.8542,
+      0.8458,
+      0.8639,
+      0.7965,
+      1.0,
+      1.0,
+      0.8146,
+      1.0,
+      0.8299,
+      0.8174,
+      1.0,
+      1.0,
+      0.8153,
+      0.6764,
+      1.0,
+      0.8319,
+      0.9722,
+      0.9986,
+      0.0,
+      0.8333,
+      0.8688,
+      0.834,
+      0.9951,
+      0.9972,
+      0.8694,
+      0.3514,
+      1.0,
+      0.8618,
+      0.9271,
+      0.6062,
+      0.9437,
+      0.9986,
+      0.8021,
+      0.4319,
+      0.8118,
+      0.9819,
+      1.0,
+      0.8799,
+      0.7306,
+      0.9479,
+      1.0,
+      1.0,
+      0.8826,
+      1.0,
+      1.0,
+      1.0,
+      0.4062,
+      0.8264,
+      0.6792,
+      1.0,
+      0.5528,
+      0.4437,
+      0.8354,
+      0.8944,
+      1.0,
+      0.809,
+      0.9236,
+      0.8208,
+      0.8,
+      1.0,
+      0.8306,
+      0.8187,
+      0.4104,
+      0.7264,
+      0.9681,
+      0.9222,
+      0.8319,
+      0.9972,
+      0.9833,
+      1.0,
+      0.7917,
+      0.9486,
+      0.8458,
+      0.9674,
+      0.0493,
+      0.0,
+      0.7799,
+      0.7812,
+      0.9201,
+      0.45,
+      0.1111,
+      0.9688,
+      1.0,
+      0.8535,
+      0.8486,
+      0.9125,
+      0.9215,
+      0.9326,
+      0.8799,
+      0.0396,
+      0.834,
+      0.9778,
+      1.0,
+      0.7299,
+      0.9604,
+      0.9889,
+      0.3285,
+      0.9688,
+      0.8514,
+      0.8569,
+      0.7486,
+      0.8299,
+      0.9708,
+      0.025,
+      0.7931,
+      0.7528,
+      0.9938,
+      0.9938,
+      0.859,
+      0.9889,
+      0.8375,
+      0.9778,
+      0.5931,
+      0.916,
+      1.0,
+      1.0,
+      0.8431,
+      0.5618,
+      0.4861,
+      0.8361,
+      0.909,
+      0.9653,
+      0.9437,
+      1.0,
+      0.9965,
+      0.959,
+      0.9451,
+      0.6028,
+      0.7937,
+      0.9931,
+      0.9771,
+      0.8542,
+      0.9007,
+      1.0,
+      1.0,
+      0.9882,
+      0.9965,
+      0.3674,
+      0.0368,
+      0.9958,
+      0.9979,
+      1.0,
+      1.0,
+      0.934,
+      0.9979,
+      1.0,
+      0.6792,
+      0.4618,
+      0.3576,
+      0.8632,
+      0.8222,
+      0.6042,
+      0.6444,
+      0.8562,
+      0.409,
+      0.9951,
+      0.9931,
+      0.8396,
+      0.9986,
+      0.9972,
+      0.9972,
+      0.9986,
+      1.0,
+      0.8319,
+      0.7924,
+      0.7028,
+      0.7417,
+      0.8438,
+      0.7806,
+      0.8958,
+      0.8354,
+      0.8181,
+      0.9972,
+      0.8576,
+      0.4535,
+      0.3215,
+      0.6507,
+      0.9931,
+      0.9993,
+      0.9083,
+      0.8826,
+      1.0,
+      0.8181,
+      0.9771,
+      0.9958,
+      0.8271,
+      0.7889,
+      0.7132,
+      0.9319,
+      0.9431,
+      0.8493,
+      0.6597,
+      0.8472,
+      0.7785,
+      0.2146,
+      0.9938,
+      0.7646,
+      0.9118,
+      0.8424,
+      0.9403,
+      0.8194,
+      0.8444,
+      0.7868,
+      0.0618
+     ]
+    },
+    "dataset": "metropt3",
+    "dataset_config_fingerprint": "6095a0af78fe10cea94a4bc07c7d5f48b48e1478e8566e936bfbdf7160a9eed4",
+    "duplicates": 0,
+    "facts": {
+     "fingerprint": "1d8b0a041d1a50ff6898975227dc0b7d5f65647ccae085af63e7478bfc475dd6",
+     "licence": "CC BY 4.0",
+     "origin": "real",
+     "provider": "UCI Machine Learning Repository, \"MetroPT-3 Dataset\" (Davari, Veloso, Ribeiro, Gama; INESC TEC)",
+     "time_zone": "unstated",
+     "title": "MetroPT-3 (air production unit of a metro train compressor)"
+    },
+    "failure_count": 4,
+    "failure_source": "UCI MetroPT-3 dataset page and \"Data Description_Metro.pdf\", table \"Failure Information\" (company failure reports). Times as printed there (M/D/YYYY H:MM).",
+    "failures": [
+     {
+      "duration_h": 23.9833,
+      "end": "2020-04-18 23:59:00",
+      "id": "1",
+      "interval_coverage": 0.997222,
+      "lookbacks": {
+       "120": {
+        "coverage": 1.0,
+        "hours": 2.0,
+        "raw_samples": 597
+       },
+       "1440": {
+        "coverage": 0.831944,
+        "hours": 24.0,
+        "raw_samples": 6301
+       },
+       "360": {
+        "coverage": 1.0,
+        "hours": 6.0,
+        "raw_samples": 1790
+       }
+      },
+      "raw_samples_inside": 8657,
+      "start": "2020-04-18 00:00:00",
+      "type": "air_leak"
+     },
+     {
+      "duration_h": 6.5,
+      "end": "2020-05-30 06:00:00",
+      "id": "2",
+      "interval_coverage": 1.0,
+      "lookbacks": {
+       "120": {
+        "coverage": 1.0,
+        "hours": 2.0,
+        "raw_samples": 727
+       },
+       "1440": {
+        "coverage": 0.859028,
+        "hours": 24.0,
+        "raw_samples": 7466
+       },
+       "360": {
+        "coverage": 1.0,
+        "hours": 6.0,
+        "raw_samples": 2179
+       }
+      },
+      "raw_samples_inside": 2360,
+      "start": "2020-05-29 23:30:00",
+      "type": "air_leak"
+     },
+     {
+      "duration_h": 52.5,
+      "end": "2020-06-07 14:30:00",
+      "id": "3",
+      "interval_coverage": 0.9086,
+      "lookbacks": {
+       "120": {
+        "coverage": 1.0,
+        "hours": 2.0,
+        "raw_samples": 726
+       },
+       "1440": {
+        "coverage": 1.0,
+        "hours": 24.0,
+        "raw_samples": 8716
+       },
+       "360": {
+        "coverage": 1.0,
+        "hours": 6.0,
+        "raw_samples": 2179
+       }
+      },
+      "raw_samples_inside": 17315,
+      "start": "2020-06-05 10:00:00",
+      "type": "air_leak"
+     },
+     {
+      "duration_h": 4.5,
+      "end": "2020-07-15 19:00:00",
+      "id": "4",
+      "interval_coverage": 0.99631,
+      "lookbacks": {
+       "120": {
+        "coverage": 1.0,
+        "hours": 2.0,
+        "raw_samples": 726
+       },
+       "1440": {
+        "coverage": 0.709722,
+        "hours": 24.0,
+        "raw_samples": 6185
+       },
+       "360": {
+        "coverage": 1.0,
+        "hours": 6.0,
+        "raw_samples": 2179
+       }
+      },
+      "raw_samples_inside": 1622,
+      "start": "2020-07-15 14:30:00",
+      "type": "air_leak"
+     }
+    ],
+    "file": "MetroPT3(AirCompressor).csv",
+    "first": "2020-02-01 00:00:00",
+    "gaps": {
+     "count": 331,
+     "longest": [
+      {
+       "hours": 48.0328,
+       "start": "2020-04-25 01:10:51"
+      },
+      {
+       "hours": 36.2433,
+       "start": "2020-06-27 10:53:07"
+      },
+      {
+       "hours": 28.0503,
+       "start": "2020-02-28 23:57:08"
+      },
+      {
+       "hours": 24.6758,
+       "start": "2020-08-04 07:42:28"
+      },
+      {
+       "hours": 24.5808,
+       "start": "2020-05-24 00:39:23"
+      },
+      {
+       "hours": 23.9333,
+       "start": "2020-07-07 15:24:51"
+      },
+      {
+       "hours": 23.6547,
+       "start": "2020-08-22 19:11:44"
+      },
+      {
+       "hours": 22.2947,
+       "start": "2020-05-10 00:31:17"
+      },
+      {
+       "hours": 21.4736,
+       "start": "2020-06-07 14:19:39"
+      },
+      {
+       "hours": 20.7269,
+       "start": "2020-04-01 13:15:40"
+      }
+     ],
+     "threshold_s": 60,
+     "total_h": 909.518
+    },
+    "grid": {
+     "max_gap_rows": 10,
+     "observed_rows": 252720,
+     "rows": 306960,
+     "rows_in_series": 253179,
+     "series": 224,
+     "series_rows_median": 955.5,
+     "step_s": 60
+    },
+    "label_meaning": "Failure intervals are company maintenance reports (air leaks), not sensor labels; the dataset itself is unlabeled.",
+    "last": "2020-09-01 03:59:50",
+    "mapping": {
+     "splits": {
+      "test": {
+       "by_fault_type": {
+        "air_leak": 4
+       },
+       "evaluable_primary": 4,
+       "event_detail": [
+        {
+         "fault_type": "air_leak",
+         "id": "1",
+         "interval_coverage": 0.997222,
+         "lookbacks": {
+          "120": {
+           "coverage": 1.0,
+           "evaluable": true,
+           "inside_split": true
+          },
+          "1440": {
+           "coverage": 0.831944,
+           "evaluable": true,
+           "inside_split": true
+          },
+          "360": {
+           "coverage": 1.0,
+           "evaluable": true,
+           "inside_split": true
+          }
+         },
+         "machine_id": "APU-01"
+        },
+        {
+         "fault_type": "air_leak",
+         "id": "2",
+         "interval_coverage": 1.0,
+         "lookbacks": {
+          "120": {
+           "coverage": 1.0,
+           "evaluable": true,
+           "inside_split": true
+          },
+          "1440": {
+           "coverage": 0.859028,
+           "evaluable": true,
+           "inside_split": true
+          },
+          "360": {
+           "coverage": 1.0,
+           "evaluable": true,
+           "inside_split": true
+          }
+         },
+         "machine_id": "APU-01"
+        },
+        {
+         "fault_type": "air_leak",
+         "id": "3",
+         "interval_coverage": 0.9086,
+         "lookbacks": {
+          "120": {
+           "coverage": 1.0,
+           "evaluable": true,
+           "inside_split": true
+          },
+          "1440": {
+           "coverage": 1.0,
+           "evaluable": true,
+           "inside_split": true
+          },
+          "360": {
+           "coverage": 1.0,
+           "evaluable": true,
+           "inside_split": true
+          }
+         },
+         "machine_id": "APU-01"
+        },
+        {
+         "fault_type": "air_leak",
+         "id": "4",
+         "interval_coverage": 0.99631,
+         "lookbacks": {
+          "120": {
+           "coverage": 1.0,
+           "evaluable": true,
+           "inside_split": true
+          },
+          "1440": {
+           "coverage": 0.709722,
+           "evaluable": true,
+           "inside_split": true
+          },
+          "360": {
+           "coverage": 1.0,
+           "evaluable": true,
+           "inside_split": true
+          }
+         },
+         "machine_id": "APU-01"
+        }
+       ],
+       "events": 4,
+       "machines": 1,
+       "rows": 167721,
+       "series": 166
+      },
+      "train": {
+       "by_fault_type": {},
+       "evaluable_primary": 0,
+       "event_detail": [],
+       "events": 0,
+       "machines": 1,
+       "rows": 61106,
+       "series": 47
+      },
+      "val": {
+       "by_fault_type": {},
+       "evaluable_primary": 0,
+       "event_detail": [],
+       "events": 0,
+       "machines": 1,
+       "rows": 24352,
+       "series": 13
+      }
+     },
+     "step_s": 60
+    },
+    "origin": "real",
+    "pdf_check": {
+     "date": "2026-11-17",
+     "inconsistencies": [
+      "the PDF numbers the first two failures both #1 (then #3, #4); ids 1-4 here are by date",
+      "failure 2 (2020-05-29/30) reports maintenance on 30 April at 12:00, a month before the failure; kept verbatim, not corrected and not used",
+      "the PDF states 15,169,480 instances logged at 1 Hz from February to August 2020; the rows, sampling and span of the CSV are measured by the audit instead of assumed"
+     ],
+     "method": "manual reading of Data Description_Metro.pdf, page 3, \"Failure Information\"",
+     "result": "the four start and end times above match the PDF table exactly"
+    },
+    "rows": 1516948,
+    "sampling": {
+     "max_s": 172918,
+     "median_s": 10.0,
+     "min_s": 8,
+     "pdf_rows_1hz": 15169480,
+     "rows_ratio_pdf_to_file": 10.0,
+     "top_intervals": [
+      {
+       "count": 1337521,
+       "s": 10,
+       "share": 0.881719
+      },
+      {
+       "count": 128277,
+       "s": 9,
+       "share": 0.0845626
+      },
+      {
+       "count": 38321,
+       "s": 12,
+       "share": 0.0252619
+      },
+      {
+       "count": 7988,
+       "s": 13,
+       "share": 0.00526584
+      },
+      {
+       "count": 4471,
+       "s": 11,
+       "share": 0.00294737
+      },
+      {
+       "count": 10,
+       "s": 21,
+       "share": 6.59219e-06
+      }
+     ]
+    },
+    "sensors": [
+     {
+      "column": "TP2",
+      "max": 10.676,
+      "median": -0.012,
+      "min": -0.032,
+      "missing": 0,
+      "name": "tp2",
+      "p1": -0.024,
+      "p99": 10.352,
+      "type": "analog",
+      "unit": "bar"
+     },
+     {
+      "column": "TP3",
+      "max": 10.302,
+      "median": 8.96,
+      "min": 0.73,
+      "missing": 0,
+      "name": "tp3",
+      "p1": 7.876,
+      "p99": 10.14,
+      "type": "analog",
+      "unit": "bar"
+     },
+     {
+      "column": "H1",
+      "max": 10.288,
+      "median": 8.784,
+      "min": -0.036,
+      "missing": 0,
+      "name": "h1",
+      "p1": -0.024,
+      "p99": 10.114,
+      "type": "analog",
+      "unit": "bar"
+     },
+     {
+      "column": "DV_pressure",
+      "max": 9.844,
+      "median": -0.02,
+      "min": -0.032,
+      "missing": 0,
+      "name": "dv_pressure",
+      "p1": -0.026,
+      "p99": 2.112,
+      "type": "analog",
+      "unit": "bar"
+     },
+     {
+      "column": "Reservoirs",
+      "max": 10.3,
+      "median": 8.96,
+      "min": 0.712,
+      "missing": 0,
+      "name": "reservoirs",
+      "p1": 7.876,
+      "p99": 10.138,
+      "type": "analog",
+      "unit": "bar"
+     },
+     {
+      "column": "Oil_temperature",
+      "max": 89.05,
+      "median": 62.7,
+      "min": 15.4,
+      "missing": 0,
+      "name": "oil_temperature",
+      "p1": 48.825,
+      "p99": 76.175,
+      "type": "analog",
+      "unit": "degC"
+     },
+     {
+      "column": "Motor_current",
+      "max": 9.295,
+      "median": 0.045,
+      "min": 0.02,
+      "missing": 0,
+      "name": "motor_current",
+      "p1": 0.035,
+      "p99": 6.1875,
+      "type": "analog",
+      "unit": "A"
+     },
+     {
+      "column": "COMP",
+      "distinct_values": [
+       0.0,
+       1.0
+      ],
+      "max": 1.0,
+      "median": 1.0,
+      "min": 0.0,
+      "missing": 0,
+      "name": "comp",
+      "p1": 0.0,
+      "p99": 1.0,
+      "share_active": 0.836957,
+      "type": "digital",
+      "unit": null
+     },
+     {
+      "column": "DV_eletric",
+      "distinct_values": [
+       0.0,
+       1.0
+      ],
+      "max": 1.0,
+      "median": 0.0,
+      "min": 0.0,
+      "missing": 0,
+      "name": "dv_electric",
+      "p1": 0.0,
+      "p99": 1.0,
+      "share_active": 0.160611,
+      "type": "digital",
+      "unit": null
+     },
+     {
+      "column": "Towers",
+      "distinct_values": [
+       0.0,
+       1.0
+      ],
+      "max": 1.0,
+      "median": 1.0,
+      "min": 0.0,
+      "missing": 0,
+      "name": "towers",
+      "p1": 0.0,
+      "p99": 1.0,
+      "share_active": 0.919848,
+      "type": "digital",
+      "unit": null
+     },
+     {
+      "column": "MPG",
+      "distinct_values": [
+       0.0,
+       1.0
+      ],
+      "max": 1.0,
+      "median": 1.0,
+      "min": 0.0,
+      "missing": 0,
+      "name": "mpg",
+      "p1": 0.0,
+      "p99": 1.0,
+      "share_active": 0.832664,
+      "type": "digital",
+      "unit": null
+     },
+     {
+      "column": "LPS",
+      "distinct_values": [
+       0.0,
+       1.0
+      ],
+      "max": 1.0,
+      "median": 0.0,
+      "min": 0.0,
+      "missing": 0,
+      "name": "lps",
+      "p1": 0.0,
+      "p99": 0.0,
+      "share_active": 0.00342002,
+      "type": "digital",
+      "unit": null
+     },
+     {
+      "column": "Pressure_switch",
+      "distinct_values": [
+       0.0,
+       1.0
+      ],
+      "max": 1.0,
+      "median": 1.0,
+      "min": 0.0,
+      "missing": 0,
+      "name": "pressure_switch",
+      "p1": 1.0,
+      "p99": 1.0,
+      "share_active": 0.991437,
+      "type": "digital",
+      "unit": null
+     },
+     {
+      "column": "Oil_level",
+      "distinct_values": [
+       0.0,
+       1.0
+      ],
+      "max": 1.0,
+      "median": 1.0,
+      "min": 0.0,
+      "missing": 0,
+      "name": "oil_level",
+      "p1": 0.0,
+      "p99": 1.0,
+      "share_active": 0.904156,
+      "type": "digital",
+      "unit": null
+     },
+     {
+      "column": "Caudal_impulses",
+      "distinct_values": [
+       0.0,
+       1.0
+      ],
+      "max": 1.0,
+      "median": 1.0,
+      "min": 0.0,
+      "missing": 0,
+      "name": "caudal_impulses",
+      "p1": 0.0,
+      "p99": 1.0,
+      "share_active": 0.937107,
+      "type": "digital",
+      "unit": null
+     }
+    ],
+    "sha256": "9f212232248a8be1a2473206d7473052fb0271c137d0d965d22d0e3f5e553b20",
+    "sorted": true,
+    "span_days": 213.167
+   },
+   "run_id": "a634dfe384e8472f9bb847c9ff7a8d6c"
+  }
+ },
+ "experiment": "P10_real",
+ "generated_at": "2026-11-17 13:23 UTC"
+}

@@ -45,7 +45,7 @@ def sustained_alarm(
     split: SplitData, alarm: npt.NDArray[np.bool_], sustain_s: int
 ) -> npt.NDArray[np.bool_]:
     """Per-window sustained alarm (windows are ordered by series, then time)."""
-    k = sustain_windows(sustain_s, split.stride)
+    k = sustain_windows(sustain_s, split.stride * split.step_s)
     out = np.zeros(alarm.shape[0], dtype=bool)
     for lo, hi in zip(*_series_bounds(split), strict=True):
         if hi > lo:

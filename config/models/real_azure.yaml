@@ -1,0 +1,28 @@
+# Azure PdM windowed dataset (Phase 10, ADR 0027). Build: python -m twin_ml.datasets build.
+# Every length below is in rows of the native hourly grid: 1 row = 1 hour.
+# Fixed before any model was trained on real data (ADR 0027 § Pre-registration).
+facts: config/datasets/azure_pdm.yaml
+out_dir: data/ml_real
+
+step_s: 3600                         # native hourly telemetry (no resampling)
+max_gap_rows: 0                      # the audit found no gaps; any gap would start a new series
+window: 24                           # 24 h
+horizons: [12, 24]                   # health at t + 12 h and t + 24 h; +24 h is primary
+ttf_cap: 168                         # 7 days
+strides: {train: 1, val: 1, test: 1}
+
+labels:
+  warning_band: 24                   # 24 h before a failure: pseudo-state WARNING
+  fault_context: 48                  # fault_type = the component from 48 h before the failure
+                                     # (warning band + largest horizon = the lookback)
+  post_failure: 0                    # failures are instantaneous; no exclusion afterwards
+
+split:                               # by time, half-open, all machines
+  train: ["2015-01-01 00:00:00", "2015-09-01 00:00:00"]
+  val:   ["2015-09-01 00:00:00", "2015-11-01 00:00:00"]
+  test:  ["2015-11-01 00:00:00", "2016-01-02 00:00:00"]
+
+normal_keep_frac: 0.1                # training far-normal windows kept with p = 0.1, weight 10
+subsample_seed: 7
+error_channels: false                # telemetry only (primary)
+machine_holdout: null

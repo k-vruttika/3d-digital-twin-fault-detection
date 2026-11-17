@@ -1,0 +1,35 @@
+# Microsoft Azure Predictive Maintenance: facts about the public dataset (Phase 10, ADR 0027).
+# Loader: twin_ml.datasets.azure_pdm. The files are never downloaded automatically.
+name: azure_pdm
+title: Microsoft Azure Predictive Maintenance (PdM_* files)
+provider: Kaggle, "Microsoft Azure Predictive Maintenance" (from a Microsoft Azure AI predictive-maintenance tutorial)
+licence: as stated on the Kaggle dataset page
+# A public benchmark, not real plant data: its origin is widely understood to be synthetic
+# (generated for a Microsoft tutorial). The audit reports what the data itself shows.
+origin: public benchmark, likely synthetic
+download: >-
+  Download the "Microsoft Azure Predictive Maintenance" dataset from Kaggle and place
+  PdM_telemetry.csv, PdM_errors.csv, PdM_failures.csv, PdM_machines.csv and PdM_maint.csv
+  in data/external/azure_pdm/.
+dir: data/external/azure_pdm
+files:
+  telemetry: PdM_telemetry.csv
+  errors: PdM_errors.csv
+  failures: PdM_failures.csv
+  machines: PdM_machines.csv
+  maint: PdM_maint.csv
+optional_files: {}
+timestamp_column: datetime
+timestamp_format: "%Y-%m-%d %H:%M:%S"
+time_zone: unstated
+machine_column: machineID
+kind_column: model           # PdM_machines.csv: model1..model4 is the machine kind
+# Units are not documented in the files; the names are the column names.
+sensors:
+  - {name: volt,      column: volt,      type: analog, unit: null, part: electrical, description: voltage}
+  - {name: rotate,    column: rotate,    type: analog, unit: null, part: rotation,   description: rotation}
+  - {name: pressure,  column: pressure,  type: analog, unit: null, part: pressure,   description: pressure}
+  - {name: vibration, column: vibration, type: analog, unit: null, part: vibration,  description: vibration}
+error_codes: [error1, error2, error3, error4, error5]
+components: [comp1, comp2, comp3, comp4]
+failure_source: "PdM_failures.csv (datetime, machineID, failed component); one row per failed component"

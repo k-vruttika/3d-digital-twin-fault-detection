@@ -35,7 +35,7 @@ from twin_ml.explain.aggregate import (
     to_parts,
     to_sensors,
 )
-from twin_ml.features.inputs import KINDS
+from twin_ml.features.schema import SIM_SCHEMA, ChannelSchema
 from twin_ml.features.summary import summary_features
 
 DEFAULT_IG_STEPS = 64  # ADR 0024 / e5.yaml explain.ig_steps
@@ -93,13 +93,18 @@ def _alarm_class(probs: npt.NDArray[np.floating[Any]]) -> npt.NDArray[np.int64]:
 
 
 def probabilities(
-    model: Any, values: Any, mask: Any, kind: Any, horizon: int
+    model: Any,
+    values: Any,
+    mask: Any,
+    kind: Any,
+    horizon: int,
+    schema: ChannelSchema = SIM_SCHEMA,
 ) -> npt.NDArray[np.float64]:
     """(B, 3) health probabilities at ``horizon`` for windows given as arrays."""
     fam = family(model)
     _require_for(fam)
     if fam in ("xgb", "rf"):
-        x = summary_features(values, mask, kind)
+        x = summary_features(values, mask, kind, schema)
         return np.asarray(model.heads[f"h{horizon}"].proba(x), dtype=np.float64)
     import torch
 
@@ -119,21 +124,24 @@ def attribute(
     horizon: int,
     ig_steps: int = DEFAULT_IG_STEPS,
     cls: npt.NDArray[np.int64] | None = None,
+    schema: ChannelSchema = SIM_SCHEMA,
 ) -> Attribution:
     """Per-sensor attributions of windows given as (values (B, W, 6), mask (B, W, 5), kind
     one-hot (B, 3)), for ``cls`` or else the predicted alarm class."""
     fam = family(model)
     _require_for(fam)
     if cls is None:
-        cls = _alarm_class(probabilities(model, values, mask, kind, horizon))
+        cls = _alarm_class(probabilities(model, values, mask, kind, horizon, schema))
     if fam in ("xgb", "rf"):
         from twin_ml.explain.trees import saabas_contributions, xgb_contributions
 
-        x = summary_features(values, mask, kind)
+        x = summary_features(values, mask, kind, schema)
         head = model.heads[f"h{horizon}"]
         fn = xgb_contributions if fam == "xgb" else saabas_contributions
         contrib, _ = fn(head, x, cls)
-        return Attribution(to_sensors(contrib, summary_feature_sensors()), cls, None, None)
+        return Attribution(
+            to_sensors(contrib, summary_feature_sensors(schema), schema), cls, None, None
+        )
     import torch
 
     from twin_ml.explain.ig import integrated_gradients
@@ -147,9 +155,11 @@ def attribute(
         return out
 
     x_t = torch.from_numpy(_sequence(values, mask, kind))
-    attr, err, delta = integrated_gradients(f, x_t, torch.from_numpy(cls), ig_steps)
+    attr, err, delta = integrated_gradients(f, x_t, torch.from_numpy(cls), ig_steps, schema=schema)
     per_channel = attr.sum(axis=1)  # over time -> (B, channels)
-    return Attribution(to_sensors(per_channel, sequence_channel_sensors()), cls, err, delta)
+    return Attribution(
+        to_sensors(per_channel, sequence_channel_sensors(schema), schema), cls, err, delta
+    )
 
 
 def explain(
@@ -161,6 +171,7 @@ def explain(
     sensor_parts: Mapping[str, str],
     horizon: int = 30,
     ig_steps: int = DEFAULT_IG_STEPS,
+    schema: ChannelSchema = SIM_SCHEMA,
 ) -> list[dict[str, Any]]:
     """Explain one window: ``[{sensor, part, weight}]``, largest |weight| first.
 
@@ -168,8 +179,8 @@ def explain(
     exactly as ``Normalizer.transform`` produces them; ``sensor_parts`` is the machine's
     ``sensor_parts`` from the line config. Weights are normalised to sum(|w|) = 1.
     """
-    kind = np.zeros((1, len(KINDS)), dtype=np.float32)
-    kind[0, KINDS.index(MachineKind(machine_kind))] = 1.0
+    kind = np.zeros((1, len(schema.kinds)), dtype=np.float32)
+    kind[0, schema.kind_index(str(machine_kind))] = 1.0
     att = attribute(
         model,
         np.asarray(values, dtype=np.float32)[None],
@@ -177,8 +188,9 @@ def explain(
         kind,
         horizon,
         ig_steps,
+        schema=schema,
     )
-    return to_parts(normalise(att.sensors)[0], sensor_parts)
+    return to_parts(normalise(att.sensors)[0], sensor_parts, schema)
 
 
 __all__ = [

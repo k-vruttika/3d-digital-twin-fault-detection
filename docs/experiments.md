@@ -230,6 +230,87 @@ Primary (ADR 0024), at +30 s:
 
 Everything else is exploratory, including the two follow-ups added after the results were seen (ADR 0024 § Amendment; settings in `config/models/e5_followup.yaml`, never in `e5.yaml`): the autoencoder's per-sensor error shares and the IG step-count check. Read every threshold-rule comparison on E5 with the interpretation note in ADR 0024: the rule checks the very signal `lubrication_loss` trips on.
 
+## Phase 10: validation on real public data
+
+The protocol and the pre-registered primary outcomes are in [ADR 0027](adr/0027-real-data-protocol.md). How the code handles other sensor sets, kinds and time steps is in [ADR 0028](adr/0028-channel-schema.md). Settings:
+- `config/datasets/<name>.yaml`: facts about each dataset (files, signals, failure list with its source);
+- `config/models/real_<name>.yaml`: grid, window, labels and split, in rows of the dataset's own grid;
+- `config/models/real.yaml`: studies, baselines, selection rule, `primary:`.
+
+### Reproduce
+
+```text
+# files in data/external/metropt3/ and data/external/azure_pdm/ (never downloaded by the code)
+uv run poe real-audit     # data audit of both datasets -> MLflow P10_real (about 10 s)
+uv run poe real-data      # windowed datasets -> data/ml_real/<key>/ (about 10 s for all four)
+uv run poe report-real    # experiments/results/real_data.md + .json + plots
+```
+
+If a file is missing, the loaders stop with an error that names the file, the dataset page and the folder to put it in.
+
+### The datasets as they are (audit)
+
+| | MetroPT-3 | Azure PdM |
+|---|---|---|
+| What | one metro train compressor (air production unit), real operational data | 100 machines; public benchmark, origin widely understood to be synthetic (Microsoft tutorial) |
+| Signals | 7 analog (pressures, oil temperature, motor current) + 8 digital (valves, switches) | volt, rotate, pressure, vibration (units not documented) |
+| Sampling (measured) | about 10 s (the PDF says 1 Hz; its row count is 10× the file's), 331 gaps over 60 s | exactly hourly, no gaps, no missing values |
+| Labels | none; 4 air-leak failures from company reports (start and end time) | 761 component-failure rows = 719 events (machine, hour), no duration |
+
+Every number is generated in [real_data.md](../experiments/results/real_data.md) § Data audit.
+
+### Mapping to the common window format
+
+**Grid and inputs**
+- **Grid:**
+  - MetroPT-3 is resampled to 1-minute means. A digital 0/1 signal becomes the fraction of the minute it was active.
+  - Empty minutes stay as missing rows (forward fill + missing mask, as in Phase 7). A run of more than 10 empty minutes starts a new series, so no window spans a long gap.
+  - Azure keeps its native hourly rows.
+  - *Limitation:* 1-minute means smooth the compressor's load/unload cycles (a few minutes long), and short transients are lost.
+- **Inputs:**
+  - every signal of each dataset, normalised with training means and stds, plus missing masks and the kind one-hot;
+  - no engineered `vib_norm` (no speed and vibration pair);
+  - the kind is `APU` (MetroPT-3) or the machine model (Azure).
+  - Azure error counts are inputs only in one exploratory XGBoost variant.
+- **Variable number of sensors:** windows have the dataset's own channels: MetroPT-3 15 values + 15 masks + 1 kind; Azure 4 + 4 + 4. Tree summaries have 7 statistics per value channel. The model architectures are unchanged; only their input width follows the schema.
+
+**Windows and labels**
+- **Lengths, in the dataset's own time scale:**
+  - MetroPT-3: window 60 min, sustain 3 min, lookbacks 2 h / **6 h** / 24 h.
+  - Azure: window 24 h, horizons +12 h / **+24 h**, sustain 3 h, lookback 48 h, time-to-fault cap 7 days.
+- **Labels (pseudo-states from the failure events):**
+  - WARNING = within the warning band before a failure start (MetroPT-3 6 h, Azure 24 h);
+  - FAULT = inside the reported failure interval (MetroPT-3), or the failure hour (Azure);
+  - MAINTENANCE = 24 h after a MetroPT-3 failure end (excluded from negatives and detector training);
+  - RUNNING otherwise.
+
+  The fault type is set from 24 h (MetroPT-3) or 48 h (Azure) before the start. A supervised health target at +24 h (Azure) is therefore WARNING when a failure lies 24–48 h ahead.
+  - *Limitation:* the band is a label choice, not a machine signal. Leads cannot exceed the lookback, and there is no machine WARNING to measure relative lead against.
+- **Negatives** (false-alarm time): RUNNING windows with no fault type, i.e. more than the fault context before and more than the post-failure exclusion after any failure.
+
+**Split, evaluation and limits**
+- **Time-ordered split, no shuffling across time:**
+  - MetroPT-3 trains on 2020-02-01 to 03-22, validates on 03-22 to 04-11 and tests on 04-11 to 09-02. All four failures are in the test period.
+  - Azure trains on January–August 2015, validates on September–October and tests on November–December (493 / 112 / 114 events).
+  - Rows are labelled on each machine's full timeline before the cut, so windows and horizons never cross a split boundary.
+  - An event counts only if its whole lookback lies inside the split and at least 50 % of it has data. Otherwise it is "not evaluable", not a miss.
+  - *Limitation (Azure):* train and test contain the same machines, so the results show forecasting for known machines, not new ones (exploratory machine-holdout variant: ADR 0027).
+- **MetroPT-3 is a case study:**
+  - Four failures are too few for supervised training, and with a time-ordered split none of them is in the training period. **No supervised model is trained on MetroPT-3.**
+  - The anomaly detectors (Isolation Forest, autoencoder, trained on normal February–March operation) are the main method, with the threshold rule and the rolling z-score as baselines.
+  - The questions: was each failure warned about, how early, and how many false alarms per day over months of normal operation? Each detection count comes with the number expected by chance at the measured false-alarm rate.
+  - *Limitations:* four events allow no statistical claim; unreported failures may exist in the training period; the report times are approximate; the time zone is not stated.
+- **Azure:** enough failures for the supervised models (RF, XGBoost, LSTM, GRU, Transformer) plus the detectors, with machine-level bootstrap CIs. The best supervised model is chosen on validation PR-AUC only.
+- **Training cost:** Azure training windows are subsampled as in Phase 7. Far-normal windows are kept with p = 0.1 at weight 10, so the weighted class prior is restored. Training times are measured and reported.
+
+### Primary vs exploratory
+
+The primary outcomes are pre-registered in ADR 0027 § Pre-registration, before any model was trained on real data:
+- **Azure (+24 h, lookback 48 h):** detection rate, mean lead and false alarms per day, for the best supervised model, the autoencoder (p99.9), the combined policy and the threshold / z-score / persistence baselines, paired against the threshold rule.
+- **MetroPT-3 (lookback 6 h):** per failure, warned and lead; the warned count over evaluable failures; false alarms per day; the chance expectation. For the autoencoder, Isolation Forest, threshold rule and z-score.
+
+Everything else is exploratory: calibration and conformal, robustness, other lookbacks and percentiles, the error-log variants, the machine holdout, false alarms by month, explanations and the comparison with the simulator.
+
 ## Results
 
 - [E1: clean data](../experiments/results/E1_clean.md): generated by `uv run poe report-e1`.

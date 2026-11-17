@@ -24,11 +24,17 @@ from torch import nn
 from twin_common.enums import MachineState
 from twin_ml.config import AutoencoderConfig
 from twin_ml.data.dataset import SplitData
-from twin_ml.features.inputs import KINDS, SENSORS, VALUE_CHANNELS
+from twin_ml.features.schema import SIM_SCHEMA, ChannelSchema
 from twin_ml.models.anomaly import normal_windows
 
-# value channel -> sensor whose missing flag / attribution it belongs to
-CHANNEL_SENSOR = tuple(c if c in SENSORS else "vib" for c in VALUE_CHANNELS)
+
+def channel_sensors(schema: ChannelSchema) -> tuple[str, ...]:
+    """Value channel -> sensor whose missing flag / attribution it belongs to."""
+    return tuple(schema.value_sensor(c) for c in schema.value_channels)
+
+
+# simulator schema (kept for callers of the Phase 9 name)
+CHANNEL_SENSOR = channel_sensors(SIM_SCHEMA)
 
 
 class AutoencoderNet(nn.Module):
@@ -47,9 +53,11 @@ class AutoencoderNet(nn.Module):
         return out
 
 
-def _observed(mask: npt.NDArray[Any]) -> npt.NDArray[np.float32]:
-    """(B, W, 5) missing flags -> (B, W, 6) observed weights of the value channels."""
-    cols = [SENSORS.index(s) for s in CHANNEL_SENSOR]
+def _observed(
+    mask: npt.NDArray[Any], schema: ChannelSchema = SIM_SCHEMA
+) -> npt.NDArray[np.float32]:
+    """(B, W, sensors) missing flags -> (B, W, value channels) observed weights."""
+    cols = [schema.sensors.index(s) for s in channel_sensors(schema)]
     return (1.0 - mask[:, :, cols].astype(np.float32)).astype(np.float32)
 
 
@@ -69,12 +77,13 @@ class AutoencoderDetector:
         self.states = tuple(states)
         self.net: AutoencoderNet | None = None
         self.window = 0
+        self.schema = SIM_SCHEMA
 
     def _tensors(
         self, split: SplitData, idx: npt.NDArray[np.int64]
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         values, mask, kind = split.gather(idx)
-        w = _observed(mask)
+        w = _observed(mask, split.schema)
         x = torch.from_numpy(np.ascontiguousarray(values.reshape(values.shape[0], -1)))
         return x, torch.from_numpy(kind), torch.from_numpy(w.reshape(w.shape[0], -1))
 
@@ -91,8 +100,9 @@ class AutoencoderDetector:
             torch.set_num_threads(c.num_threads)
         rng = np.random.default_rng(seed)
         self.window = train.window
-        n_in = train.window * len(VALUE_CHANNELS)
-        self.net = AutoencoderNet(n_in, len(KINDS), c.hidden, c.latent)
+        self.schema = train.schema
+        n_in = train.window * len(self.schema.value_channels)
+        self.net = AutoencoderNet(n_in, len(self.schema.kinds), c.hidden, c.latent)
         opt = torch.optim.Adam(self.net.parameters(), lr=c.lr, weight_decay=c.weight_decay)
         tr = normal_windows(train, self.no_fault_code, self.horizon, self.states)
         va = normal_windows(val, self.no_fault_code, self.horizon, self.states)
@@ -140,7 +150,7 @@ class AutoencoderDetector:
             raise RuntimeError("fit the detector first")
         self.net.eval()
         out = []
-        n_ch = len(VALUE_CHANNELS)
+        n_ch = len(split.schema.value_channels)
         with torch.no_grad():
             for i in range(0, idx.shape[0], self.cfg.eval_batch_size):
                 x, cond, w = self._tensors(split, idx[i : i + self.cfg.eval_batch_size])
@@ -161,9 +171,10 @@ class AutoencoderDetector:
     def sensor_errors(
         self, split: SplitData, idx: npt.NDArray[np.int64]
     ) -> npt.NDArray[np.float64]:
-        """(B, 5) squared reconstruction error per sensor (``vib_norm`` folded into vib)."""
+        """(B, sensors) squared reconstruction error per sensor (``vib_norm`` -> vib)."""
         ch = self._errors(split, idx, per_channel=True)
-        out = np.zeros((ch.shape[0], len(SENSORS)))
-        for j, s in enumerate(CHANNEL_SENSOR):
-            out[:, SENSORS.index(s)] += ch[:, j]
+        sensors = split.schema.sensors
+        out = np.zeros((ch.shape[0], len(sensors)))
+        for j, s in enumerate(channel_sensors(split.schema)):
+            out[:, sensors.index(s)] += ch[:, j]
         return out

@@ -30,7 +30,7 @@ from twin_ml.data.dataset import SplitData
 from twin_ml.data.labels import HEALTH, STATES
 from twin_ml.evaluate.evaluator import Predictions
 from twin_ml.evaluate.metrics import confusion, scores_from_confusion
-from twin_ml.features.inputs import SEQUENCE_CHANNELS
+from twin_ml.features.schema import SIM_SCHEMA, ChannelSchema
 from twin_ml.models.base import class_weights
 from twin_ml.train.early_stopping import EarlyStopper
 from twin_ml.train.losses import censored_ttf_loss, weighted_cross_entropy
@@ -244,7 +244,11 @@ class SequenceModel:
         rng = np.random.default_rng(seed)
         self.horizons = train.horizons
         self.net = SequenceNet(
-            self.cfg, len(self.horizons), self.n_fault_types, train.window, len(SEQUENCE_CHANNELS)
+            self.cfg,
+            len(self.horizons),
+            self.n_fault_types,
+            train.window,
+            len(train.schema.sequence_channels),
         )
         opt = torch.optim.AdamW(self.net.parameters(), lr=t.lr, weight_decay=t.weight_decay)
         sched: (
@@ -325,11 +329,17 @@ class SequenceModel:
             extra={"logits": dict(zip(self.horizons, logits, strict=True))},
         )
 
-    def load(self, path: Path, horizons: Sequence[int], window: int) -> None:
+    def load(
+        self,
+        path: Path,
+        horizons: Sequence[int],
+        window: int,
+        schema: ChannelSchema = SIM_SCHEMA,
+    ) -> None:
         """Restore a saved ``model.pt`` (state dict) for inference (Phase 8)."""
         self.horizons = tuple(horizons)
         self.net = SequenceNet(
-            self.cfg, len(self.horizons), self.n_fault_types, window, len(SEQUENCE_CHANNELS)
+            self.cfg, len(self.horizons), self.n_fault_types, window, len(schema.sequence_channels)
         )
         state = torch.load(path, map_location="cpu", weights_only=True)
         self.net.load_state_dict(state)

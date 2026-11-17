@@ -1,0 +1,26 @@
+# Azure PdM with per-hour error counts as extra input channels (Phase 10, exploratory only).
+# Identical to real_azure.yaml except error_channels. Used by the exploratory XGBoost variant.
+facts: config/datasets/azure_pdm.yaml
+out_dir: data/ml_real
+
+step_s: 3600
+max_gap_rows: 0
+window: 24
+horizons: [12, 24]
+ttf_cap: 168
+strides: {train: 1, val: 1, test: 1}
+
+labels:
+  warning_band: 24
+  fault_context: 48
+  post_failure: 0
+
+split:
+  train: ["2015-01-01 00:00:00", "2015-09-01 00:00:00"]
+  val:   ["2015-09-01 00:00:00", "2015-11-01 00:00:00"]
+  test:  ["2015-11-01 00:00:00", "2016-01-02 00:00:00"]
+
+normal_keep_frac: 0.1
+subsample_seed: 7
+error_channels: true                 # + error1..error5 counts per hour (exploratory)
+machine_holdout: null

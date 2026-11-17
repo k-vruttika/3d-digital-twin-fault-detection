@@ -31,7 +31,6 @@ from twin_ml.evaluate.early_warning import (
     sustained,
 )
 from twin_ml.evaluate.metrics import confusion, mae_uncensored, pr_auc, scores_from_confusion
-from twin_ml.features.inputs import KINDS
 
 N_CLASSES = len(HEALTH)
 
@@ -105,7 +104,7 @@ def early_warning(
     run_of_window: npt.NDArray[np.int64],
 ) -> tuple[list[EpisodeResult], RunStats]:
     """Per-episode lead times and per-run statistics for one horizon head."""
-    k = sustain_windows(sustain_s, split.stride)
+    k = sustain_windows(sustain_s, split.stride * split.step_s)
     alarm = labels >= WARNING
     ends = split.arrays["ends"]
     t_all = split.arrays["t_s"]
@@ -129,7 +128,7 @@ def early_warning(
         run = int(run_of_window[lo])
         t = t_all[ends[lo:hi]]
         sus = sustained(alarm[lo:hi], k)
-        fa, neg_s = false_alarms(sus, negative[lo:hi], split.stride)
+        fa, neg_s = false_alarms(sus, negative[lo:hi], split.stride * split.step_s)
         stats.false_alarms[run] += fa
         stats.negative_s[run] += neg_s
         for e in np.flatnonzero(ep_series == sid):
@@ -143,7 +142,7 @@ def early_warning(
                 EpisodeResult(
                     run=run,
                     machine=str(split.arrays["series_machine"][sid]),
-                    kind=KINDS[int(split.arrays["kind"][i_fault])].value,
+                    kind=split.schema.kinds[int(split.arrays["kind"][i_fault])],
                     fault_type=fault_types[int(split.arrays["ep_fault_type"][e])],
                     t_start=float(t_all[i_start]),
                     t_warn=t_warn,

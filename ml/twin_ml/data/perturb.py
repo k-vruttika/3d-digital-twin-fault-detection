@@ -208,15 +208,16 @@ def perturb_series(
     cfg: PerturbationsConfig,
     sigma: npt.NDArray[np.floating[Any]],
     seed: int,
+    kinds: Sequence[str] = tuple(KINDS),
 ) -> list[S]:
     """Perturbed copies of machine series (dataclasses); labels are never touched.
 
-    ``sigma``: (len(KINDS), 5) normal-operation std per machine kind and sensor.
+    ``sigma``: (len(kinds), sensors) normal-operation std per machine kind and sensor.
     """
     out: list[S] = []
     for s in series:
         rng = series_rng(seed, condition.name, s.run_id, s.machine_id)
-        raw = perturb_array(s.sensors, condition, cfg, sigma[KINDS.index(s.kind)], rng)
+        raw = perturb_array(s.sensors, condition, cfg, sigma[list(kinds).index(s.kind)], rng)
         out.append(dataclasses.replace(s, sensors=raw))  # type: ignore[type-var]
     return out
 
@@ -228,6 +229,7 @@ def normal_std(
     fault_type: npt.NDArray[np.integer[Any]],
     no_fault_code: int,
     normal_states: Sequence[Any],
+    n_kinds: int = len(KINDS),
 ) -> FloatArray:
     """Std of each sensor per machine kind over normal-operation training rows.
 
@@ -237,8 +239,8 @@ def normal_std(
     codes = [STATES.index(s) for s in normal_states]
     normal = np.isin(state, codes) & (fault_type == no_fault_code)
     pooled = np.nanstd(raw[normal].astype(np.float64), axis=0) if normal.any() else None
-    out = np.ones((len(KINDS), len(SENSORS)), dtype=np.float64)
-    for k in range(len(KINDS)):
+    out = np.ones((n_kinds, raw.shape[1]), dtype=np.float64)
+    for k in range(n_kinds):
         sel = normal & (kind == k)
         if sel.any():
             std = np.nanstd(raw[sel].astype(np.float64), axis=0)

@@ -43,7 +43,8 @@ def rising_edges(x: BoolArray) -> BoolArray:
     return out
 
 
-def sustain_windows(sustain_s: int, stride: int) -> int:
+def sustain_windows(sustain_s: float, stride: float) -> int:
+    """Consecutive windows that span ``sustain_s`` seconds, windows ``stride`` seconds apart."""
     return max(1, math.ceil(sustain_s / stride))
 
 
@@ -80,8 +81,10 @@ def episode_lead(
     return True, float(t_fault - t_alarm), rel
 
 
-def false_alarms(alarm_sustained: BoolArray, negative: BoolArray, stride: int) -> tuple[int, float]:
-    """(false alarm count, negative seconds) of one series."""
+def false_alarms(
+    alarm_sustained: BoolArray, negative: BoolArray, stride: float
+) -> tuple[int, float]:
+    """(false alarm count, negative seconds) of one series; windows ``stride`` seconds apart."""
     edges = rising_edges(alarm_sustained) & negative
     return int(edges.sum()), float(negative.sum() * stride)
 

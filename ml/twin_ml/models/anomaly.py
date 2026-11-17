@@ -25,7 +25,7 @@ from twin_common.enums import MachineState
 from twin_ml.config import AnomalyModelConfig, IForestConfig
 from twin_ml.data.dataset import SplitData
 from twin_ml.data.labels import NORMAL, STATES
-from twin_ml.features.inputs import KINDS
+from twin_ml.features.schema import SIM_SCHEMA
 
 
 class Detector(Protocol):
@@ -60,22 +60,23 @@ class AnomalyThresholds:
 
     percentiles: list[float]
     per_kind: bool = True
+    kinds: tuple[str, ...] = SIM_SCHEMA.kinds
     values: dict[float, npt.NDArray[np.float64]] = field(default_factory=dict)  # p -> (kinds,)
     n_cal: list[int] = field(default_factory=list)
 
     def fit(self, scores: npt.NDArray[np.float64], kinds: npt.NDArray[Any]) -> AnomalyThresholds:
         k = np.asarray(kinds, dtype=np.int64)
-        self.n_cal = [int((k == i).sum()) for i in range(len(KINDS))]
+        self.n_cal = [int((k == i).sum()) for i in range(len(self.kinds))]
         for p in self.percentiles:
             if self.per_kind:
                 v = np.array(
                     [
                         np.percentile(scores[k == i], p) if (k == i).any() else np.inf
-                        for i in range(len(KINDS))
+                        for i in range(len(self.kinds))
                     ]
                 )
             else:
-                v = np.full(len(KINDS), np.percentile(scores, p))
+                v = np.full(len(self.kinds), np.percentile(scores, p))
             self.values[p] = v.astype(np.float64)
         return self
 
@@ -91,7 +92,7 @@ class AnomalyThresholds:
             "per_kind": self.per_kind,
             "n_cal": self.n_cal,
             "values": {str(p): v.tolist() for p, v in self.values.items()},
-            "kinds": [k.value for k in KINDS],
+            "kinds": list(self.kinds),
         }
 
 
