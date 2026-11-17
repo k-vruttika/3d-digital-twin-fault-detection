@@ -195,6 +195,19 @@ cmd = "python -m twin_ml.experiments.robustness"
 help = "Write experiments/results/robustness.md + .json + plots from the MLflow study runs"
 cmd = "python -m twin_ml.experiments.report_robustness"
 
+# Phase 9: unseen fault (E5), anomaly detection, explainability (config/models/e5.yaml).
+[tool.poe.tasks.sim-e5]
+help = "Generate the E5 runs (held-out lubrication_loss, seed 42, indices 0-269; ADR 0024) -> data/sim_e5/"
+cmd = "python -m twin_sim generate --runs 270 --duration 3600 --seed 42 --scenario config/scenarios/e5_lubrication_loss.yaml --out data/sim_e5/"
+
+[tool.poe.tasks.e5]
+help = "Phase 9 study runs, e.g. `uv run poe e5 --study e5_anomaly --skip-existing`; `--combine` logs the combined policy"
+cmd = "python -m twin_ml.experiments.e5"
+
+[tool.poe.tasks.report-e5]
+help = "Write experiments/results/e5_explain.md + .json + plots from the MLflow study runs"
+cmd = "python -m twin_ml.experiments.report_e5"
+
 [tool.poe.tasks.mlflow-ui]
 help = "MLflow UI on the local store (full mlflow in an isolated uv tool environment)"
 cmd = "uv tool run --from mlflow==3.17.2 mlflow ui --backend-store-uri mlruns --port 5000"

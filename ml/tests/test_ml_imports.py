@@ -55,6 +55,9 @@ def test_simulator_only_where_allowed() -> None:
 
 def test_torch_only_in_the_sequence_models() -> None:
     assert _loaded(("twin_ml.models.nn",), ("torch", "twin_sim")) == ["torch"]
+    # Phase 9: the autoencoder is the only other torch module
+    watch = ("torch", "sklearn", "xgboost", "twin_sim")
+    assert _loaded(("twin_ml.models.autoencoder",), watch) == ["torch"]
 
 
 def test_training_parents_load_no_ml_library() -> None:
@@ -84,4 +87,21 @@ def test_phase8_modules_load_no_simulator_or_heavy_library() -> None:
 
 def test_phase8_parents_load_no_ml_library() -> None:
     parents = ("twin_ml.experiments.robustness", "twin_ml.experiments.robust_worker")
+    assert _loaded(parents, ("torch", "sklearn", "xgboost", "mlflow")) == []
+
+
+PHASE9_PURE = (
+    "twin_ml.models.anomaly",
+    "twin_ml.experiments.e5_eval",
+)
+
+
+def test_phase9_modules_load_no_simulator_or_heavy_library() -> None:
+    # the Isolation Forest imports scikit-learn lazily, only when it is fitted
+    watch = ("twin_sim", "torch", "sklearn", "xgboost", "mlflow")
+    assert _loaded(PHASE9_PURE, watch) == []
+
+
+def test_phase9_parents_load_no_ml_library() -> None:
+    parents = ("twin_ml.experiments.e5", "twin_ml.experiments.e5_worker")
     assert _loaded(parents, ("torch", "sklearn", "xgboost", "mlflow")) == []

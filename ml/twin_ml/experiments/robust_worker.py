@@ -275,7 +275,7 @@ def obtain_model(
     tracking_dir: Path,
     tmp: Path,
 ) -> _Model:
-    from twin_ml.train.trainer import BASELINES, make_predictor, train_and_log
+    from twin_ml.train.trainer import BASELINES, train_and_log
 
     key = ds.meta["dataset_key"]
     if study.models_from == "e1":
@@ -308,6 +308,23 @@ def obtain_model(
             extra_tags={"study": study_name},
         )
         return _Model(predictor, res.run_id, res.train_s, None)
+
+    return load_from_run(run, model, cfg, seed, ds, eval_cfg, root, tmp)
+
+
+def load_from_run(
+    run: Any,
+    model: str,
+    cfg: ModelConfig,
+    seed: int,
+    ds: Any,
+    eval_cfg: EvalConfig,
+    root: Path,
+    tmp: Path,
+) -> _Model:
+    """Restore a finished training run's model (RF: retrain from the seed) and its stored
+    clean test predictions, which the caller checks with :func:`check_predictions`."""
+    from twin_ml.train.trainer import BASELINES, make_predictor
 
     uri = run.info.artifact_uri
     npz_path = _download(uri, "test_predictions.npz", tmp)

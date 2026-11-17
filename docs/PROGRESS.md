@@ -1,5 +1,72 @@
 # LineTwin progress
 
+## Phase 9: Unseen faults (E5), anomaly detection, explainability (in progress)
+
+- **Pre-registration before any E5 data or study run:** [ADR 0024](adr/0024-e5-unseen-fault-protocol.md) § Pre-registration, mirrored in `config/models/e5.yaml` (`primary:`), guarded by `ml/tests/test_ml_e5_prereg.py`. Committed by the user as `10f1995` (Phase 9 A1) before `data/sim_e5` was generated.
+- **Smoke runs:** pipeline checks went into the separate MLflow experiment `P9_smoke` (iforest seeds 0–2, autoencoder seed 0, threshold / xgb / lstm seed 0, their combined runs, and an E4 subset). They are not part of any result.
+
+### Part A (done, 2026-11-17): E5 data, anomaly detectors, E5 / drift / E4 evaluation
+
+**E5 data** (`uv run poe sim-e5`, 11 s): run indices 0–269 with base seed 42 and the existing `e5_lubrication_loss.yaml` scenario. The fixed selection is used (ADR 0024):
+- the 30 E1 test-split run indices plus 200–269, i.e. 100 runs;
+- the 30 shared runs' load band, ambient, load levels and thresholds equal the clean runs' (`check_shared_plan`, checked on every evaluation);
+- **realised: 120 `lubrication_loss` episodes** (conveyor 58, CNC 33, inspection 29), 40 of them in the test-index runs; 1.42 M windows. The plan-only estimate was about 110. No runs were added.
+
+**Code**
+- `data/test_sets.py`: `extended_fault_types`, `windowed(..., extra_fault_types)` (the held-out type is appended to the label vocabulary; trained codes unchanged), `e5_run_ids`, `check_shared_plan`, `e5_split`, `sensor_fault_split_detail` (faulty sensor per row).
+- `models/anomaly.py`: `normal_windows`, `AnomalyThresholds` (per-kind percentiles), `IForestDetector` (scikit-learn, lazy). `models/autoencoder.py`: `AutoencoderDetector` (torch; the only torch module besides `models/nn.py`).
+- `experiments/e5_eval.py` (pure numpy): sustained alarms, `alarm_run_sums` (early-warning sums of a pre-sustained alarm), detector conditions, confidence-of-wrong sums, precursor set sums, drift-segment flags, alarm packing.
+- `experiments/e5_worker.py` / `e5.py`: one process per (study, model, seed); supervised models reused through `robust_worker.load_from_run` (new helper split out of `obtain_model`, behaviour unchanged) and never trained; resume by a hash that includes the E5 content hash; `--combine` logs the combined policy from the stored alarms; `--smoke`.
+- `evaluate/run_sums.robust_metrics`: new optional fields (`confw`, `drift`, later `agree` / `deletion` / `ig_complete`). Phase 8 sums have none of them, so its metrics are unchanged; `--dry-run --skip-existing` of `e1models`, `aug`, `e4` still shows 0 runs to do.
+- Configs: `e5.yaml`, `iforest.yaml`, `autoencoder.yaml`; `AnomalyModelConfig` is a separate config type (not in `ModelConfig`), so `train-all` can never pick up a detector. poe tasks `sim-e5`, `e5`, `report-e5`.
+
+**Runs** (one after another; per run = model restore / training + 3 conditions)
+
+| Study | Command | Runs | Wall time | Per run |
+|---|---|---|---|---|
+| `e5_anomaly` | `uv run poe e5 --study e5_anomaly --skip-existing` | 6 | 242 s | iforest 31–45 s (fit 3 s), autoencoder 36–39 s (fit 19–23 s) |
+| `e5_e1models` | `uv run poe e5 --study e5_e1models --skip-existing` | 17 | 1,700 s (28 min) | persistence 27 s, threshold 17 s, RF 142–158 s (retrain 94–112 s), XGBoost 46–47 s, LSTM 74–95 s, GRU 97–107 s, Transformer 124–141 s |
+| `e5_aug` | `uv run poe e5 --study e5_aug --skip-existing` | 15 | 1,768 s (29 min) | RF 193–228 s (retrain 132–150 s; slowed by tests I ran in parallel), XGBoost 44–73 s, LSTM 86–88 s, GRU 90–91 s, Transformer 113–115 s |
+| `e5_e4` | `uv run poe e5 --study e5_e4 --skip-existing` | 22 (threshold, 5 models × 3, 2 detectors × 3) | 1,128 s (19 min) | threshold 6 s, RF 96–99 s, XGBoost 19–27 s, LSTM 53–79 s, GRU 50–58 s, Transformer 65–69 s, iforest 17–18 s, autoencoder 21 s |
+| combined | `uv run poe e5 --combine --skip-existing` | 102 (E1 36, aug 30, E4 36) | 247 s | |
+
+- Whole Part A run chain: 05:16–06:44 UTC (1 h 27 min), studies one after another.
+
+- A first attempt at the chained run logged nothing (`/usr/bin/time` does not exist in Git Bash and the pipe hid the error); it was rerun at once with `pipefail`. No run was duplicated.
+- Every reused model reproduced its stored clean test predictions (the worker fails otherwise).
+
+**Tests:** new `test_ml_e5_prereg.py`, `test_ml_e5_data.py`, `test_ml_anomaly.py`, `test_ml_e5_e2e.py` (quick data: E1 runs → both studies in workers → combine → explain → report numbers equal the MLflow metrics → resume logs nothing), import guards for the Phase 9 modules.
+- At the end of Part A (12:21 IST, Part B tests included): `uv run poe lint` clean; `uv run poe test` pytest 796 passed, 50 skipped (services not running), Vitest 163 passed.
+
+### Status at 13:15 IST, 2026-11-17 (in progress; nothing committed)
+
+- **Done:** Part A (runs and tests) and Part B (code, runs, tests). The first Part C step is done too: `experiments/results/e5_explain.md` + `.json` + 5 plots are generated from MLflow (`uv run poe report-e5`), and `tests/test_results_policy.py` passes.
+- **Last check:** at 13:01 IST, `uv run poe lint` was clean; `uv run poe test` gave pytest 796 passed, 50 skipped (services not running), Vitest 163 passed.
+- **Uncommitted changes:** all Phase 9 Part A–C work since `10f1995` (code, configs, tests, ADR 0025 / 0026 drafts, docs/experiments.md § Phase 9, this file, the generated results).
+- **Remaining (Part C):**
+  1. **Review the generated report** before writing conclusions. Points I noticed that the write-up must address (reporting, not tuning):
+     - The **pooled agreement rate** weights the clean and E5 episodes by how many each model explains. A model that alarms on few E5 episodes is dominated by the clean seen-type episodes; the Transformer has 2 of 120 E5 episodes explained (seed 0). Read the per-condition columns, not only the pooled one. The pooling is what ADR 0024 implies ("overall"), so any change must be labelled as a reporting clarification.
+     - **IG completeness error at the pre-registered 64 steps:** relative error about 0.07 (LSTM, clean, seed 0), larger than the unit-test nets. Report as is.
+     - **Explained E5 episodes vary strongly by seed** for the sequence models (LSTM seed 0: 45 of 120, seed 2: 8 of 120).
+  2. ADR 0024 § Outcome, ADR 0025 / 0026 § Results, from the report only.
+  3. CLAUDE.md §5: `config/models/` (`e5.yaml`, `iforest.yaml`, `autoencoder.yaml`) and `ml/twin_ml/explain/` contents.
+  4. Final PROGRESS entry (summary, limitations, deviations) and a suggested commit message.
+- **How to resume:** nothing needs rerunning. Every study, combined and explain run is in MLflow (`P9_e5`), and `--skip-existing` shows 0 to do. To regenerate the report: `uv run poe report-e5` (about 1.5–4.5 min). Check first: `uv run poe e5 --study e5_e1models --dry-run --skip-existing` (expect 0 runs).
+- **Deviations so far:**
+  - The detector configs are a separate config type (`AnomalyModelConfig`), not part of `ModelConfig`.
+  - The report generator (Part C) was written while Part A was running.
+  - One reporting fix after the first report build: the "episodes explained" column took the newest seed instead of seed 0. No metric changed.
+
+### Part B (done, 2026-11-17): explainability
+
+**Run:** `uv run poe e5 --explain --skip-existing`: 15 runs in 1,416 s (24 min). Per run: XGBoost 20–23 s, LSTM 56–69 s, GRU 83–109 s, Transformer 113–150 s, RF 152–176 s (retrain included). No failures.
+
+- `explain/aggregate.py` (feature / channel → sensor → part), `explain/trees.py` (XGBoost TreeSHAP via `pred_contribs`; RF Saabas path contributions), `explain/ig.py` (Integrated Gradients in torch, zero baseline with masks "not missing" and the input's kind, 64 trapezoid steps), `explain/__init__.explain()` (the Phase 11 API; imports neither `twin_sim` nor an ML library at import).
+- `experiments/explain_eval.py`: explained windows (alarmed precursor windows, one per 10 s, at most 30 per episode), agreement sums, deletion test, IG completeness. Run with `uv run poe e5 --explain --skip-existing` (study `explain`).
+- ADR 0025 (anomaly detection) and ADR 0026 (explainability) drafted; their results sections come in Part C.
+- `experiments/report_e5.py` (Part C) is written and has generated `experiments/results/e5_explain.*` (see the status above).
+- Tests: `test_ml_explain.py` (maps, TreeSHAP and Saabas additivity, IG on a linear model and completeness on a small net, deletion test on a one-sensor model, window thinning, agreement, `explain()` for XGBoost / RF / GRU, light import).
+
 ## Phase 8: Robustness, calibration and conformal prediction (done, 2026-11-16)
 
 - **Pre-registration recorded before any Phase 8 study run:** [ADR 0021](adr/0021-robustness-protocol.md) § Pre-registration, mirrored in `config/models/robustness.yaml` (`primary:`).

@@ -110,11 +110,13 @@ def generate_sim(
     runs: int = ML_SIM_RUNS,
     duration_s: int = ML_SIM_DURATION_S,
     sensor_faults: dict[str, Any] | None = None,
+    faults: dict[str, Any] | None = None,
 ) -> Path:
     """Fault-dense quick-scenario runs (Parquet + manifest) for ML tests.
 
     ``sensor_faults``: a scenario ``sensor_faults`` section (Phase 8 sensor-fault sets); the
-    machine physics stay identical for the same seed.
+    machine physics stay identical for the same seed. ``faults``: a replacement ``faults``
+    section (Phase 9 E5 runs with only the held-out fault type).
     """
     from twin_common.config import load_line_config
     from twin_common.config.loader import read_yaml
@@ -125,6 +127,8 @@ def generate_sim(
     data["duration_s"] = duration_s
     if sensor_faults is not None:
         data["sensor_faults"] = sensor_faults
+    if faults is not None:
+        data["faults"] = faults
     scenario = ScenarioConfig.model_validate(data)
     generate(
         line=load_line_config(CONFIG_DIR / "line.yaml"),
@@ -141,6 +145,22 @@ def generate_sim(
 @pytest.fixture(scope="session")
 def ml_sim_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return generate_sim(tmp_path_factory.mktemp("ml_sim"))
+
+
+# Phase 9: E5-like quick runs with only the held-out fault type (same seed as ml_sim_dir).
+E5_FAULTS: dict[str, Any] = {
+    "random": {
+        "rate_per_machine_per_hour": 3.0,
+        "types": ["lubrication_loss"],
+        "include_held_out": True,
+        "earliest_onset_s": 60,
+    }
+}
+
+
+@pytest.fixture(scope="session")
+def e5_sim_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return generate_sim(tmp_path_factory.mktemp("ml_sim_e5"), faults=E5_FAULTS)
 
 
 @pytest.fixture(scope="session")

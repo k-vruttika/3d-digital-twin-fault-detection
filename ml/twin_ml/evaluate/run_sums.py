@@ -30,6 +30,19 @@ from twin_ml.evaluate.metrics import scores_from_confusion
 Sums = dict[str, npt.NDArray[np.float64]]
 MetricFn = Callable[[dict[str, npt.NDArray[np.float64]]], dict[str, float]]
 
+# Phase 9 per-run fields (columns), see twin_ml.experiments.e5_eval
+CONFW_FIELDS = (
+    "n",
+    "n_wrong",
+    "conf_wrong_sum",
+    "n_wrong_high",
+    "conf_correct_sum",
+    "n_missed",
+    "conf_missed_sum",
+    "n_missed_high",
+)
+DRIFT_FIELDS = ("segments", "flagged", "delay_sum")
+
 RUNSTATS_FIELDS = (
     "confusion",
     "episodes",
@@ -103,6 +116,39 @@ def robust_metrics(agg: dict[str, npt.NDArray[np.float64]]) -> dict[str, float]:
             float(agg["sf_false_alarms"]), float(agg["sf_negative_s"]) / 3600.0
         )
         out["sf_negative_h"] = float(agg["sf_negative_s"]) / 3600.0
+    # Phase 9 (ADR 0024): confidence of wrong calibrated predictions, sensor-fault flags
+    if "confw" in agg:
+        cw = dict(zip(CONFW_FIELDS, (float(v) for v in agg["confw"]), strict=True))
+        out["wrong_rate"] = _nan_div(cw["n_wrong"], cw["n"])
+        out["wrong_conf_mean"] = _nan_div(cw["conf_wrong_sum"], cw["n_wrong"])
+        out["wrong_high_frac"] = _nan_div(cw["n_wrong_high"], cw["n_wrong"])
+        out["correct_conf_mean"] = _nan_div(cw["conf_correct_sum"], cw["n"] - cw["n_wrong"])
+        out["missed_rate"] = _nan_div(cw["n_missed"], cw["n"])
+        out["missed_conf_mean"] = _nan_div(cw["conf_missed_sum"], cw["n_missed"])
+        out["missed_high_frac"] = _nan_div(cw["n_missed_high"], cw["n_missed"])
+    if "drift" in agg:
+        dr = dict(zip(DRIFT_FIELDS, (float(v) for v in agg["drift"]), strict=True))
+        out["sf_segments"] = dr["segments"]
+        out["sf_flag_rate"] = _nan_div(dr["flagged"], dr["segments"])
+        out["sf_flag_delay_s"] = _nan_div(dr["delay_sum"], dr["flagged"])
+    # Phase 9 explanation sanity checks (twin_ml.experiments.explain_eval)
+    if "agree" in agg:
+        a = agg["agree"]  # (fault types, 2): episodes, agreeing
+        out["agreement_rate"] = _nan_div(float(a[:, 1].sum()), float(a[:, 0].sum()))
+        out["agreement_episodes"] = float(a[:, 0].sum())
+        for ti in range(a.shape[0]):
+            if a[ti, 0] > 0:
+                out[f"agreement_rate_t{ti}"] = _nan_div(float(a[ti, 1]), float(a[ti, 0]))
+    if "deletion" in agg:
+        n, d_top, d_rand, gt = (float(v) for v in agg["deletion"])
+        out["del_top"] = _nan_div(d_top, n)
+        out["del_rand"] = _nan_div(d_rand, n)
+        out["del_diff"] = _nan_div(d_top - d_rand, n)
+        out["del_top_gt_frac"] = _nan_div(gt, n)
+    if "ig_complete" in agg:
+        n, err, delta = (float(v) for v in agg["ig_complete"])
+        out["ig_err_mean"] = _nan_div(err, n)
+        out["ig_err_rel"] = _nan_div(err, delta)
     return out
 
 
