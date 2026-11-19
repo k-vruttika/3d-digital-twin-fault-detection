@@ -1,6 +1,127 @@
 # LineTwin progress
 
-## Phase 10: Validation on real public data (in progress)
+## Phase 10: Validation on real public data (done, 2026-11-19; completes Milestone B)
+
+### Phase 10 summary
+
+- **Built across Parts A–C:**
+  - loaders, audit and mapping for MetroPT-3 and Azure PdM (Part A, below);
+  - the study runner with one process per run, pure-numpy event evaluation, rule baselines, combined policies, explanations, the replay demo, and one generated report: [real_data.md](../experiments/results/real_data.md) + `.json` + 8 plots.
+- **Pre-registration before any model was trained on real data:** ADR 0027 § Pre-registration, `config/models/real.yaml` `primary:`, guarded by `test_ml_real_prereg.py`. It was committed by the user as `a9d08d1` (Part A). No setting was changed after a result was seen.
+- **Conclusions:** [ADR 0027 § Outcome](adr/0027-real-data-protocol.md) (primary and exploratory kept apart), the ADR 0025 / 0026 Phase 10 addenda, and `docs/experiments.md` § Results.
+
+**Primary results**
+- **MetroPT-3** (real; 4 air-leak failures; lookback 6 h; p99.9):
+  - No method warned beyond chance. Autoencoder 3 / 1 / 3 of 4 over seeds (chance 0.84–1.06, 0.57–0.86 false alarms per day); Isolation Forest 0 / 4; threshold rule 2 / 4 (chance 0.61); z-score 2 / 4 (chance 0.98).
+  - Failure #1's full-lead "warning" is an anomaly already present when the data resumed after a gap. #2 and #3 are hit 2–8 min before the reported start, i.e. at onset.
+  - The autoencoder and the threshold rule detect all four failures during the reported interval.
+- **Azure PdM** (likely synthetic; +24 h; lookback 48 h; 108 evaluable events):
+  - The validation-chosen `lstm` detects 0.954 [0.913, 0.987], 41.2 h ahead, at 0.059 false alarms per day (103 warned vs 14.3 by chance).
+  - Threshold rule 0.278; z-score 0.009; persistence 0.000.
+  - The autoencoder detects 0.000, so the combined policy equals the LSTM plus 0.0007 false alarms per day.
+
+**Exploratory highlights**
+- **Error log:** the "any error in 24 h" rule detects 1.000 (vs 0.978 for telemetry-only XGBoost, not significant), 14 h later and with more false alarms. Error counts as XGBoost inputs raise validation PR-AUC from 0.151 to 0.644 but not test detection.
+- **Machine holdout:** `lstm` detects 0.942 on 20 new machines vs 0.971 for the temporal split on the same 23 events.
+- **Missing data:** under MCAR, the LSTM's detection is unchanged and its false alarms rise from 0.059 to 0.166 per day (MCAR 30 %).
+- **Calibration and conformal:** calibrated top-label ECE 0.003–0.016; Mondrian coverage ≈ 0.90 for every class.
+- **Explanations:** Azure top-sensor agreement 0.92–0.96 (chance 0.26). MetroPT-3 error shares during failures point at `dv_pressure` / `lps`.
+- **Simulator vs real:** the detector ranking does not transfer. The autoencoder is best on the simulator's unseen fault and useless for early warning here; the threshold rule is near-perfect on the simulator and weak on Azure.
+
+### Part C (done, 2026-11-19): remaining runs, combined policies, explanations, report, docs
+
+**Pre-flight:** before any training, `uv run poe lint` was clean and `uv run poe test` gave pytest 844 passed, 50 skipped and Vitest 163 passed. This confirms the Part B fix of `test_audit_logged_and_report`.
+
+**Runs** (MLflow `P10_real`; no test suite ran alongside):
+
+| Step | Runs | Measured time |
+|---|---|---|
+| `metropt3`, `azure` | 8 + 24, done in Part B | see Part B times below |
+| `azure_err` | 4 (XGBoost × 3, error rule) | 92 s (XGBoost 28–31 s, rule 3 s) |
+| `azure_holdout` | 18 | 2 h 6 min: RF 68–76 s, XGBoost 18–19 s, LSTM 380–447 s, GRU 489–495 s, Transformer 987–2,524 s, autoencoder 19 s |
+| `--combine` | 45 (30 `azure`, 15 `azure_holdout`) | 23 s |
+| `--explain` | 9 (LSTM IG × 3, XGBoost TreeSHAP × 3, MetroPT-3 autoencoder × 3) | 295 s: LSTM 38–41 s, XGBoost 14 s, autoencoder 38–55 s |
+
+Part B times (2026-11-18), per run: rules 3–4 s, Isolation Forest 10 s, autoencoder about 25–33 s, RF 105–116 s, XGBoost 30–32 s, LSTM 507–525 s, GRU about 640–870 s, Transformer 1,353–2,988 s.
+
+- The best supervised model chosen on validation is `lstm` in both `azure` (seed-mean validation PR-AUC 0.160) and `azure_holdout`.
+- Every explanation run passed its reproduction check.
+
+**Report fixes and additions** (`report_real_results.py`, `report_real.py`):
+- **Paired tables:** they printed "(k/None)" because the seed count was missing in `paired_view`. Each metric now carries `seeds`.
+- **Azure exploratory table:** the `method|group` keys put a raw `|` inside a markdown cell and broke the table. Method and group are now separate columns.
+- **New generated section, "Simulator vs real data (exploratory)":** `compute_sim_comparison` reads the committed `E1_clean.json` and `e5_explain.json` from the results folder and is skipped when they are absent. Simulator false alarms per hour are scaled to per day; nothing else is converted.
+- **New test:** `ml/tests/test_ml_real_sim_compare.py` (3 tests).
+
+**Docs:**
+- ADR 0027 § Outcome;
+- ADR 0025 / 0026 § Addendum: real data;
+- `docs/experiments.md`: Phase 10 results entry and the simulator comparison;
+- CLAUDE.md §5: `metropt3_replay.yaml`, `baselines/rules.py`, `datasets/replay.py` (`replay-csv`), and the `real*` experiment modules.
+
+**Verified at the end (Windows, services not running):**
+- `uv run poe lint`: clean (338 files formatted, mypy 301 source files).
+- `uv run poe test`: pytest 847 passed, 50 skipped (17 min 47 s); Vitest 163 passed (17 files).
+
+**Known limitations** (also in the report and ADR 0027):
+- **MetroPT-3:** four failures allow no statistical claim. The failure times come from reports (approximate, time zone not stated), and unreported failures may exist in training.
+- **Azure:** it is likely synthetic and its failures are single-hour labels. The temporal split tests known machines; the holdout covers only 20 machines.
+- **Labels:** the WARNING band is a label choice, so leads are bounded by the lookback.
+- **Simulator comparison:** it compares rankings only, because time scales and event definitions differ.
+
+**How to run**
+
+```text
+uv run poe real-audit && uv run poe real-data
+uv run poe real --study all --skip-existing
+uv run poe real --combine --skip-existing
+uv run poe real --explain --skip-existing
+uv run poe report-real
+uv run poe replay-metropt && uv run poe minimal-metropt   # real data in the twin, minimal mode
+```
+
+### Part B (done, 2026-11-18): training and evaluation code, first study runs
+
+**Code:**
+- `ml/twin_ml/experiments/real.py`: the runner, poe task `real`. It takes `--study metropt3|azure|azure_err|azure_holdout|all`, plus `--combine`, `--explain`, `--skip-existing`, `--dry-run` and `--smoke`.
+- `real_worker.py`: one process per (study, model, seed); torch and XGBoost never share a process.
+- `real_eval.py`: pure-numpy event evaluation (warned, lead, evaluability, clipping, during-failure detection, false alarms per day, chance check, per-machine sums for the machine bootstrap, perturbed splits).
+- `baselines/rules.py`: threshold, rolling z-score, persistence and error-log rules.
+- `report_real_results.py`: the results part of `real_data.md`, called by `report_real.py`.
+- `RealConfig.progress_dir` (default `experiments/progress`, outside the pre-registered block), and `TreeModel.predict_one` now passes the split's schema.
+- The implementation details fixed before the study runs are in `docs/experiments.md` § Phase 10, "Implementation details fixed in Part B".
+
+**Smoke runs** (pipeline checks only, never part of a result) went to the separate MLflow experiment `P10_smoke`: MetroPT-3 threshold / z-score / Isolation Forest, and Azure persistence / threshold / z-score / XGBoost / autoencoder / LSTM, all seed 0. No setting was changed after them.
+
+**Study runs in MLflow `P10_real`** (launched 2026-11-18 13:38 UTC; stopped on request at 16:34 UTC and resumed in Part C):
+
+| Study | Status | Runs | Measured time per run |
+|---|---|---|---|
+| `metropt3` | done | 8 / 8 | rules 3 s, Isolation Forest 10 s, autoencoder about 33 s |
+| `azure` | done (16:33 UTC) | 24 / 24 | rules 3–4 s, RF 105–116 s, XGBoost 30–32 s, LSTM 507–525 s, GRU about 640–870 s, Transformer 1,353–2,988 s, detectors about 25 s |
+| `azure_err` | resumed in Part C | 0 / 4 | the first worker (XGBoost seed 0) was stopped seconds after it started; at most it left an unfinished MLflow run, which is ignored |
+| `azure_holdout` | run in Part C | 0 / 18 | |
+| `--combine` | run in Part C | | |
+
+Notes on the times:
+- The full test suite ran alongside the studies from 14:11 to 14:31 UTC, which slowed LSTM seed 2 and GRU seed 0.
+- Transformer seed 1 had one 26-minute epoch (epoch 14 of 22; the others took 46–91 s). It looks like a machine stall: CPU-busy, nothing else running. Seed 2 ran at normal speed.
+
+**Tests (Part B):**
+- New: `ml/tests/test_ml_real_eval.py` (rules and event evaluation, 10 tests) and `ml/tests/test_ml_real_e2e.py`. The e2e test runs synthetic data through the workers, then combine, explain and the report; checks that the report numbers equal the MLflow metrics, that resuming logs nothing, and that no worker loads both torch and XGBoost. It passes in about 6 min.
+- `uv run poe lint`: clean (300 files).
+- `uv run poe test`, run during the studies: pytest 843 passed, 1 failed, 50 skipped. The failure was `test_ml_real_data.py::test_audit_logged_and_report`: report collection did not skip a synthetic tree without model configs. It is fixed, and that file now passes (11 tests).
+- Because the pytest failure stopped the `poe test` sequence, Vitest did not run that day. The full suite was rerun at the start of Part C (passed).
+
+**Part C code written during Part B** (explanations, replay demo):
+- `twin_ml/experiments/real_explain.py`: explanation study, collection, report section and plots.
+- Replay demo:
+  - `twin_ml/datasets/replay.py`, `config/datasets/metropt3_replay.yaml`, CLI `python -m twin_ml.datasets replay-csv`, poe tasks `replay-metropt` and `minimal-metropt`;
+  - `tests/test_phase10_replay.py` (3 tests, passing; the real-file check is skipped when the file is absent).
+- Verified here:
+  - `uv run poe replay-metropt` wrote 4,527 rows (failure #4, 08:30–20:59, 1,622 rows inside the failure) and logged the summary to MLflow (`study=replay`).
+  - The minimal-mode replay of that CSV gave 4,527 readings, all SUSPECT, 0 quarantined, and no ML / broker / database module loaded.
+  - `uv run poe minimal-metropt` served `CNV-01` RUNNING with real temperature and current, and data quality DEGRADED (100 % partial readings).
 
 ### Part A (done, 2026-11-17): loaders, audit, mapping, pre-registration
 

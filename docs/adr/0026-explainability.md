@@ -116,6 +116,25 @@ The module imports neither the simulator nor, at import time, any ML library (im
 - **Unseen faults:** the same highlight on an unseen fault points at the wrong part (vibration parts instead of the current-led drive), and for XGBoost it is not even faithful to the model.
 - Explanations therefore do not reveal novelty. Phase 11 should show them only with supervised warnings, and show autoencoder-only alarms as "unusual behaviour" without a part highlight (ADR 0024 § Outcome).
 
+## Addendum: real data (Phase 10, 2026-11-19, exploratory)
+
+Method: `docs/experiments.md` § Phase 10, "Explanations and replay demo". Numbers: the generated [real_data.md](../../experiments/results/real_data.md) § Explanations. All 9 explanation runs passed their reproduction checks: restored models reproduced their stored test predictions, and re-fitted autoencoders their stored alarms.
+
+- **Azure PdM:**
+  - **Expected sensor per component**, derived from the training split only: comp1 → volt (Δ +1.29), comp2 → rotate (−1.48), comp3 → pressure (+2.24), comp4 → vibration (+1.86). The other sensors' Δ are at most 0.03 in absolute value, so each component has one clearly dominant signal.
+  - **Agreement** of the event's top sensor with the expected one, on every warned evaluable test event (chance 0.26):
+    - LSTM (Integrated Gradients): 0.962 / 0.939 / 0.943 over seeds;
+    - XGBoost (TreeSHAP): 0.925 / 0.924 / 0.934.
+    - Misses are mostly comp1 and comp4 events.
+  - So, as on the simulator's seen faults, the part highlight points at the expected sensor for the failure kinds the models were trained on. The benchmark's one-signal-per-component structure (likely synthetic) makes this an easy case.
+- **MetroPT-3, autoencoder error shares** (not attributions in a strict sense):
+  - **During** each reported failure, the largest share is an air-leak-plausible signal in every seed: `dv_pressure` for #1–#3 and `lps` for #4, with a plausible mass of 0.79–0.90. The normal-window reference is 0.564, and the top sensor is plausible in 0.218 of normal windows.
+  - **Before #1**, the top sensor is `pressure_switch`, which is not plausible (mass 0.05–0.07). This supports reading that alarm as an anomaly unrelated to the leak (ADR 0027 § Outcome).
+  - **Before #2 and #3**, the single alarmed window per seed (when there is one) points at `dv_pressure`.
+- **Consequence for Phase 11:** unchanged.
+  - Show attributions with supervised warnings of known failure kinds.
+  - On MetroPT-3 the error shares do name plausible signals during a failure, which could label an "unusual behaviour" alarm while it is active, but four failures are no basis for trusting it before one.
+
 ## Process isolation for explanations (2026-11-17)
 
 - **Separate processes:** XGBoost (TreeSHAP) and the sequence models (Integrated Gradients, torch) are never explained in the same process. Their OpenMP runtimes crash on macOS when both are loaded (ADR 0020, amendment of 2026-11-17).

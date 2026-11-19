@@ -339,17 +339,30 @@ def render(report: dict[str, Any], real: RealConfig, root: Path) -> str:
         + ", ".join(f"{k} audit `{v['run_id'][:8]}`" for k, v in audits.items())
         + "). Nothing here is typed by hand. Protocol and pre-registered outcomes: ADR 0027.",
         "",
-        "> **Status:** data audit and mapping only (Part A). No model has been trained on real "
-        "data yet; the study results follow in Parts B and C.",
-        "",
-        "## Data audit",
-        "",
     ]
+    results = report.get("results") or {}
+    if not any(results.values()):
+        lines += [
+            "> **Status:** data audit and mapping only. No study run on real data was found.",
+            "",
+        ]
+    else:
+        lines += [
+            "> **Primary vs exploratory.** Only the outcomes pre-registered in ADR 0027 are "
+            "primary (marked as such below). Everything else is exploratory and never a "
+            "conclusion on its own.",
+            "",
+        ]
+    lines += ["## Data audit", ""]
     if "metropt3" in audits:
         lines += _metro_section(audits["metropt3"]["audit"], real)
     if "azure_pdm" in audits:
         lines += _azure_section(audits["azure_pdm"]["audit"])
     lines += _mapping_section(audits, real, root)
+    if any(results.values()):
+        from twin_ml.experiments.report_real_results import render as render_results
+
+        lines += render_results(results, real)
     return LF.join(lines) + LF
 
 
@@ -403,6 +416,42 @@ def plot_availability(a: dict[str, Any], real: RealConfig, root: Path, path: Pat
     plt.close(fig)
 
 
+def _result_plots(
+    collected: dict[str, Any], results: dict[str, Any], real: RealConfig, root: Path, out: Path
+) -> list[Path]:
+    from twin_ml.experiments import report_real_results as rr
+
+    paths: list[Path] = []
+    m, a = results.get("metropt3"), results.get("azure")
+    if m:
+        from twin_ml.data.dataset import Dataset
+        from twin_ml.datasets.build import resolve_real_dataset
+
+        meta = Dataset.open(
+            resolve_real_dataset(real.datasets["metropt3"].dataset_config, root)
+        ).meta
+        p = out / f"{REPORT_NAME}_metropt3_timelines.png"
+        if rr.plot_metropt_timelines(collected, m, meta["events"]["test"], real, p):
+            paths.append(p)
+        p = out / f"{REPORT_NAME}_metropt3_fa_month.png"
+        if rr.plot_metropt_months(m, p):
+            paths.append(p)
+    if a:
+        for name, fn in (
+            ("azure_primary", rr.plot_azure_primary),
+            ("azure_robustness", rr.plot_azure_robustness),
+            ("azure_reliability", rr.plot_azure_reliability),
+        ):
+            p = out / f"{REPORT_NAME}_{name}.png"
+            if fn(a, p):
+                paths.append(p)
+    if results.get("explain"):
+        from twin_ml.experiments.real_explain import plot_explain
+
+        paths += plot_explain(results["explain"], out, REPORT_NAME)
+    return paths
+
+
 # ---------------------------------------------------------------------------- main
 
 
@@ -423,18 +472,29 @@ def build_report(
             f"no audit runs for the current data and configs in {experiment or real.experiment}; "
             "run uv run poe real-audit"
         )
+    from twin_ml.config import load_robustness_config
+    from twin_ml.experiments import report_real_results as rr
+
+    exp_name = experiment or real.experiment
+    rcfg = load_robustness_config(root / real.robustness_config)
+    collected = rr.collect(real, rcfg, eval_cfg, tdir, root, exp_name)
+    results = rr.compute(collected, real)
+    out = out_dir or (root / eval_cfg.report.out_dir)
+    if any(results.values()):
+        results["simulator"] = rr.compute_sim_comparison(results, out)
     report = {
         "generated_at": datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
-        "experiment": experiment or real.experiment,
+        "experiment": exp_name,
         "audits": audits,
+        "results": results,
     }
-    out = out_dir or (root / eval_cfg.report.out_dir)
     out.mkdir(parents=True, exist_ok=True)
     paths: list[Path] = []
     if "metropt3" in audits:
         p = out / f"{REPORT_NAME}_metropt3_availability.png"
         plot_availability(audits["metropt3"]["audit"], real, root, p)
         paths.append(p)
+    paths += _result_plots(collected, results, real, root, out)
     md = out / f"{REPORT_NAME}.md"
     md.write_text(render(report, real, root), encoding="utf-8", newline=LF)
     js = out / f"{REPORT_NAME}.json"

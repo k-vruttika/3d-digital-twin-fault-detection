@@ -345,6 +345,7 @@ class RealConfig(ConfigModel):
     combined: CombinedRule
     exploratory: RealExploratory
     primary: RealPrimary
+    progress_dir: Path = Path("experiments/progress")  # runner progress logs (gitignored)
 
     @model_validator(mode="after")
     def _consistent(self) -> RealConfig:

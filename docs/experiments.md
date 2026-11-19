@@ -311,6 +311,57 @@ The primary outcomes are pre-registered in ADR 0027 § Pre-registration, before 
 
 Everything else is exploratory: calibration and conformal, robustness, other lookbacks and percentiles, the error-log variants, the machine holdout, false alarms by month, explanations and the comparison with the simulator.
 
+### Studies and commands (Parts B and C)
+
+```text
+uv run poe real --study all --skip-existing   # metropt3, azure, azure_err, azure_holdout
+uv run poe real --combine --skip-existing     # combined policies from the stored alarms
+uv run poe real --explain --skip-existing     # exploratory explanations (Part C)
+uv run poe replay-metropt                     # replay demo CSV (failure #4) -> data/replay/
+uv run poe minimal-metropt                    # the twin on that CSV, minimal mode
+uv run poe report-real
+```
+
+| Study | Dataset build | Methods (3 seeds; rules once) |
+|---|---|---|
+| `metropt3` | `real_metropt3.yaml` | Isolation Forest, autoencoder, threshold rule, rolling z-score |
+| `azure` | `real_azure.yaml` | RF, XGBoost, LSTM, GRU, Transformer, Isolation Forest, autoencoder, persistence, threshold rule, z-score; plus the 7 robustness conditions for every supervised model, both detectors, threshold and z-score (exploratory) |
+| `azure_err` (exploratory) | `real_azure_err.yaml` | XGBoost with error counts; the error-log rule (any code and each code) |
+| `azure_holdout` (exploratory) | `real_azure_holdout.yaml` | the five supervised models and the autoencoder on 80 machines; tested on the 20 held-out machines |
+
+Code: `twin_ml/experiments/real.py` (runner), `real_worker.py` (one process per study run; torch and XGBoost never share a process), `real_eval.py` (pure numpy event evaluation), `baselines/rules.py`, `real_explain.py`, `report_real_results.py`, `datasets/replay.py`. Every run is in MLflow `P10_real`; `--skip-existing` resumes by a hash of every setting that changes a result.
+
+### Implementation details fixed in Part B, before the study runs
+
+These complete definitions that ADR 0027 leaves open. They were written before any real-data study run. The only earlier contact with results was a pipeline check in the separate smoke experiment `P10_smoke` (MetroPT-3 rules and Isolation Forest, Azure rules / XGBoost / autoencoder / LSTM, seed 0). Nothing was changed after it.
+
+- **Warned:** a window's sustained alarm counts at its *end* time. An alarm that is already on when the lookback starts and is still on inside it counts as a warning, with lead = the full lookback. The chance check accounts for such long-lasting alarms through the alarm-on fraction f.
+- **Clipping:** if an earlier failure of the same machine ends inside the lookback, the lookback starts after it and the event is counted as `clipped`. Coverage is still measured against the full lookback, so a lookback clipped to less than half fails the evaluability rule.
+- **Window coverage** (reported, not a rule): windows need a full window of history inside a series, and Azure windows also need the +24 h target row. So an Azure event in the last day of the test period, or a MetroPT-3 failure shortly after a gap, has windows for only part of its lookback, even when the data coverage is complete.
+- **False alarms:** rising edges per series. An alarm carried over a gap or a split cut starts a new onset.
+- **Rules:** window means use observed raw values only (missing and forward-filled values are skipped). Threshold bounds come from the training normal windows (Azure: the subsampled training windows). The z-score's trailing stretch never leaves the window's series. A sensor needs at least one window's worth (60 rows / 24 rows) of observed trailing rows, otherwise it gives no z.
+- **Detectors (Azure):** fitted on the normal windows of the subsampled training split (far-normal windows kept with p = 0.1), with thresholds from all validation normal windows.
+- **Combined policy:** per window, the OR of the two stored *sustained* alarms (not sustained a second time), seed i with seed i. Primary pair: the validation-chosen model OR the autoencoder at p99.9. Every supervised model × both detectors × every percentile is logged too (exploratory).
+- **Robustness (exploratory):** the Phase 8 perturbation functions are applied to each test series' raw rows (NaN stays NaN), which are then re-normalised and forward filled. Each series draws from `SeedSequence(808, (condition, machine, machine#series))`, so every method sees the same perturbed data. Noise σ = level × the training normal-operation std per machine kind and sensor.
+- **Calibration (exploratory):** the Phase 8 code (temperature scaling, or isotonic / Platt for trees), fitted on validation operating windows and evaluated on test operating windows. Reported: top-label ECE, FAULT-class ECE, positive-class ECE and Mondrian LAC coverage and set size per class at α = 0.1.
+
+### Explanations and replay demo (Part C, exploratory)
+
+- **Azure:** the validation-chosen model and XGBoost (TreeSHAP) are restored from their study runs, and must reproduce their stored test predictions.
+  - Attributions are taken on the alarmed windows in the 48 h lookback of every warned, evaluable test event, at most 30 per event.
+  - **Expected sensor per component, from training data only:** the sensor whose mean normalised value over the 24 h before that component's training failures deviates most from the same machines' normal rows. Two-component events are left out of this derivation.
+  - Agreement = the event's top sensor is the expected one. Chance = 1/4 (1/2 for two-component events, which agree with either expected sensor).
+- **MetroPT-3:** the autoencoder is re-fitted from each seed (its weights are not stored) and must reproduce its stored alarms bit for bit.
+  - Per failure, it gives the per-sensor error shares on alarmed windows in the 6 h before the reported start and inside the reported interval, one window every 10 min, at most 30.
+  - These are compared with the PDF-derived air-leak-plausible signals (10 of 15), and with the shares on 2,000 evenly spaced normal test windows as the reference. Error shares are not attributions in a strict sense.
+- **Replay demo** (`config/datasets/metropt3_replay.yaml`):
+  - the raw ~10 s samples from 6 h before to 2 h after failure #4, written in the simulator's CSV columns, so the unchanged file source replays them in minimal mode;
+  - `temp` = Oil_temperature, `current` = Motor_current; speed, vibration and load stay empty, so every reading is SUSPECT (ADR 0007);
+  - state = RUNNING when the motor current is ≥ 1 A, else IDLE (the measured current is bimodal: ~0.04 A and ≥ 3.5 A). The failure report is never injected as a state;
+  - machine `CNV-01` of `line_single.yaml`; `MachineKind` has no compressor, so CONVEYOR is a placeholder;
+  - timestamps are the naive MetroPT-3 clock written as UTC.
+- **Simulator comparison** (report § Simulator vs real data): a generated table that puts the simulator's E1 clean and E5 results (read from the committed `E1_clean.json` and `e5_explain.json`) next to the real-data primary outcomes, for the Azure-chosen supervised model, both detectors and the threshold rule. Simulator false alarms per hour are scaled to per day; nothing else is converted, so it compares rankings, not values.
+
 ## Results
 
 - [E1: clean data](../experiments/results/E1_clean.md): generated by `uv run poe report-e1`.
@@ -328,3 +379,18 @@ Everything else is exploratory: calibration and conformal, robustness, other loo
 - [Phase 9: unseen fault, anomaly detection, explanations](../experiments/results/e5_explain.md): generated by `uv run poe report-e5`. It covers the pre-registered E5 outcomes (early warning of supervised models, detectors and combined policies; conformal set size; explanation agreement), and, exploratory, the detector percentile trade-off, confidence of wrong predictions, the fault-type head, seed-to-seed variation, sensor drift, the E4 load shift, detector AUPRC, the deletion test and IG completeness, the autoencoder error shares and the IG step-count check. Conclusions: ADR 0024 § Outcome, ADR 0025 / 0026 § Results.
 
   Plots: `e5_explain_early_warning.png`, `e5_explain_tradeoff.png`, `e5_explain_set_size.png`, `e5_explain_agreement.png`, `e5_explain_deletion.png`.
+- [Phase 10: validation on real public data](../experiments/results/real_data.md): generated by `uv run poe report-real` from MLflow `P10_real`. Conclusions: ADR 0027 § Outcome, ADR 0025 / 0026 § Phase 10 addenda.
+  - **It covers:**
+    - the data audit and mapping;
+    - the pre-registered primary outcomes for MetroPT-3 (per-failure warnings, false alarms per day, chance check) and Azure PdM (detection rate, lead, false alarms per day with machine-bootstrap CIs, paired against the threshold rule);
+    - exploratory: other lookbacks and percentiles, detection during the failure, false alarms by month, every model and combined policy, results by failure component, the error-log variants, the machine holdout, robustness, calibration and conformal sets, explanations, and the comparison with the simulator.
+  - **Primary, MetroPT-3** (6 h, p99.9):
+    - No method warned of the four air-leak failures beyond chance. Autoencoder 3 / 1 / 3 warned over seeds (chance 0.84–1.06), Isolation Forest 0, threshold rule 2 (chance 0.61), z-score 2 (chance 0.98).
+    - Failure #1's "warning" is an anomaly already present when the data resumed after a gap.
+    - The autoencoder and the threshold rule detect all four failures *during* the reported interval.
+  - **Primary, Azure** (+24 h, 48 h):
+    - The validation-chosen `lstm` detects 0.954 [0.913, 0.987] of 108 events, 41.2 h ahead, at 0.059 false alarms per day; the threshold rule detects 0.278.
+    - The autoencoder detects 0.000, so the combined policy adds nothing.
+    - Exploratory: an "any error in 24 h" rule from the error log detects 1.000, but 14 h later and with more false alarms than the telemetry models.
+
+  Plots: `real_data_metropt3_availability.png`, `real_data_metropt3_timelines.png`, `real_data_metropt3_fa_month.png`, `real_data_azure_primary.png`, `real_data_azure_robustness.png`, `real_data_azure_reliability.png`, `real_data_explain_azure.png`, `real_data_explain_metropt3.png`.

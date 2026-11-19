@@ -103,3 +103,27 @@ The training split gives the training windows. The validation split, with the sa
     - Temperature drifts (3) and current drifts (2) are attributed to vib / load instead (0 agree).
   - The shares are not attributions in a strict sense (see Decision). They tell an operator where the reconstruction failed, which for E5 and for non-vibration drift is not the sensor that is actually wrong.
 - **Consequence for Phase 11:** keep autoencoder alarms as a separate "unusual behaviour" category without a part highlight (ADR 0024 § Outcome).
+
+## Addendum: real data (Phase 10, 2026-11-19)
+
+Same architectures and configs, input sizes from the channel schema (ADR 0028). The detectors were fitted on normal training windows of each dataset, with thresholds from normal validation windows. Protocol: ADR 0027. Numbers: the generated [real_data.md](../../experiments/results/real_data.md).
+
+- **MetroPT-3** (one real compressor, 4 air-leak failures, lookback 6 h, p99.9):
+  - **Autoencoder:**
+    - warns of 3 / 1 / 3 failures (seeds 0 / 1 / 2), against 1.01 / 1.06 / 0.84 expected by chance, at 0.57–0.86 false alarms per day;
+    - the only full-lead "warning" (#1) is an anomaly already present when the data resumed after a gap (ADR 0027 § Outcome);
+    - it flags every failure *during* the reported interval (#1–#3 within 0–2 min of the start, #4 after 110–172 min).
+  - **Isolation Forest:** warns of nothing and flags 1–2 failures during the interval.
+- **Azure PdM** (+24 h, lookback 48 h, p99.9):
+  - **Autoencoder:** detection rate 0.000 (0.090 at p99).
+  - **Isolation Forest:** 0.139 at p99.9, 0.281 at p99.
+  - **Combined policy:** "best supervised OR autoencoder" equals the supervised model's detection and adds 0.0007 false alarms per day.
+- **Machine holdout (Azure):** the autoencoder retrained on 80 machines detects 0.000 on the 20 new ones.
+- **Transfer from the simulator:** the simulator result does not transfer.
+  - On the simulator the autoencoder caught every unseen-fault episode (miss rate 0.000).
+  - On real data at the same threshold rule, it gave no early warning beyond chance (MetroPT-3) or none at all (Azure). The p99.9 threshold from normal validation windows is far above the precursor scores: on MetroPT-3 failure #4 the score rises for about 14 h before the start but crosses p99.9 only inside the failure.
+  - Lower percentiles warn of all four MetroPT-3 failures at 2.5–6.3 false alarms per day, and on Azure they stay far below the supervised models.
+- **False alarms by month (MetroPT-3, autoencoder):** they are highest in August (1.40 per day vs 0.34–0.71 in April–July). That is consistent with the expected rise as normal operation drifts away from the training period (§ Consequences, "Window-level only"), but it is one series, not a drift test.
+- **Consequence for Phase 11:**
+  - Keep the "unusual behaviour" category, but present it as a *during-event* detector, not an early warning, and do not carry the simulator's unseen-fault coverage into any claim about real machines.
+  - The detector threshold needs per-deployment validation, and the drift monitoring (ADWIN) planned for the live twin is needed.

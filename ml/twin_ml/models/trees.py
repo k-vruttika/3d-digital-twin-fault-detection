@@ -202,7 +202,7 @@ class TreeModel:
         return self._predict_x(split.summary())
 
     def predict_one(self, split: SplitData, i: int) -> None:
-        self._predict_x(summary_features(*split.gather(np.array([i]))))
+        self._predict_x(summary_features(*split.gather(np.array([i])), schema=split.schema))
 
     def set_threads(self, n: int) -> None:
         models = [c.model for c in self.heads.values() if c.model is not None] + [self.regressor]

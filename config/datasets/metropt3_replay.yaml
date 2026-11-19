@@ -1,0 +1,18 @@
+# MetroPT-3 replay demo (Phase 10 Part C): a raw ~10 s slice around one reported failure,
+# converted to the simulator's CSV columns so the existing file source (config/sources.yaml
+# `file.mapping`) replays it unchanged in minimal mode. Converter:
+#   python -m twin_ml.datasets replay-csv   (uv run poe replay-metropt)
+# Replay: uv run poe minimal-metropt (line_single.yaml, replay speed 30: one ~10 s sample every
+# ~0.33 s of wall time, well under the 3 s staleness timeout of sources.yaml).
+facts: config/datasets/metropt3.yaml
+failure: 4                     # 2020-07-15 14:30 to 19:00 (4.5 h; no long data gap nearby)
+before_h: 6.0                  # the primary 6 h lookback
+after_h: 2.0
+machine_id: CNV-01             # the single station of line_single.yaml; MachineKind has no
+                               # compressor, so CONVEYOR is a documented placeholder
+temp_sensor: oil_temperature   # -> temp (degC)
+current_sensor: motor_current  # -> current (A); speed, vib and load stay empty (SUSPECT, ADR 0007)
+running_current_a: 1.0         # state RUNNING if Motor_current >= 1 A, else IDLE. Measured: the
+                               # current is bimodal, ~0.04 A (motor off) and >= 3.5 A (on); fewer
+                               # than 0.1 % of the rows lie between 0.5 and 3 A
+out: data/replay/metropt3_failure4.csv

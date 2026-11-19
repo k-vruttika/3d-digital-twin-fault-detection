@@ -114,3 +114,79 @@ for the `autoencoder` and the `iforest` at the 99.9th percentile, the `threshold
   - **Azure train and test contain the same machines (temporal split): the results show forecasting for known machines, not new ones.** The machine-holdout variant is exploratory.
   - The WARNING band is a label choice, not a machine signal, so leads are bounded by the lookback, and relative lead (vs a machine WARNING) does not exist.
 - Results go to MLflow (`P10_real`); `experiments/results/real_data.md` is generated from those runs only.
+
+## Outcome (2026-11-19)
+
+All numbers come from the generated [real_data.md](../../experiments/results/real_data.md) (MLflow `P10_real`: 8 MetroPT-3, 24 Azure, 4 error-log and 18 holdout study runs, 45 combined-policy runs, 9 explanation runs). No setting was changed after any result was seen. Primary and exploratory outcomes are kept apart below.
+
+### Primary, MetroPT-3 (lookback 6 h, detectors at p99.9; four failures, no CIs)
+
+| Method | Warned / 4 (seeds) | Chance expected | False alarms / day |
+|---|---|---|---|
+| Autoencoder | 3 / 1 / 3 | 1.01 / 1.06 / 0.84 | 0.81 / 0.86 / 0.57 |
+| Isolation Forest | 0 / 0 / 0 | 0.10 / 0.06 / 0.06 | 0.10 / 0.06 / 0.06 |
+| Threshold rule | 2 | 0.61 | 0.30 |
+| Rolling z-score | 2 | 0.98 | 0.95 |
+
+- All four failures were evaluable at 6 h.
+- **No method gives evidence of early warning beyond chance.** No warned count exceeds its chance expectation by more than 2.2 failures, and four events allow no statistical claim (as pre-registered).
+- **The "warnings" are not precursors:**
+  - *Failure #1* is "warned" with lead 360 min, the full lookback, by the autoencoder (3 seeds) and the threshold rule. The alarm was already on when the lookback began: the data resume after a gap about 15 h before the reported (whole-day) start with the score already above threshold, and the error shares in that period point at `pressure_switch`, not at an air-leak signal.
+  - *Failures #2 and #3* are warned 2–8 min before the reported start. That is within the precision of report-based failure times, so it is detection at onset, not early warning.
+  - *Failure #4* is warned only by the threshold rule (49 min).
+- **The Isolation Forest warned of nothing** (0 / 4 in every seed), as on the simulator.
+
+### Primary, Azure PdM (+24 h, lookback 48 h, 108 evaluable test events, 100 machines; machine bootstrap)
+
+| Group | Detection rate | Lead (h) | False alarms / day | Warned (chance) |
+|---|---|---|---|---|
+| Best supervised (`lstm`, chosen on validation PR-AUC 0.160) | 0.954 [0.913, 0.987] | 41.2 [40.3, 41.9] | 0.059 [0.051, 0.066] | 103 (14.3) |
+| Autoencoder (p99.9) | 0.000 [0.000, 0.000] | – | 0.001 [0.000, 0.002] | 0 (0.2) |
+| Combined (`lstm` OR autoencoder) | 0.954 [0.913, 0.987] | 41.2 [40.3, 41.9] | 0.059 [0.052, 0.066] | 103 (14.4) |
+| Threshold rule | 0.278 [0.200, 0.363] | 20.3 [15.6, 24.9] | 0.021 [0.017, 0.025] | 30 (5.0) |
+| Rolling z-score | 0.009 [0.000, 0.031] | 33.0 | 0.001 [0.000, 0.001] | 1 (0.2) |
+| Persistence | 0.000 | – | 0.000 | 0 (0.0) |
+
+- **Best supervised vs threshold:** +0.676 [+0.584, +0.760] detection rate and +20.9 h [+16.3, +25.5] lead (3/3 seeds), at +0.038 [+0.031, +0.045] false alarms per day (3/3).
+- **The autoencoder warned of no event.** On the simulator it caught every unseen-fault episode. Combined − best supervised: detection +0.000, false alarms +0.0007 per day (CI excludes 0 in 2/3 seeds). On Azure the OR adds false alarms only.
+- **Threshold rule:** it beats the z-score (detection −0.269 for the z-score) and persistence (−0.278), CIs excluding 0.
+- **Persistence warns of nothing,** because a machine never reports the WARNING band.
+
+### Exploratory (never conclusions on their own)
+
+- **Error log (Azure):**
+  - The rule "any error in the 24 h window" reaches detection 1.000. Against telemetry-only XGBoost (0.978) that is +0.022 [0.000, +0.053], 0/3 seeds; the lead is −14.3 h shorter [−16.1, −12.5] and false alarms per day are +0.019 [+0.009, +0.028] higher (3/3).
+  - Adding error counts to XGBoost raises validation PR-AUC from 0.151 to 0.644. Test detection does not improve (−0.028 [−0.066, +0.004]).
+  - The telemetry models forecast earlier; the error log alone already flags almost every failure, a day ahead. This fits the audit (98 % of events have an error in the 24 h before) and the benchmark's likely synthetic origin.
+- **Machine holdout (20 machines, Azure):** `lstm` again chosen on validation. On new machines it detects 0.942 against 0.971 for the temporal split on the same 23 events (lead 41.7 vs 42.2 h, false alarms per day 0.067 vs 0.062). The autoencoder detects 0.000 in both.
+- **Other percentiles and lookbacks:**
+  - MetroPT-3 autoencoder at p99 / p99.5 warns of 4 / 4 failures in every seed, but at 6.3 / 2.5 false alarms per day; its chance expectation at 6 h is 3.14 / 2.04.
+  - Azure autoencoder at p99: detection 0.090.
+  - Azure Isolation Forest: 0.139–0.281 across percentiles.
+- **Detected during the failure (MetroPT-3):**
+  - The autoencoder (every seed) and the threshold rule flag all four failures inside the reported interval, mostly within 0–12 min of the start. Autoencoder delays for #4: 110–172 min.
+  - The z-score also flags all four (0–28 min).
+  - The Isolation Forest flags 1–2.
+  - The detectors recognise an air leak while it is happening, not before.
+- **False alarms by month (MetroPT-3):** autoencoder 0.67 / 0.49 / 0.34 / 0.71 / 1.40 per day from April to August. Highest in August, the month farthest from the February–March training period. One trend over five months, not a drift test.
+- **Robustness (Azure, `lstm`):**
+  - Detection is unchanged under noise and MCAR (|Δ| ≤ 0.015).
+  - False alarms per day rise with missing data: +0.010 (MCAR 5 %) to +0.108 (MCAR 30 %), 3/3 seeds, i.e. 0.059 → 0.166.
+  - Noise 30 %: +0.009 (3/3).
+- **Calibration (Azure, `lstm`, +24 h):**
+  - Calibration on validation lowers top-label ECE from 0.013–0.022 to 0.003–0.016 and positive-class ECE from 0.047–0.060 to 0.037–0.050.
+  - Mondrian LAC coverage at α = 0.1 is 0.898–0.900 (NORMAL), 0.910–0.916 (WARNING) and 0.889–0.935 (FAULT, n = 108). Mean FAULT set size is 1.96–2.00.
+- **Explanations:** ADR 0026 § Phase 10 addendum. On Azure, top-sensor agreement with the training-derived expected sensor is 0.92–0.96 (chance 0.26). On MetroPT-3, the error shares during failures point at air-leak-plausible signals.
+- **Simulator vs real:** the method ranking does not carry over (report § Simulator vs real data).
+  - The autoencoder, best on the simulator's unseen fault, detects nothing on Azure and gives no warning beyond chance on MetroPT-3.
+  - The threshold rule, near-perfect on the simulator, is weak on Azure (0.278).
+  - The supervised models carry over where failures are plentiful and labelled (Azure).
+
+### Answer to the research question, real-data part
+
+- **Where many labelled failures of the same kinds exist (Azure, likely synthetic):**
+  - A supervised model warns of most failures well beyond chance, about 41 h ahead, at about one false alarm per 17 machine-days.
+  - Its confidence stays calibrated, and the conformal sets keep their coverage per class.
+  - Missing data costs false alarms, not detections.
+- **Where failures are rare and unlabelled (MetroPT-3, real):** the unsupervised detectors recognise failures *during* the event but give no early warning that can be told apart from chance. The one early "warning" (#1) is an anomaly already present when the data resumed after a gap.
+- **On the twin:** simulator results on detector behaviour, especially the autoencoder's unseen-fault coverage, must not be assumed to hold on real machines.

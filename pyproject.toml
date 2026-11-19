@@ -216,6 +216,18 @@ cmd = "python -m twin_ml.datasets audit"
 help = "Build the Phase 10 windowed datasets (config/models/real_*.yaml) -> data/ml_real/<key>/"
 cmd = "python -m twin_ml.datasets build"
 
+[tool.poe.tasks.real]
+help = "Phase 10 study runs, e.g. `uv run poe real --study all --skip-existing` (metropt3, azure, azure_err, azure_holdout); `--combine` logs the combined policies; `--explain` the exploratory explanations"
+cmd = "python -m twin_ml.experiments.real"
+
+[tool.poe.tasks.replay-metropt]
+help = "Phase 10 replay demo: MetroPT-3 raw slice around a failure -> data/replay/*.csv (config/datasets/metropt3_replay.yaml), summary logged to MLflow"
+cmd = "python -m twin_ml.datasets replay-csv --log"
+
+[tool.poe.tasks.minimal-metropt]
+help = "Minimal mode on the MetroPT-3 replay CSV (run replay-metropt first): single station, replay speed 30, no Docker/broker/ML"
+cmd = "python -m twin_backend serve --mode minimal --line line_single.yaml --file data/replay/metropt3_failure4.csv --replay-speed 30"
+
 [tool.poe.tasks.report-real]
 help = "Write experiments/results/real_data.md + .json + plots from the MLflow P10_real runs"
 cmd = "python -m twin_ml.experiments.report_real"
