@@ -244,4 +244,74 @@ class ScenarioOptionsResponse(StateModel):
     )
 
 
+# ---------------------------------------------------------------- Phase 11: predictions
+GateStatus = Literal["predict", "warming_up", "waiting", "stopped", "unavailable"]
+
+
+class ModelCardModel(StateModel):
+    training_data: str
+    real_data: str
+    limitations: list[str]
+
+
+class BundleInfoModel(StateModel):
+    """A loaded deploy bundle (one registered MLflow model version, ADR 0029)."""
+
+    registered: str
+    version: str
+    label: str
+    kind: Literal["supervised", "anomaly"]
+    model_type: str
+    seed: int
+    dataset_key: str
+    built_at: str
+    checks: dict[str, str] = Field(description="how the bundle reproduced the evaluated run")
+    card: ModelCardModel
+    horizons: list[int] | None = None
+    ttf_cap_s: float | None = None
+    sustain_s: float | None = None
+    alpha: float | None = Field(default=None, description="conformal miscoverage level")
+    percentile: float | None = Field(default=None, description="autoencoder threshold")
+
+
+class InferenceInfoModel(StateModel):
+    enabled: bool
+    state: Literal["off", "starting", "ready", "restarting", "failed", "stopped"]
+    reason: str | None = None
+    since: datetime | None = None
+    model: str | None = Field(default=None, description="config/inference.yaml models key")
+    model_version: str | None = None
+    window_s: int | None = None
+    primary_horizon_s: int | None = None
+    prediction_stale_s: float | None = None
+    supervised: BundleInfoModel | None = None
+    anomaly: BundleInfoModel | None = None
+
+
+class MachineGateModel(StateModel):
+    status: GateStatus
+    run_len: int = Field(description="consecutive operating readings (capped at the window)")
+    window: int
+    last_prediction_ts: datetime | None = None
+    alarm: bool = Field(description="supervised alarm (the evaluated rule)")
+    predicted_fault: bool
+    unusual: bool = Field(description="autoencoder alarm without a supervised alarm")
+
+
+class MachinePredictionModel(StateModel):
+    gate: MachineGateModel
+    predictions: dict[str, Prediction] = Field(
+        default_factory=dict, description="newest prediction per horizon"
+    )
+
+
+class PredictResponse(StateModel):
+    inference: InferenceInfoModel
+    machines: dict[str, MachinePredictionModel] = Field(default_factory=dict)
+
+
+class PredictionsResponse(StateModel):
+    predictions: list[Prediction]
+
+
 SourcesResponse.model_rebuild()

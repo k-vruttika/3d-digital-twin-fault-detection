@@ -18,6 +18,21 @@ class AlertKind(StrEnum):
     MACHINE_OFFLINE = "machine_offline"
     DATA_QUALITY = "data_quality"
     LINE_STOPPAGE = "line_stoppage"
+    # Phase 11 (ADR 0030): raised from the inference service's conditions (source "inference")
+    PREDICTED_WARNING = "predicted_warning"
+    PREDICTED_FAULT = "predicted_fault"
+    UNUSUAL_BEHAVIOUR = "unusual_behaviour"
+    MODEL_DRIFT = "model_drift"
+
+
+INFERENCE_ALERT_KINDS = frozenset(
+    {
+        AlertKind.PREDICTED_WARNING,
+        AlertKind.PREDICTED_FAULT,
+        AlertKind.UNUSUAL_BEHAVIOUR,
+        AlertKind.MODEL_DRIFT,
+    }
+)
 
 
 class DataQualityConfig(ConfigModel):
@@ -37,6 +52,9 @@ class AlertKindConfig(ConfigModel):
     raise_after_s: float = Field(
         ge=0, default=0.0, description="condition must persist this long (event time) to raise"
     )
+    source: str | None = Field(
+        default=None, min_length=1, description="Alert.source override (default: alerts.source)"
+    )
 
 
 class AlertsConfig(ConfigModel):
@@ -49,6 +67,12 @@ class AlertsConfig(ConfigModel):
         if missing:
             raise ValueError(f"kinds: missing entries for {missing}")
         return self
+
+    def source_of(self, kind: AlertKind) -> str:
+        return self.kinds[kind].source or self.source
+
+    def sources(self) -> set[str]:
+        return {self.source} | {k.source for k in self.kinds.values() if k.source}
 
 
 class EngineConfig(ConfigModel):

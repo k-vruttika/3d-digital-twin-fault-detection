@@ -114,6 +114,21 @@ class Prediction(ContractModel):
     attributions: list[Attribution] = Field(default_factory=list)
     reliability: Reliability
     model_version: NonEmptyStr
+    # Phase 11 (ADR 0030), optional so earlier stored predictions stay valid:
+    alarm: bool | None = Field(
+        default=None,
+        description="supervised alarm as evaluated: uncalibrated argmax at the primary horizon "
+        "is WARNING or FAULT for the sustain time",
+    )
+    anomaly_flag: bool | None = Field(
+        default=None, description="autoencoder score above its per-kind threshold (this window)"
+    )
+    anomaly_threshold: float | None = Field(default=None, description="that threshold")
+    attributions_ts: UtcDatetime | None = Field(
+        default=None,
+        description="end of the window the attributions explain (explanations run beside "
+        "the prediction path, so it can be a little older than ts)",
+    )
 
     @field_validator("probs")
     @classmethod

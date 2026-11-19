@@ -148,6 +148,14 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         help="extra allowed CORS origin on top of api.yaml (repeatable)",
     )
+    p.add_argument(
+        "--inference",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="live inference (Phase 11); default: config/inference.yaml",
+    )
+    p.add_argument("--model", help="inference model (config/inference.yaml models key)")
+    p.add_argument("--model-version", help="registered model version or 'latest'")
     return p
 
 
@@ -209,6 +217,9 @@ def main(
             host=args.host,
             port=args.port,
             cors_origins=args.cors_origins,
+            inference=args.inference,
+            model=args.model,
+            model_version=args.model_version,
         )
         if serve is None:
             from twin_backend.__main__ import run_serve

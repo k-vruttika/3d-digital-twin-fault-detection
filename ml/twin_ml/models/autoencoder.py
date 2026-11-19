@@ -14,6 +14,7 @@ from __future__ import annotations
 import copy
 import time
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -167,6 +168,23 @@ class AutoencoderDetector:
     def score(self, split: SplitData, idx: npt.NDArray[np.int64] | None = None) -> Any:
         all_idx = np.arange(split.n_windows) if idx is None else idx
         return self._scores(split, all_idx)
+
+    def save(self, path: Path) -> Path:
+        """The fitted network's state dict (Phase 11 deploy bundle)."""
+        if self.net is None:
+            raise RuntimeError("fit the detector first")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(self.net.state_dict(), path)
+        return path
+
+    def load(self, path: Path, window: int, schema: ChannelSchema = SIM_SCHEMA) -> None:
+        """Restore a saved state dict for scoring (same config as the fit)."""
+        self.window = window
+        self.schema = schema
+        n_in = window * len(schema.value_channels)
+        self.net = AutoencoderNet(n_in, len(schema.kinds), self.cfg.hidden, self.cfg.latent)
+        self.net.load_state_dict(torch.load(path, map_location="cpu", weights_only=True))
+        self.net.eval()
 
     def sensor_errors(
         self, split: SplitData, idx: npt.NDArray[np.int64]

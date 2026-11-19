@@ -638,3 +638,64 @@ def parse_model_config(data: object, source: str = "<model config>") -> ModelCon
 def load_model_config(path: str | Path) -> ModelConfig:
     p = Path(path)
     return parse_model_config(read_yaml(p), str(p))
+
+
+# ---------------------------------------------------------------------------- Phase 11 deploy
+
+
+class ReferenceRunConfig(ConfigModel):
+    """A finished study run whose logged numbers the deploy bundle must reproduce."""
+
+    experiment: str = Field(min_length=1)
+    phase: str = Field(min_length=1)
+    study: str = Field(min_length=1)
+
+
+class DeployModelConfig(ConfigModel):
+    """One deployable supervised model (ADR 0029)."""
+
+    config_file: Path  # config/models/<model>.yaml (the config the source run was trained with)
+    dataset_config: Path
+    source_experiment: str = Field(min_length=1)  # training runs (E1_clean, P8_E4, ...)
+    source_phase: str = Field(min_length=1)
+    # The Phase 8 study run that evaluated this model: its calibration and conformal numbers
+    # must be reproduced by the bundle (strict builds).
+    calibration_reference: ReferenceRunConfig
+    seeds: list[int] = Field(min_length=1)  # candidates; the bundle picks one on validation
+
+
+class DeployAnomalyConfig(ConfigModel):
+    config_file: Path  # config/models/autoencoder.yaml
+    dataset_config: Path  # the dataset the reference study trained it on
+    seed: int  # fixed in advance (ADR 0029), not chosen on results
+    reference: ReferenceRunConfig  # the Phase 9 detector study run it must reproduce
+
+
+class SeedSelectionConfig(ConfigModel):
+    """The seed with the highest validation macro F1 on these windows (ties: lowest seed)."""
+
+    horizon: int = Field(gt=0)
+    subset: Literal["operating", "all"]
+
+
+class ModelCardConfig(ConfigModel):
+    training_data: str = Field(min_length=1)
+    real_data: str = Field(min_length=1)
+    limitations: list[str] = Field(min_length=1)
+
+
+class DeployConfig(ConfigModel):
+    experiment: str = Field(min_length=1)  # MLflow experiment of the bundle runs
+    phase_tag: str = Field(min_length=1)
+    registry_prefix: str = Field(min_length=1)  # registered model name = prefix + model name
+    eval_config: Path
+    robustness_config: Path  # calibration and conformal settings (Phase 8)
+    e5_config: Path  # detector normal states and threshold percentiles (Phase 9)
+    seed_selection: SeedSelectionConfig
+    models: dict[str, DeployModelConfig] = Field(min_length=1)
+    anomaly: DeployAnomalyConfig
+    card: ModelCardConfig
+
+
+def load_deploy_config(path: str | Path) -> DeployConfig:
+    return load_model(path, DeployConfig)

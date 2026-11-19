@@ -22,6 +22,7 @@ from twin_backend.api.routes import (
     history,
     line,
     machines,
+    predict,
     scenario,
     sources,
     system,
@@ -83,7 +84,18 @@ def create_app(
         allow_headers=[API_KEY_HEADER, "Content-Type"],
         expose_headers=["Idempotent-Replay"],
     )
-    routers = (auth_routes, line, machines, history, commands, alerts, sources, scenario, system)
+    routers = (
+        auth_routes,
+        line,
+        machines,
+        history,
+        predict,
+        commands,
+        alerts,
+        sources,
+        scenario,
+        system,
+    )
     for module in routers:
         app.include_router(module.router)
 

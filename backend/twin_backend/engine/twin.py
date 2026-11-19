@@ -23,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -38,7 +39,7 @@ from twin_backend.engine.propagation import LineStatus, LineView, line_view
 from twin_backend.engine.state_machine import StateMachines
 from twin_backend.engine.topology import Topology
 from twin_backend.ingest.quarantine import QuarantineRecord
-from twin_common.config.engine import AlertKind, EngineConfig
+from twin_common.config.engine import INFERENCE_ALERT_KINDS, AlertKind, EngineConfig
 from twin_common.config.line import LineConfig
 from twin_common.contracts import Alert, Reading, StateChange
 from twin_common.enums import DataQuality, MachineState
@@ -47,6 +48,19 @@ from twin_common.logging import get_logger
 log = get_logger(__name__)
 
 _LINK_DOWN = (MachineState.STALE, MachineState.OFFLINE)
+
+
+@dataclass(frozen=True, slots=True)
+class AlertCondition:
+    """One alert condition evaluated outside the engine (``TwinEngine.update_conditions``)."""
+
+    machine_id: str
+    kind: AlertKind
+    active: bool
+    ts: datetime
+    message: str
+
+
 _STATE_ALERTS: dict[AlertKind, MachineState] = {
     AlertKind.MACHINE_WARNING: MachineState.WARNING,
     AlertKind.MACHINE_FAULT: MachineState.FAULT,
@@ -375,6 +389,20 @@ class TwinEngine:
                 f"{m} data quality DEGRADED: {'; '.join(report.reasons) or 'recovering'}",
             )
         self._publish_alerts(events)
+
+    def update_conditions(self, conditions: list[AlertCondition]) -> list[Alert]:
+        """Alert conditions decided outside the engine (Phase 11 inference, ADR 0030).
+
+        They go through the same lifecycle manager (debounce, dedup, clear, ack, restore) and
+        the same publish path as the engine's own alerts. Only the inference kinds are allowed.
+        """
+        events: list[Alert] = []
+        for c in conditions:
+            if c.kind not in INFERENCE_ALERT_KINDS:
+                raise ValueError(f"{c.kind.value} is an engine alert kind")
+            events += self.alerts.update(c.machine_id, c.kind, c.active, c.ts, c.message)
+        self._publish_alerts(events)
+        return events
 
     def acknowledge(self, alert_id: str, by: str) -> AckResult:
         alert = self.alerts.get(alert_id)

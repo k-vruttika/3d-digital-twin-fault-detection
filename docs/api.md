@@ -349,6 +349,37 @@ Live state of one machine. Role: **viewer**.
 | 404 | Unknown machine |  |
 | 422 | Validation Error | [HTTPValidationError](#httpvalidationerror) |
 
+#### predictions
+
+##### `GET /predict`
+
+Live predictions: inference state, deployed models, per-machine prediction gate and newest prediction per horizon. Role: **viewer**.
+
+| Parameter | In | Required | Type | Description |
+|---|---|---|---|---|
+| `machines` | query | no | array of string \| null | machine ids (repeat the parameter or separate with commas); all if omitted |
+
+| Status | Description | Body |
+|---|---|---|
+| 200 | Successful Response | [PredictResponse](#predictresponse) |
+| 422 | Validation Error | [HTTPValidationError](#httpvalidationerror) |
+
+##### `GET /predict/history`
+
+Stored predictions in a time range (every horizon and model version). Role: **viewer**.
+
+| Parameter | In | Required | Type | Description |
+|---|---|---|---|---|
+| `from` | query | yes | string (date-time) | inclusive, ISO-8601 with zone |
+| `to` | query | yes | string (date-time) | exclusive, ISO-8601 with zone |
+| `machines` | query | no | array of string \| null | machine ids (repeat the parameter or separate with commas); all if omitted |
+| `horizonS` | query | no | number \| null | one horizon |
+
+| Status | Description | Body |
+|---|---|---|
+| 200 | Successful Response | [PredictionsResponse](#predictionsresponse) |
+| 422 | Validation Error | [HTTPValidationError](#httpvalidationerror) |
+
 #### scenario (simulation only)
 
 ##### `GET /scenario`
@@ -450,21 +481,13 @@ Prometheus metrics (text exposition format). Role: **viewer**.
 |---|---|---|
 | 200 | Successful Response | `text/plain` |
 
-##### `GET /predict`
-
-Fault predictions (Phase 11; returns 501 until then). Role: **viewer**.
-
-| Status | Description | Body |
-|---|---|---|
-| 501 | available from Phase 11 (inference service); not implemented yet |  |
-
 ##### `POST /whatif`
 
-What-if simulation (Phase 11; returns 501 until then). Role: **viewer**.
+What-if simulation (Phase 11 Part C; returns 501 until then). Role: **viewer**.
 
 | Status | Description | Body |
 |---|---|---|
-| 501 | available from Phase 11 (inference service); not implemented yet |  |
+| 501 | what-if projections arrive in Phase 11 Part C; not implemented yet |  |
 
 #### Schemas
 
@@ -550,6 +573,28 @@ Contribution of one sensor (and the physical part it maps to) to a prediction.
 | `principal` | string | yes |  |
 | `role` | [Role](#role) | yes |  |
 | `anonymous` | boolean | yes |  |
+
+##### BundleInfoModel
+
+A loaded deploy bundle (one registered MLflow model version, ADR 0029).
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `registered` | string | yes |  |
+| `version` | string | yes |  |
+| `label` | string | yes |  |
+| `kind` | `supervised` \| `anomaly` | yes |  |
+| `modelType` | string | yes |  |
+| `seed` | integer | yes |  |
+| `datasetKey` | string | yes |  |
+| `builtAt` | string | yes |  |
+| `checks` | map of string | yes | how the bundle reproduced the evaluated run |
+| `card` | [ModelCardModel](#modelcardmodel) | yes |  |
+| `horizons` | array of integer \| null | no |  |
+| `ttfCapS` | number \| null | no |  |
+| `sustainS` | number \| null | no |  |
+| `alpha` | number \| null | no | conformal miscoverage level |
+| `percentile` | number \| null | no | autoencoder threshold |
 
 ##### Capability
 
@@ -697,6 +742,22 @@ One of: `NORMAL`, `WARNING`, `FAULT`
 | `readings` | array of [Reading](#reading) \| null | no |  |
 | `buckets` | array of [HistoryBucketModel](#historybucketmodel) \| null | no |  |
 
+##### InferenceInfoModel
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `enabled` | boolean | yes |  |
+| `state` | `off` \| `starting` \| `ready` \| `restarting` \| `failed` \| `stopped` | yes |  |
+| `reason` | string \| null | no |  |
+| `since` | string (date-time) \| null | no |  |
+| `model` | string \| null | no | config/inference.yaml models key |
+| `modelVersion` | string \| null | no |  |
+| `windowS` | integer \| null | no |  |
+| `primaryHorizonS` | integer \| null | no |  |
+| `predictionStaleS` | number \| null | no |  |
+| `supervised` | [BundleInfoModel](#bundleinfomodel) \| null | no |  |
+| `anomaly` | [BundleInfoModel](#bundleinfomodel) \| null | no |  |
+
 ##### IngestStatsModel
 
 Counters of the active source since the backend started (IngestMetrics).
@@ -774,6 +835,18 @@ Serialisable line view (API ``/machines``, WS channel ``line``).
 | `rootCauses` | map of [RootCauseView](#rootcauseview) | yes |  |
 | `impacted` | map of array of string | yes |  |
 
+##### MachineGateModel
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `status` | `predict` \| `warming_up` \| `waiting` \| `stopped` \| `unavailable` | yes |  |
+| `runLen` | integer | yes | consecutive operating readings (capped at the window) |
+| `window` | integer | yes |  |
+| `lastPredictionTs` | string (date-time) \| null | no |  |
+| `alarm` | boolean | yes | supervised alarm (the evaluated rule) |
+| `predictedFault` | boolean | yes |  |
+| `unusual` | boolean | yes | autoencoder alarm without a supervised alarm |
+
 ##### MachineKind
 
 One of: `CONVEYOR`, `CNC`, `INSPECTION`
@@ -784,6 +857,13 @@ One of: `CONVEYOR`, `CNC`, `INSPECTION`
 |---|---|---|---|
 | `position` | array of any \| null | no | [x, y, z] in metres, y up |
 | `rotationDeg` | number \| null | no | about the vertical axis |
+
+##### MachinePredictionModel
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `gate` | [MachineGateModel](#machinegatemodel) | yes |  |
+| `predictions` | map of [Prediction](#prediction) | no | newest prediction per horizon |
 
 ##### MachineState
 
@@ -828,6 +908,21 @@ One of: `RUNNING`, `IDLE`, `WARNING`, `FAULT`, `STARVED`, `BLOCKED`, `MAINTENANC
 | `line` | [LineViewModel](#lineviewmodel) | yes |  |
 | `machines` | array of [MachineStateResponse](#machinestateresponse) | yes |  |
 
+##### ModelCardModel
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `trainingData` | string | yes |  |
+| `realData` | string | yes |  |
+| `limitations` | array of string | yes |  |
+
+##### PredictResponse
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `inference` | [InferenceInfoModel](#inferenceinfomodel) | yes |  |
+| `machines` | map of [MachinePredictionModel](#machinepredictionmodel) | no |  |
+
 ##### Prediction
 
 Model output for one machine at one horizon.
@@ -846,6 +941,16 @@ Model output for one machine at one horizon.
 | `attributions` | array of [Attribution](#attribution) | no |  |
 | `reliability` | [Reliability](#reliability) | yes |  |
 | `modelVersion` | string | yes |  |
+| `alarm` | boolean \| null | no | supervised alarm as evaluated: uncalibrated argmax at the primary horizon is WARNING or FAULT for the sustain time |
+| `anomalyFlag` | boolean \| null | no | autoencoder score above its per-kind threshold (this window) |
+| `anomalyThreshold` | number \| null | no | that threshold |
+| `attributionsTs` | string (date-time) \| null | no | end of the window the attributions explain (explanations run beside the prediction path, so it can be a little older than ts) |
+
+##### PredictionsResponse
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `predictions` | array of [Prediction](#prediction) | yes |  |
 
 ##### Quality
 
@@ -1189,6 +1294,7 @@ First message of every connection. ``apiKey`` may be omitted for anonymous read.
 | `line` | [LineViewModel](#lineviewmodel) | yes |  |
 | `dataQuality` | map of [DataQualityReport](#dataqualityreport) | yes |  |
 | `alerts` | array of [Alert](#alert) | yes |  |
+| `predictions` | map of map of [Prediction](#prediction) | no |  |
 
 ##### WsSnapshotMessage
 

@@ -219,17 +219,33 @@ class TreeModel:
         recomputed from the training split exactly as :meth:`fit` saw them. A head missing
         from ``model_dir`` was trained on a single class (constant prediction).
         """
-        if not isinstance(self.cfg, XgbConfig):
-            raise TypeError("only XGBoost models are saved; retrain Random Forests from the seed")
-        from xgboost import XGBClassifier, XGBRegressor
+        self.load_heads(model_dir, train.horizons, self.present_classes(train))
 
-        self.horizons = train.horizons
+    def present_classes(self, train: SplitData) -> dict[str, list[int]]:
+        """Classes each head was trained on, recomputed from the training split as ``fit``
+        saw them (exported with the Phase 11 deploy bundle, so live inference needs no
+        training data)."""
         targets: dict[str, tuple[npt.NDArray[Any], int]] = {
             f"h{h}": (train.target(h), len(HEALTH)) for h in train.horizons
         }
         targets["fault_type"] = (train.at_end("fault_type"), self.n_fault_types)
-        for name, (y, k) in targets.items():
-            present = np.flatnonzero(np.bincount(y.astype(np.int64), minlength=k) > 0)
+        return {
+            name: np.flatnonzero(np.bincount(y.astype(np.int64), minlength=k) > 0).tolist()
+            for name, (y, k) in targets.items()
+        }
+
+    def load_heads(
+        self, model_dir: Path, horizons: tuple[int, ...], classes: dict[str, list[int]]
+    ) -> None:
+        """Restore saved XGBoost heads given the classes each head was trained on."""
+        if not isinstance(self.cfg, XgbConfig):
+            raise TypeError("only XGBoost models are saved; retrain Random Forests from the seed")
+        from xgboost import XGBClassifier, XGBRegressor
+
+        self.horizons = tuple(horizons)
+        sizes = {f"h{h}": len(HEALTH) for h in self.horizons} | {"fault_type": self.n_fault_types}
+        for name, k in sizes.items():
+            present = np.asarray(classes[name], dtype=np.int64)
             path = model_dir / f"{name}.json"
             if present.size < 2:
                 self.heads[name] = _Classifier(None, present, k)

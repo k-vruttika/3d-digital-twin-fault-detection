@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from twin_backend.adapters.manager import SourceManager
 from twin_backend.bus import InMemoryEventBus
@@ -36,8 +37,12 @@ from twin_common.config import (
     load_sources_config,
     load_storage_config,
 )
+from twin_common.config.inference import InferenceConfig, load_inference_config
 from twin_common.config.loader import ConfigError
 from twin_common.config.settings import TwinSettings
+
+if TYPE_CHECKING:
+    from twin_backend.inference.service import InferenceService
 
 
 @dataclass
@@ -58,6 +63,9 @@ class Runtime:
     root: Path
     commands: CommandService
     scenarios: ScenarioService
+    # Phase 11: live inference (None unless enabled; never in minimal mode by default)
+    inference_cfg: InferenceConfig | None = None
+    inference: InferenceService | None = None
 
     async def start(self) -> None:
         """Storage, then the source, then the engine (after restoring its alerts).
@@ -71,8 +79,12 @@ class Runtime:
             self.engine.load_alerts([s.item for s in stored])
             await self.commands.load()
         self.engine.start()
+        if self.inference is not None:
+            await self.inference.start()
 
     async def stop(self) -> None:
+        if self.inference is not None:
+            await self.inference.stop()  # its last predictions are on the bus before storage stops
         await self.manager.stop(before_storage=self.engine.stop)
 
 
@@ -97,6 +109,7 @@ def build_runtime(
     engine_cfg: EngineConfig | None = None,
     api_cfg: ApiConfig | None = None,
     commands_cfg: CommandsConfig | None = None,
+    inference_cfg: InferenceConfig | None = None,
     with_storage: bool = True,
 ) -> Runtime:
     settings = settings if settings is not None else TwinSettings()
@@ -118,6 +131,8 @@ def build_runtime(
         if commands_cfg is not None
         else load_commands_config(config_dir / "commands.yaml")
     )
+    if inference_cfg is None and (config_dir / "inference.yaml").is_file():
+        inference_cfg = load_inference_config(config_dir / "inference.yaml")
     check_storage_against_ingest(storage_cfg, sources)
     clock = clock if clock is not None else SystemClock()
     bus = InMemoryEventBus(sources.bus.queue_size, clock=clock)
@@ -149,6 +164,13 @@ def build_runtime(
     store = storage.store if storage is not None else None
     commands = CommandService(commands_cfg, line, manager, engine, bus, clock, store)
     scenarios = ScenarioService(manager, engine, bus, clock, store, metrics.registry)
+    inference = None
+    if inference_cfg is not None and inference_cfg.enabled:
+        from twin_backend.inference.service import InferenceService  # no ML import (ADR 0030)
+
+        inference = InferenceService(
+            inference_cfg, line, bus, engine, clock, root, registry=metrics.registry
+        )
     return Runtime(
         settings,
         line,
@@ -166,4 +188,6 @@ def build_runtime(
         root,
         commands,
         scenarios,
+        inference_cfg,
+        inference,
     )

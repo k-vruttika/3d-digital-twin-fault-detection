@@ -368,6 +368,7 @@ class WsHub:
             line=self.engine.line_model(),
             data_quality={m: r for m, r in self.engine.data_quality_all().items() if wanted(m)},
             alerts=[a for a in self.engine.alerts.current() if wanted(a.machine_id)],
+            predictions={m: dict(p) for m, p in state.predictions.items() if wanted(m)},
         )
 
     async def _send_loop(self, client: Client) -> None:

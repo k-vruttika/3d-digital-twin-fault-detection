@@ -93,6 +93,8 @@ class WsSnapshotData(_ServerModel):
     line: LineViewModel
     data_quality: dict[str, DataQualityReport]
     alerts: list[Alert]
+    # machine id -> horizon key -> newest prediction (Phase 11)
+    predictions: dict[str, dict[str, Prediction]] = Field(default_factory=dict)
 
 
 class WsDroppedInfo(_ServerModel):

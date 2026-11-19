@@ -38,3 +38,9 @@ alerts:
     # The root-cause machine of STARVED/BLOCKED neighbours. Short buffer hiccups are normal,
     # so the stoppage must last this long before it is raised.
     line_stoppage:   { enabled: true, severity: WARNING, raise_after_s: 10.0 }
+    # Phase 11 (ADR 0030): conditions from live inference. raise_after_s stays 0: the alarm
+    # rule's own sustain time (the evaluated 3 s) is the only debounce.
+    predicted_warning: { enabled: true, severity: WARNING,  source: inference }  # predicted WARNING at +30 s
+    predicted_fault:   { enabled: true, severity: CRITICAL, source: inference }  # predicted FAULT at +30 s
+    unusual_behaviour: { enabled: true, severity: WARNING,  source: inference }  # autoencoder only: cause unknown
+    model_drift:       { enabled: true, severity: WARNING,  source: inference }  # inputs drifted from training

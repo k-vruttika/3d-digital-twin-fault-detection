@@ -1,4 +1,4 @@
-"""GET /health, GET /metrics, and the Phase 11 stubs GET /predict, POST /whatif."""
+"""GET /health, GET /metrics, and the what-if stub POST /whatif (Phase 11 Part C)."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ OPTIONAL_MODULES = (
     "shap",
     "captum",
 )
-NOT_IMPLEMENTED = "available from Phase 11 (inference service); not implemented yet"
+NOT_IMPLEMENTED = "what-if projections arrive in Phase 11 Part C; not implemented yet"
 
 
 @router.get(
@@ -78,19 +78,9 @@ async def metrics(ctx: Ctx, _: Viewer) -> Response:
     return Response(generate_latest(ctx.runtime.metrics.registry), media_type=CONTENT_TYPE_LATEST)
 
 
-@router.get(
-    "/predict",
-    summary="Fault predictions (Phase 11; returns 501 until then)",
-    status_code=status.HTTP_501_NOT_IMPLEMENTED,
-    responses={501: {"description": NOT_IMPLEMENTED}},
-)
-async def predict(_: Viewer) -> None:
-    raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, NOT_IMPLEMENTED)
-
-
 @router.post(
     "/whatif",
-    summary="What-if simulation (Phase 11; returns 501 until then)",
+    summary="What-if simulation (Phase 11 Part C; returns 501 until then)",
     status_code=status.HTTP_501_NOT_IMPLEMENTED,
     responses={501: {"description": NOT_IMPLEMENTED}},
 )

@@ -277,6 +277,133 @@
         "title": "AuthMeResponse",
         "type": "object"
       },
+      "BundleInfoModel": {
+        "additionalProperties": false,
+        "description": "A loaded deploy bundle (one registered MLflow model version, ADR 0029).",
+        "properties": {
+          "alpha": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "conformal miscoverage level",
+            "title": "Alpha"
+          },
+          "builtAt": {
+            "title": "Builtat",
+            "type": "string"
+          },
+          "card": {
+            "$ref": "#/components/schemas/ModelCardModel"
+          },
+          "checks": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "how the bundle reproduced the evaluated run",
+            "title": "Checks",
+            "type": "object"
+          },
+          "datasetKey": {
+            "title": "Datasetkey",
+            "type": "string"
+          },
+          "horizons": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horizons"
+          },
+          "kind": {
+            "enum": [
+              "supervised",
+              "anomaly"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "modelType": {
+            "title": "Modeltype",
+            "type": "string"
+          },
+          "percentile": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "autoencoder threshold",
+            "title": "Percentile"
+          },
+          "registered": {
+            "title": "Registered",
+            "type": "string"
+          },
+          "seed": {
+            "title": "Seed",
+            "type": "integer"
+          },
+          "sustainS": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sustains"
+          },
+          "ttfCapS": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ttfcaps"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "registered",
+          "version",
+          "label",
+          "kind",
+          "modelType",
+          "seed",
+          "datasetKey",
+          "builtAt",
+          "checks",
+          "card"
+        ],
+        "title": "BundleInfoModel",
+        "type": "object"
+      },
       "Capability": {
         "description": "Optional features a source adapter supports beyond streaming readings.",
         "enum": [
@@ -835,6 +962,132 @@
         "title": "HistoryResponse",
         "type": "object"
       },
+      "InferenceInfoModel": {
+        "additionalProperties": false,
+        "properties": {
+          "anomaly": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BundleInfoModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "config/inference.yaml models key",
+            "title": "Model"
+          },
+          "modelVersion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modelversion"
+          },
+          "predictionStaleS": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predictionstales"
+          },
+          "primaryHorizonS": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primaryhorizons"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          },
+          "state": {
+            "enum": [
+              "off",
+              "starting",
+              "ready",
+              "restarting",
+              "failed",
+              "stopped"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "supervised": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BundleInfoModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "windowS": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Windows"
+          }
+        },
+        "required": [
+          "enabled",
+          "state"
+        ],
+        "title": "InferenceInfoModel",
+        "type": "object"
+      },
       "IngestStatsModel": {
         "additionalProperties": false,
         "description": "Counters of the active source since the backend started (IngestMetrics).",
@@ -1136,6 +1389,67 @@
         "title": "LineViewModel",
         "type": "object"
       },
+      "MachineGateModel": {
+        "additionalProperties": false,
+        "properties": {
+          "alarm": {
+            "description": "supervised alarm (the evaluated rule)",
+            "title": "Alarm",
+            "type": "boolean"
+          },
+          "lastPredictionTs": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastpredictionts"
+          },
+          "predictedFault": {
+            "title": "Predictedfault",
+            "type": "boolean"
+          },
+          "runLen": {
+            "description": "consecutive operating readings (capped at the window)",
+            "title": "Runlen",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "predict",
+              "warming_up",
+              "waiting",
+              "stopped",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "unusual": {
+            "description": "autoencoder alarm without a supervised alarm",
+            "title": "Unusual",
+            "type": "boolean"
+          },
+          "window": {
+            "title": "Window",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status",
+          "runLen",
+          "window",
+          "alarm",
+          "predictedFault",
+          "unusual"
+        ],
+        "title": "MachineGateModel",
+        "type": "object"
+      },
       "MachineKind": {
         "enum": [
           "CONVEYOR",
@@ -1187,6 +1501,27 @@
           }
         },
         "title": "MachineLayoutModel",
+        "type": "object"
+      },
+      "MachinePredictionModel": {
+        "additionalProperties": false,
+        "properties": {
+          "gate": {
+            "$ref": "#/components/schemas/MachineGateModel"
+          },
+          "predictions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Prediction"
+            },
+            "description": "newest prediction per horizon",
+            "title": "Predictions",
+            "type": "object"
+          }
+        },
+        "required": [
+          "gate"
+        ],
+        "title": "MachinePredictionModel",
         "type": "object"
       },
       "MachineState": {
@@ -1406,13 +1741,96 @@
         "title": "MachinesResponse",
         "type": "object"
       },
+      "ModelCardModel": {
+        "additionalProperties": false,
+        "properties": {
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "realData": {
+            "title": "Realdata",
+            "type": "string"
+          },
+          "trainingData": {
+            "title": "Trainingdata",
+            "type": "string"
+          }
+        },
+        "required": [
+          "trainingData",
+          "realData",
+          "limitations"
+        ],
+        "title": "ModelCardModel",
+        "type": "object"
+      },
+      "PredictResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "inference": {
+            "$ref": "#/components/schemas/InferenceInfoModel"
+          },
+          "machines": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MachinePredictionModel"
+            },
+            "title": "Machines",
+            "type": "object"
+          }
+        },
+        "required": [
+          "inference"
+        ],
+        "title": "PredictResponse",
+        "type": "object"
+      },
       "Prediction": {
         "additionalProperties": false,
         "description": "Model output for one machine at one horizon.",
         "properties": {
+          "alarm": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "supervised alarm as evaluated: uncalibrated argmax at the primary horizon is WARNING or FAULT for the sustain time",
+            "title": "Alarm"
+          },
+          "anomalyFlag": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "autoencoder score above its per-kind threshold (this window)",
+            "title": "Anomalyflag"
+          },
           "anomalyScore": {
             "title": "Anomalyscore",
             "type": "number"
+          },
+          "anomalyThreshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "that threshold",
+            "title": "Anomalythreshold"
           },
           "attributions": {
             "items": {
@@ -1420,6 +1838,19 @@
             },
             "title": "Attributions",
             "type": "array"
+          },
+          "attributionsTs": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "end of the window the attributions explain (explanations run beside the prediction path, so it can be a little older than ts)",
+            "title": "Attributionsts"
           },
           "calibrated": {
             "title": "Calibrated",
@@ -1514,6 +1945,23 @@
           "modelVersion"
         ],
         "title": "Prediction",
+        "type": "object"
+      },
+      "PredictionsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "predictions": {
+            "items": {
+              "$ref": "#/components/schemas/Prediction"
+            },
+            "title": "Predictions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "predictions"
+        ],
+        "title": "PredictionsResponse",
         "type": "object"
       },
       "Quality": {
@@ -2865,6 +3313,16 @@
             },
             "title": "Machines",
             "type": "object"
+          },
+          "predictions": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "$ref": "#/components/schemas/Prediction"
+              },
+              "type": "object"
+            },
+            "title": "Predictions",
+            "type": "object"
           }
         },
         "required": [
@@ -3888,14 +4346,49 @@
     "/predict": {
       "get": {
         "operationId": "predict_predict_get",
+        "parameters": [
+          {
+            "description": "machine ids (repeat the parameter or separate with commas); all if omitted",
+            "in": "query",
+            "name": "machines",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "machine ids (repeat the parameter or separate with commas); all if omitted",
+              "title": "Machines"
+            }
+          }
+        ],
         "responses": {
-          "501": {
+          "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/PredictResponse"
+                }
               }
             },
-            "description": "available from Phase 11 (inference service); not implemented yet"
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
@@ -3903,9 +4396,110 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "Fault predictions (Phase 11; returns 501 until then)",
+        "summary": "Live predictions: inference state, deployed models, per-machine prediction gate and newest prediction per horizon",
         "tags": [
-          "system"
+          "predictions"
+        ]
+      }
+    },
+    "/predict/history": {
+      "get": {
+        "operationId": "predict_history_predict_history_get",
+        "parameters": [
+          {
+            "description": "inclusive, ISO-8601 with zone",
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "description": "inclusive, ISO-8601 with zone",
+              "format": "date-time",
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "description": "exclusive, ISO-8601 with zone",
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "description": "exclusive, ISO-8601 with zone",
+              "format": "date-time",
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "description": "machine ids (repeat the parameter or separate with commas); all if omitted",
+            "in": "query",
+            "name": "machines",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "machine ids (repeat the parameter or separate with commas); all if omitted",
+              "title": "Machines"
+            }
+          },
+          {
+            "description": "one horizon",
+            "in": "query",
+            "name": "horizonS",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "one horizon",
+              "title": "Horizons"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictionsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "summary": "Stored predictions in a time range (every horizon and model version)",
+        "tags": [
+          "predictions"
         ]
       }
     },
@@ -4282,7 +4876,7 @@
                 "schema": {}
               }
             },
-            "description": "available from Phase 11 (inference service); not implemented yet"
+            "description": "what-if projections arrive in Phase 11 Part C; not implemented yet"
           }
         },
         "security": [
@@ -4290,7 +4884,7 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "What-if simulation (Phase 11; returns 501 until then)",
+        "summary": "What-if simulation (Phase 11 Part C; returns 501 until then)",
         "tags": [
           "system"
         ]

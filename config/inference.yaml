@@ -1,0 +1,47 @@
+# Live inference in the twin (Phase 11, ADR 0029 / 0030). Validated by
+# twin_common.config.InferenceConfig. Off by default: minimal mode never needs ML.
+# Turn it on with: uv run poe dev --source mock --inference   (or serve --inference)
+enabled: false
+
+# The deployed supervised model (registered MLflow model, built by uv run poe deploy-models)
+# and its version ("latest" = the highest registered version). Selectable: gru | xgb | gru_e4.
+model: gru
+version: latest
+models:
+  gru:    { registered: linetwin-gru,    family: nn }    # default (ADR 0029)
+  xgb:    { registered: linetwin-xgb,    family: xgb }   # the fast option
+  gru_e4: { registered: linetwin-gru_e4, family: nn }    # trained on low + medium load only
+# The autoencoder of the "unusual behaviour, cause unknown" alarm (ADR 0025).
+anomaly: { registered: linetwin-autoencoder, version: latest }
+tracking_dir: mlruns                  # MLflow store with the registered bundles
+
+# Alarm rule (= the evaluated rule, ADR 0022 / 0030): uncalibrated argmax at this horizon is
+# WARNING or FAULT for sustain_s consecutive windows. sustain_s comes from the bundle (it was
+# config/models/eval.yaml early_warning.sustain_s when the bundle was built).
+primary_horizon_s: 30
+
+# Readings are buffered per machine and sent to the workers every batch_interval_s; every
+# reading whose window passes the gate is predicted (one window per reading, like the
+# evaluated stride-1 test windows).
+batch_interval_s: 0.2
+buffer_capacity_rows: 600             # rows kept per machine (a window + any batch)
+# Attributions (explain(), supervised only) for the newest alarmed window of each machine.
+# Integrated Gradients on the GRU takes far longer than a prediction on one CPU thread
+# (experiments/results/live_inference.md), so it runs beside the prediction path and the
+# result is attached to later predictions with the window it explains (attributionsTs).
+explain_async: true
+ig_steps: 64                          # Integrated Gradients steps (= e5.yaml explain.ig_steps)
+prediction_stale_s: 5.0               # the dashboard hides predictions older than this
+reading_queue_size: 10000             # bus subscription bound of the inference service
+
+# Prediction gate (ADR 0030): predict only when all window rows are operating.
+gate:
+  operating: [RUNNING, WARNING]       # the evaluated operating states
+  waiting: [STARVED, BLOCKED]         # "no prediction (machine waiting)"
+  max_gap_rows: 5                     # missing readings filled (masked); a longer gap: warm up again
+
+worker:
+  start_timeout_s: 180                # bundle download + torch / XGBoost import + model load
+  request_timeout_s: 30
+  restart_backoff_s: [1, 5, 30]       # after a crash; the last value repeats
+  cache_dir: data/inference_cache     # downloaded bundles (gitignored with data/)

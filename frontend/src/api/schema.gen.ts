@@ -253,8 +253,25 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Fault predictions (Phase 11; returns 501 until then) */
+        /** Live predictions: inference state, deployed models, per-machine prediction gate and newest prediction per horizon */
         get: operations["predict_predict_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/predict/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stored predictions in a time range (every horizon and model version) */
+        get: operations["predict_history_predict_history_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -401,7 +418,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** What-if simulation (Phase 11; returns 501 until then) */
+        /** What-if simulation (Phase 11 Part C; returns 501 until then) */
         post: operations["whatif_whatif_post"];
         delete?: never;
         options?: never;
@@ -534,6 +551,55 @@ export interface components {
             /** Principal */
             principal: string;
             role: components["schemas"]["Role"];
+        };
+        /**
+         * BundleInfoModel
+         * @description A loaded deploy bundle (one registered MLflow model version, ADR 0029).
+         */
+        BundleInfoModel: {
+            /**
+             * Alpha
+             * @description conformal miscoverage level
+             */
+            alpha?: number | null;
+            /** Builtat */
+            builtAt: string;
+            card: components["schemas"]["ModelCardModel"];
+            /**
+             * Checks
+             * @description how the bundle reproduced the evaluated run
+             */
+            checks: {
+                [key: string]: string;
+            };
+            /** Datasetkey */
+            datasetKey: string;
+            /** Horizons */
+            horizons?: number[] | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "supervised" | "anomaly";
+            /** Label */
+            label: string;
+            /** Modeltype */
+            modelType: string;
+            /**
+             * Percentile
+             * @description autoencoder threshold
+             */
+            percentile?: number | null;
+            /** Registered */
+            registered: string;
+            /** Seed */
+            seed: number;
+            /** Sustains */
+            sustainS?: number | null;
+            /** Ttfcaps */
+            ttfCapS?: number | null;
+            /** Version */
+            version: string;
         };
         /**
          * Capability
@@ -774,6 +840,35 @@ export interface components {
              */
             start: string;
         };
+        /** InferenceInfoModel */
+        InferenceInfoModel: {
+            anomaly?: components["schemas"]["BundleInfoModel"] | null;
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Model
+             * @description config/inference.yaml models key
+             */
+            model?: string | null;
+            /** Modelversion */
+            modelVersion?: string | null;
+            /** Predictionstales */
+            predictionStaleS?: number | null;
+            /** Primaryhorizons */
+            primaryHorizonS?: number | null;
+            /** Reason */
+            reason?: string | null;
+            /** Since */
+            since?: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "off" | "starting" | "ready" | "restarting" | "failed" | "stopped";
+            supervised?: components["schemas"]["BundleInfoModel"] | null;
+            /** Windows */
+            windowS?: number | null;
+        };
         /**
          * IngestStatsModel
          * @description Counters of the active source since the backend started (IngestMetrics).
@@ -884,6 +979,35 @@ export interface components {
             };
             status: components["schemas"]["LineStatus"];
         };
+        /** MachineGateModel */
+        MachineGateModel: {
+            /**
+             * Alarm
+             * @description supervised alarm (the evaluated rule)
+             */
+            alarm: boolean;
+            /** Lastpredictionts */
+            lastPredictionTs?: string | null;
+            /** Predictedfault */
+            predictedFault: boolean;
+            /**
+             * Runlen
+             * @description consecutive operating readings (capped at the window)
+             */
+            runLen: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "predict" | "warming_up" | "waiting" | "stopped" | "unavailable";
+            /**
+             * Unusual
+             * @description autoencoder alarm without a supervised alarm
+             */
+            unusual: boolean;
+            /** Window */
+            window: number;
+        };
         /**
          * MachineKind
          * @enum {string}
@@ -905,6 +1029,17 @@ export interface components {
              * @description about the vertical axis
              */
             rotationDeg?: number | null;
+        };
+        /** MachinePredictionModel */
+        MachinePredictionModel: {
+            gate: components["schemas"]["MachineGateModel"];
+            /**
+             * Predictions
+             * @description newest prediction per horizon
+             */
+            predictions?: {
+                [key: string]: components["schemas"]["Prediction"];
+            };
         };
         /**
          * MachineState
@@ -955,15 +1090,52 @@ export interface components {
             /** Machines */
             machines: components["schemas"]["MachineStateResponse"][];
         };
+        /** ModelCardModel */
+        ModelCardModel: {
+            /** Limitations */
+            limitations: string[];
+            /** Realdata */
+            realData: string;
+            /** Trainingdata */
+            trainingData: string;
+        };
+        /** PredictResponse */
+        PredictResponse: {
+            inference: components["schemas"]["InferenceInfoModel"];
+            /** Machines */
+            machines?: {
+                [key: string]: components["schemas"]["MachinePredictionModel"];
+            };
+        };
         /**
          * Prediction
          * @description Model output for one machine at one horizon.
          */
         Prediction: {
+            /**
+             * Alarm
+             * @description supervised alarm as evaluated: uncalibrated argmax at the primary horizon is WARNING or FAULT for the sustain time
+             */
+            alarm?: boolean | null;
+            /**
+             * Anomalyflag
+             * @description autoencoder score above its per-kind threshold (this window)
+             */
+            anomalyFlag?: boolean | null;
             /** Anomalyscore */
             anomalyScore: number;
+            /**
+             * Anomalythreshold
+             * @description that threshold
+             */
+            anomalyThreshold?: number | null;
             /** Attributions */
             attributions?: components["schemas"]["Attribution"][];
+            /**
+             * Attributionsts
+             * @description end of the window the attributions explain (explanations run beside the prediction path, so it can be a little older than ts)
+             */
+            attributionsTs?: string | null;
             /** Calibrated */
             calibrated: boolean;
             /** Conformalset */
@@ -994,6 +1166,11 @@ export interface components {
              * @description None: no fault expected
              */
             ttfS?: number | null;
+        };
+        /** PredictionsResponse */
+        PredictionsResponse: {
+            /** Predictions */
+            predictions: components["schemas"]["Prediction"][];
         };
         /**
          * Quality
@@ -1499,6 +1676,12 @@ export interface components {
             /** Machines */
             machines: {
                 [key: string]: components["schemas"]["MachineView"];
+            };
+            /** Predictions */
+            predictions?: {
+                [key: string]: {
+                    [key: string]: components["schemas"]["Prediction"];
+                };
             };
         };
         /** WsSnapshotMessage */
@@ -2049,20 +2232,70 @@ export interface operations {
     };
     predict_predict_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description machine ids (repeat the parameter or separate with commas); all if omitted */
+                machines?: string[] | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description available from Phase 11 (inference service); not implemented yet */
-            501: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PredictResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    predict_history_predict_history_get: {
+        parameters: {
+            query: {
+                /** @description inclusive, ISO-8601 with zone */
+                from: string;
+                /** @description exclusive, ISO-8601 with zone */
+                to: string;
+                /** @description machine ids (repeat the parameter or separate with commas); all if omitted */
+                machines?: string[] | null;
+                /** @description one horizon */
+                horizonS?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PredictionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -2325,7 +2558,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description available from Phase 11 (inference service); not implemented yet */
+            /** @description what-if projections arrive in Phase 11 Part C; not implemented yet */
             501: {
                 headers: {
                     [name: string]: unknown;

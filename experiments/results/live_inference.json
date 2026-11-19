@@ -1,0 +1,883 @@
+{
+  "generated_at": "2026-11-19T13:31:37+00:00",
+  "latency": [
+    {
+      "model": "gru",
+      "plans": [
+        {
+          "name": "nn",
+          "roles": [
+            "supervised",
+            "monitor"
+          ]
+        }
+      ],
+      "bundles": {
+        "nn": {
+          "supervised": {
+            "registered": "linetwin-gru",
+            "version": "1",
+            "runId": "5b6187c5e69941a0a90be1c21635370a",
+            "label": "linetwin-gru v1 (gru seed 0)",
+            "kind": "supervised",
+            "model": {
+              "type": "gru",
+              "family": "nn",
+              "seed": 0,
+              "sourceRunId": "f4feb13aa3be433dbdf43c0fa11db346"
+            },
+            "datasetKey": "944580196604b618",
+            "window": 30,
+            "checks": {
+              "test_predictions": "ok",
+              "calibration": "reproduced"
+            },
+            "builtAt": "2026-11-19T13:13:51+00:00",
+            "card": {
+              "training_data": "Trained and validated on simulated data only (the LineTwin simulator, 200 one-hour runs of a 4-machine line). Calibration and conformal sets are fitted on the clean simulated validation split.",
+              "real_data": "Phase 10 (two public datasets) did not demonstrate early warning on real machines: on MetroPT-3 no method warned beyond chance. Treat these predictions as a simulator demonstration.",
+              "limitations": [
+                "Conformal coverage is approximate and not guaranteed when reliability is DEGRADED (noise, missing data, drift, condition shift).",
+                "Unseen fault types are often missed by the supervised model; the separate unusual-behaviour alarm (autoencoder) names no cause and no part.",
+                "Predictions are made only while a machine has been running for a full window."
+              ]
+            },
+            "horizons": [
+              10,
+              30
+            ],
+            "ttfCapS": 600.0,
+            "sustainS": 3,
+            "operatingSubset": [
+              "RUNNING",
+              "WARNING"
+            ],
+            "alpha": 0.1,
+            "seedSelection": {
+              "metric": "val h30 operating macro_f1",
+              "scores": {
+                "0": 0.8349136065367474,
+                "1": 0.824536002987355,
+                "2": 0.8126610681081866
+              },
+              "chosen": 0
+            }
+          },
+          "anomaly": {
+            "registered": "linetwin-autoencoder",
+            "version": "1",
+            "runId": "de41bc9dd50c4970af7005c9e4b0c0cf",
+            "label": "linetwin-autoencoder v1 (autoencoder seed 0)",
+            "kind": "anomaly",
+            "model": {
+              "type": "autoencoder",
+              "family": "nn",
+              "seed": 0,
+              "sourceRunId": null
+            },
+            "datasetKey": "944580196604b618",
+            "window": 30,
+            "checks": {
+              "thresholds": "reproduced"
+            },
+            "builtAt": "2026-11-19T13:04:30+00:00",
+            "card": {
+              "training_data": "Trained and validated on simulated data only (the LineTwin simulator, 200 one-hour runs of a 4-machine line). Calibration and conformal sets are fitted on the clean simulated validation split.",
+              "real_data": "Phase 10 (two public datasets) did not demonstrate early warning on real machines: on MetroPT-3 no method warned beyond chance. Treat these predictions as a simulator demonstration.",
+              "limitations": [
+                "Conformal coverage is approximate and not guaranteed when reliability is DEGRADED (noise, missing data, drift, condition shift).",
+                "Unseen fault types are often missed by the supervised model; the separate unusual-behaviour alarm (autoencoder) names no cause and no part.",
+                "Predictions are made only while a machine has been running for a full window."
+              ]
+            },
+            "percentile": 99.9,
+            "thresholds": {
+              "99.0": [
+                0.0024558942671865235,
+                0.016981116719543936,
+                0.0022639026283286495
+              ],
+              "99.5": [
+                0.012015525945462121,
+                0.046947992034256064,
+                0.011179218790493968
+              ],
+              "99.9": [
+                0.039463127076625894,
+                0.18392067837715836,
+                0.038933484908194045
+              ]
+            }
+          }
+        }
+      },
+      "processes": {
+        "nn": {
+          "libraries": [
+            "torch"
+          ],
+          "openmp_runtimes": [
+            "C:\\dev\\linetwin\\.venv\\Lib\\site-packages\\torch\\lib\\libiomp5md.dll",
+            "C:\\dev\\linetwin\\.venv\\Lib\\site-packages\\torch\\lib\\libiompstubs5md.dll"
+          ]
+        }
+      },
+      "start_s": 3.5299563000007765,
+      "run_id": "run_0092",
+      "machines": [
+        "CNC-01",
+        "CNV-01",
+        "CNV-02",
+        "INSP-01"
+      ],
+      "ticks": 3600,
+      "ticks_with_windows": 2608,
+      "ticks_with_explanation": 9,
+      "round_trip_ms": {
+        "all": {
+          "n": 2608,
+          "p50": 4.652999999962049,
+          "p95": 5.934989998786479,
+          "max": 12.369700001727324,
+          "mean": 4.6370470091848235
+        },
+        "no_explanation": {
+          "n": 2599,
+          "p50": 4.651499999454245,
+          "p95": 5.923660000553353,
+          "max": 12.369700001727324,
+          "mean": 4.635128895709132
+        },
+        "with_explanation": {
+          "n": 9,
+          "p50": 5.565000003116438,
+          "p95": 5.94513999967603,
+          "max": 5.974899999273475,
+          "mean": 5.190955556220918
+        }
+      },
+      "per_machine_ms": {
+        "n": 2608,
+        "p50": 1.1965624994445534,
+        "p95": 1.91095249965656,
+        "max": 9.311899997555884,
+        "mean": 1.2746630176325673
+      },
+      "stages_ms": {
+        "anomaly": {
+          "n": 2608,
+          "p50": 0.2638500009197742,
+          "p95": 0.48031500136858096,
+          "max": 1.315900000918191,
+          "mean": 0.29640835888086187
+        },
+        "calibration": {
+          "n": 2608,
+          "p50": 0.050900001951958984,
+          "p95": 0.07596499999635854,
+          "max": 0.351099999534199,
+          "mean": 0.055302645681810085
+        },
+        "features": {
+          "n": 2608,
+          "p50": 2.248200002213707,
+          "p95": 3.0353049982295492,
+          "max": 6.510000002890592,
+          "mean": 2.141024348164115
+        },
+        "model": {
+          "n": 2608,
+          "p50": 1.6903000032471027,
+          "p95": 2.312894997703552,
+          "max": 4.884199999651173,
+          "mean": 1.7774575153369347
+        },
+        "total": {
+          "n": 2608,
+          "p50": 4.340450001109275,
+          "p95": 5.574200000955899,
+          "max": 11.851399998704437,
+          "mean": 4.324066334317979
+        }
+      },
+      "explain_async": true,
+      "replay_s": 12.275394900003448,
+      "ticks_per_s": 293.2695876039791,
+      "explanations": {
+        "n": 19,
+        "errors": 0,
+        "compute_ms_per_window": {
+          "n": 19,
+          "p50": 268.67160000074364,
+          "p95": 320.86168500009006,
+          "max": 626.0493000008864,
+          "mean": 261.69049473690774
+        },
+        "age_ms": {
+          "n": 19,
+          "p50": 555.504200001451,
+          "p95": 871.2282400003457,
+          "max": 951.0712000010244,
+          "mean": 598.2280684208826
+        },
+        "batch": {
+          "n": 19,
+          "p50": 2.0,
+          "p95": 3.0,
+          "max": 3.0,
+          "mean": 2.263157894736842
+        }
+      },
+      "budget_ms": 100.0,
+      "within_budget": true,
+      "within_budget_p95": true
+    },
+    {
+      "model": "xgb",
+      "plans": [
+        {
+          "name": "xgb",
+          "roles": [
+            "supervised"
+          ]
+        },
+        {
+          "name": "monitor",
+          "roles": [
+            "monitor"
+          ]
+        }
+      ],
+      "bundles": {
+        "xgb": {
+          "supervised": {
+            "registered": "linetwin-xgb",
+            "version": "1",
+            "runId": "0b72c68d657d427db9323ce1403034c7",
+            "label": "linetwin-xgb v1 (xgb seed 0)",
+            "kind": "supervised",
+            "model": {
+              "type": "xgb",
+              "family": "xgb",
+              "seed": 0,
+              "sourceRunId": "f3e870cd032b44f485be8b34a58f87d8"
+            },
+            "datasetKey": "944580196604b618",
+            "window": 30,
+            "checks": {
+              "test_predictions": "ok",
+              "calibration": "reproduced"
+            },
+            "builtAt": "2026-11-19T13:14:17+00:00",
+            "card": {
+              "training_data": "Trained and validated on simulated data only (the LineTwin simulator, 200 one-hour runs of a 4-machine line). Calibration and conformal sets are fitted on the clean simulated validation split.",
+              "real_data": "Phase 10 (two public datasets) did not demonstrate early warning on real machines: on MetroPT-3 no method warned beyond chance. Treat these predictions as a simulator demonstration.",
+              "limitations": [
+                "Conformal coverage is approximate and not guaranteed when reliability is DEGRADED (noise, missing data, drift, condition shift).",
+                "Unseen fault types are often missed by the supervised model; the separate unusual-behaviour alarm (autoencoder) names no cause and no part.",
+                "Predictions are made only while a machine has been running for a full window."
+              ]
+            },
+            "horizons": [
+              10,
+              30
+            ],
+            "ttfCapS": 600.0,
+            "sustainS": 3,
+            "operatingSubset": [
+              "RUNNING",
+              "WARNING"
+            ],
+            "alpha": 0.1,
+            "seedSelection": {
+              "metric": "val h30 operating macro_f1",
+              "scores": {
+                "0": 0.8191279752781152,
+                "1": 0.8131939152109373,
+                "2": 0.8162451809184975
+              },
+              "chosen": 0
+            }
+          }
+        },
+        "monitor": {
+          "anomaly": {
+            "registered": "linetwin-autoencoder",
+            "version": "1",
+            "runId": "de41bc9dd50c4970af7005c9e4b0c0cf",
+            "label": "linetwin-autoencoder v1 (autoencoder seed 0)",
+            "kind": "anomaly",
+            "model": {
+              "type": "autoencoder",
+              "family": "nn",
+              "seed": 0,
+              "sourceRunId": null
+            },
+            "datasetKey": "944580196604b618",
+            "window": 30,
+            "checks": {
+              "thresholds": "reproduced"
+            },
+            "builtAt": "2026-11-19T13:04:30+00:00",
+            "card": {
+              "training_data": "Trained and validated on simulated data only (the LineTwin simulator, 200 one-hour runs of a 4-machine line). Calibration and conformal sets are fitted on the clean simulated validation split.",
+              "real_data": "Phase 10 (two public datasets) did not demonstrate early warning on real machines: on MetroPT-3 no method warned beyond chance. Treat these predictions as a simulator demonstration.",
+              "limitations": [
+                "Conformal coverage is approximate and not guaranteed when reliability is DEGRADED (noise, missing data, drift, condition shift).",
+                "Unseen fault types are often missed by the supervised model; the separate unusual-behaviour alarm (autoencoder) names no cause and no part.",
+                "Predictions are made only while a machine has been running for a full window."
+              ]
+            },
+            "percentile": 99.9,
+            "thresholds": {
+              "99.0": [
+                0.0024558942671865235,
+                0.016981116719543936,
+                0.0022639026283286495
+              ],
+              "99.5": [
+                0.012015525945462121,
+                0.046947992034256064,
+                0.011179218790493968
+              ],
+              "99.9": [
+                0.039463127076625894,
+                0.18392067837715836,
+                0.038933484908194045
+              ]
+            }
+          }
+        }
+      },
+      "processes": {
+        "xgb": {
+          "libraries": [
+            "xgboost",
+            "sklearn"
+          ],
+          "openmp_runtimes": [
+            "C:\\dev\\linetwin\\.venv\\Lib\\site-packages\\sklearn\\.libs\\vcomp140.dll"
+          ]
+        },
+        "monitor": {
+          "libraries": [
+            "torch"
+          ],
+          "openmp_runtimes": [
+            "C:\\dev\\linetwin\\.venv\\Lib\\site-packages\\torch\\lib\\libiomp5md.dll",
+            "C:\\dev\\linetwin\\.venv\\Lib\\site-packages\\torch\\lib\\libiompstubs5md.dll"
+          ]
+        }
+      },
+      "start_s": 3.531525000002148,
+      "run_id": "run_0092",
+      "machines": [
+        "CNC-01",
+        "CNV-01",
+        "CNV-02",
+        "INSP-01"
+      ],
+      "ticks": 3600,
+      "ticks_with_windows": 2608,
+      "ticks_with_explanation": 738,
+      "round_trip_ms": {
+        "all": {
+          "n": 2608,
+          "p50": 5.983700000797398,
+          "p95": 8.754545002011584,
+          "max": 56.8334000017785,
+          "mean": 6.221451687068312
+        },
+        "no_explanation": {
+          "n": 1870,
+          "p50": 5.614349998722901,
+          "p95": 7.256904998575919,
+          "max": 56.8334000017785,
+          "mean": 5.698164919761531
+        },
+        "with_explanation": {
+          "n": 738,
+          "p50": 6.914399999004672,
+          "p95": 12.40501499851234,
+          "max": 44.41289999886067,
+          "mean": 7.547395121842945
+        }
+      },
+      "per_machine_ms": {
+        "n": 2608,
+        "p50": 1.5332875004787638,
+        "p95": 3.126751250056259,
+        "max": 22.206449999430333,
+        "mean": 1.7818198459570802
+      },
+      "stages_ms": {
+        "anomaly": {
+          "n": 2608,
+          "p50": 0.4107000004296424,
+          "p95": 0.6780900022931746,
+          "max": 2.43870000122115,
+          "mean": 0.4255298313405909
+        },
+        "calibration": {
+          "n": 2608,
+          "p50": 0.11699999959091656,
+          "p95": 0.23019999935058877,
+          "max": 0.6151000015961472,
+          "mean": 0.1298932514932886
+        },
+        "features": {
+          "n": 2608,
+          "p50": 2.5035999988176627,
+          "p95": 4.093079999074689,
+          "max": 7.590100001834799,
+          "mean": 2.5787448236554886
+        },
+        "model": {
+          "n": 2608,
+          "p50": 2.2665499982394977,
+          "p95": 3.730930000710942,
+          "max": 53.61359999733395,
+          "mean": 2.4255143405423985
+        },
+        "total": {
+          "n": 2608,
+          "p50": 5.416949999926146,
+          "p95": 7.9196250002496535,
+          "max": 56.123200000001816,
+          "mean": 5.6281021089305385
+        }
+      },
+      "explain_async": true,
+      "replay_s": 16.539447299997846,
+      "ticks_per_s": 217.66144507141232,
+      "explanations": {
+        "n": 1400,
+        "errors": 0,
+        "compute_ms_per_window": {
+          "n": 1400,
+          "p50": 4.033750001326553,
+          "p95": 6.299095002759712,
+          "max": 13.180300000385614,
+          "mean": 4.254751285724134
+        },
+        "age_ms": {
+          "n": 1400,
+          "p50": 11.573999998290674,
+          "p95": 15.747999997984152,
+          "max": 22.77689999755239,
+          "mean": 11.283055071461215
+        },
+        "batch": {
+          "n": 1400,
+          "p50": 2.0,
+          "p95": 3.0,
+          "max": 3.0,
+          "mean": 2.0414285714285714
+        }
+      },
+      "budget_ms": 100.0,
+      "within_budget": true,
+      "within_budget_p95": true
+    }
+  ],
+  "gate_effect": [
+    {
+      "windows": 424920,
+      "gate_open_windows": 339395,
+      "operating_windows": 342391,
+      "operating_gate_closed": 2996,
+      "horizons": {
+        "10": {
+          "evaluated": {
+            "episodes": 26,
+            "episodes_per_kind": {
+              "CNC": 12,
+              "CONVEYOR": 9,
+              "INSPECTION": 5
+            },
+            "detected": 26,
+            "miss_rate": 0.0,
+            "lead_mean_s": 271.7692307692308,
+            "lead_median_s": 224.0,
+            "rel_lead_mean_s": 41.0,
+            "rel_lead_median_s": 39.5,
+            "rel_lead_n": 26,
+            "false_alarms": 0,
+            "negative_h": 89.03416666666666,
+            "false_alarms_per_h": 0.0,
+            "detected_episodes": [
+              "2:INSP-01:3038",
+              "3:CNC-01:736",
+              "3:CNV-02:2270",
+              "4:CNV-02:1094",
+              "5:CNV-01:1809",
+              "5:INSP-01:3347",
+              "6:CNC-01:3394",
+              "8:INSP-01:1006",
+              "10:CNV-01:1423",
+              "10:CNC-01:2758",
+              "12:CNC-01:2251",
+              "14:CNV-01:936",
+              "14:CNC-01:2075",
+              "15:CNV-01:2045",
+              "15:CNC-01:2118",
+              "15:INSP-01:1922",
+              "16:CNC-01:2187",
+              "17:CNV-02:1049",
+              "18:CNV-02:848",
+              "24:CNC-01:2752",
+              "25:CNC-01:1543",
+              "27:CNC-01:1091",
+              "27:CNV-02:2467",
+              "28:CNC-01:2029",
+              "29:CNC-01:2178",
+              "29:INSP-01:1039"
+            ]
+          },
+          "gated": {
+            "episodes": 26,
+            "episodes_per_kind": {
+              "CNC": 12,
+              "CONVEYOR": 9,
+              "INSPECTION": 5
+            },
+            "detected": 26,
+            "miss_rate": 0.0,
+            "lead_mean_s": 265.61538461538464,
+            "lead_median_s": 201.5,
+            "rel_lead_mean_s": 34.84615384615385,
+            "rel_lead_median_s": 37.0,
+            "rel_lead_n": 26,
+            "false_alarms": 0,
+            "negative_h": 89.03416666666666,
+            "false_alarms_per_h": 0.0,
+            "detected_episodes": [
+              "2:INSP-01:3038",
+              "3:CNC-01:736",
+              "3:CNV-02:2270",
+              "4:CNV-02:1094",
+              "5:CNV-01:1809",
+              "5:INSP-01:3347",
+              "6:CNC-01:3394",
+              "8:INSP-01:1006",
+              "10:CNV-01:1423",
+              "10:CNC-01:2758",
+              "12:CNC-01:2251",
+              "14:CNV-01:936",
+              "14:CNC-01:2075",
+              "15:CNV-01:2045",
+              "15:CNC-01:2118",
+              "15:INSP-01:1922",
+              "16:CNC-01:2187",
+              "17:CNV-02:1049",
+              "18:CNV-02:848",
+              "24:CNC-01:2752",
+              "25:CNC-01:1543",
+              "27:CNC-01:1091",
+              "27:CNV-02:2467",
+              "28:CNC-01:2029",
+              "29:CNC-01:2178",
+              "29:INSP-01:1039"
+            ]
+          },
+          "episodes_changed": []
+        },
+        "30": {
+          "evaluated": {
+            "episodes": 26,
+            "episodes_per_kind": {
+              "CNC": 12,
+              "CONVEYOR": 9,
+              "INSPECTION": 5
+            },
+            "detected": 26,
+            "miss_rate": 0.0,
+            "lead_mean_s": 292.5769230769231,
+            "lead_median_s": 244.0,
+            "rel_lead_mean_s": 61.80769230769231,
+            "rel_lead_median_s": 63.0,
+            "rel_lead_n": 26,
+            "false_alarms": 0,
+            "negative_h": 88.9786111111111,
+            "false_alarms_per_h": 0.0,
+            "detected_episodes": [
+              "2:INSP-01:3038",
+              "3:CNC-01:736",
+              "3:CNV-02:2270",
+              "4:CNV-02:1094",
+              "5:CNV-01:1809",
+              "5:INSP-01:3347",
+              "6:CNC-01:3394",
+              "8:INSP-01:1006",
+              "10:CNV-01:1423",
+              "10:CNC-01:2758",
+              "12:CNC-01:2251",
+              "14:CNV-01:936",
+              "14:CNC-01:2075",
+              "15:CNV-01:2045",
+              "15:CNC-01:2118",
+              "15:INSP-01:1922",
+              "16:CNC-01:2187",
+              "17:CNV-02:1049",
+              "18:CNV-02:848",
+              "24:CNC-01:2752",
+              "25:CNC-01:1543",
+              "27:CNC-01:1091",
+              "27:CNV-02:2467",
+              "28:CNC-01:2029",
+              "29:CNC-01:2178",
+              "29:INSP-01:1039"
+            ]
+          },
+          "gated": {
+            "episodes": 26,
+            "episodes_per_kind": {
+              "CNC": 12,
+              "CONVEYOR": 9,
+              "INSPECTION": 5
+            },
+            "detected": 26,
+            "miss_rate": 0.0,
+            "lead_mean_s": 284.1923076923077,
+            "lead_median_s": 218.0,
+            "rel_lead_mean_s": 53.42307692307692,
+            "rel_lead_median_s": 54.5,
+            "rel_lead_n": 26,
+            "false_alarms": 0,
+            "negative_h": 88.9786111111111,
+            "false_alarms_per_h": 0.0,
+            "detected_episodes": [
+              "2:INSP-01:3038",
+              "3:CNC-01:736",
+              "3:CNV-02:2270",
+              "4:CNV-02:1094",
+              "5:CNV-01:1809",
+              "5:INSP-01:3347",
+              "6:CNC-01:3394",
+              "8:INSP-01:1006",
+              "10:CNV-01:1423",
+              "10:CNC-01:2758",
+              "12:CNC-01:2251",
+              "14:CNV-01:936",
+              "14:CNC-01:2075",
+              "15:CNV-01:2045",
+              "15:CNC-01:2118",
+              "15:INSP-01:1922",
+              "16:CNC-01:2187",
+              "17:CNV-02:1049",
+              "18:CNV-02:848",
+              "24:CNC-01:2752",
+              "25:CNC-01:1543",
+              "27:CNC-01:1091",
+              "27:CNV-02:2467",
+              "28:CNC-01:2029",
+              "29:CNC-01:2178",
+              "29:INSP-01:1039"
+            ]
+          },
+          "episodes_changed": []
+        }
+      },
+      "bundle": "linetwin-gru v1 (gru seed 0)"
+    },
+    {
+      "windows": 424920,
+      "gate_open_windows": 339395,
+      "operating_windows": 342391,
+      "operating_gate_closed": 2996,
+      "horizons": {
+        "10": {
+          "evaluated": {
+            "episodes": 26,
+            "episodes_per_kind": {
+              "CNC": 12,
+              "CONVEYOR": 9,
+              "INSPECTION": 5
+            },
+            "detected": 26,
+            "miss_rate": 0.0,
+            "lead_mean_s": 264.2307692307692,
+            "lead_median_s": 219.0,
+            "rel_lead_mean_s": 33.46153846153846,
+            "rel_lead_median_s": 37.5,
+            "rel_lead_n": 26,
+            "false_alarms": 0,
+            "negative_h": 89.03416666666666,
+            "false_alarms_per_h": 0.0,
+            "detected_episodes": [
+              "2:INSP-01:3038",
+              "3:CNC-01:736",
+              "3:CNV-02:2270",
+              "4:CNV-02:1094",
+              "5:CNV-01:1809",
+              "5:INSP-01:3347",
+              "6:CNC-01:3394",
+              "8:INSP-01:1006",
+              "10:CNV-01:1423",
+              "10:CNC-01:2758",
+              "12:CNC-01:2251",
+              "14:CNV-01:936",
+              "14:CNC-01:2075",
+              "15:CNV-01:2045",
+              "15:CNC-01:2118",
+              "15:INSP-01:1922",
+              "16:CNC-01:2187",
+              "17:CNV-02:1049",
+              "18:CNV-02:848",
+              "24:CNC-01:2752",
+              "25:CNC-01:1543",
+              "27:CNC-01:1091",
+              "27:CNV-02:2467",
+              "28:CNC-01:2029",
+              "29:CNC-01:2178",
+              "29:INSP-01:1039"
+            ]
+          },
+          "gated": {
+            "episodes": 26,
+            "episodes_per_kind": {
+              "CNC": 12,
+              "CONVEYOR": 9,
+              "INSPECTION": 5
+            },
+            "detected": 26,
+            "miss_rate": 0.0,
+            "lead_mean_s": 261.8076923076923,
+            "lead_median_s": 199.5,
+            "rel_lead_mean_s": 31.03846153846154,
+            "rel_lead_median_s": 37.5,
+            "rel_lead_n": 26,
+            "false_alarms": 0,
+            "negative_h": 89.03416666666666,
+            "false_alarms_per_h": 0.0,
+            "detected_episodes": [
+              "2:INSP-01:3038",
+              "3:CNC-01:736",
+              "3:CNV-02:2270",
+              "4:CNV-02:1094",
+              "5:CNV-01:1809",
+              "5:INSP-01:3347",
+              "6:CNC-01:3394",
+              "8:INSP-01:1006",
+              "10:CNV-01:1423",
+              "10:CNC-01:2758",
+              "12:CNC-01:2251",
+              "14:CNV-01:936",
+              "14:CNC-01:2075",
+              "15:CNV-01:2045",
+              "15:CNC-01:2118",
+              "15:INSP-01:1922",
+              "16:CNC-01:2187",
+              "17:CNV-02:1049",
+              "18:CNV-02:848",
+              "24:CNC-01:2752",
+              "25:CNC-01:1543",
+              "27:CNC-01:1091",
+              "27:CNV-02:2467",
+              "28:CNC-01:2029",
+              "29:CNC-01:2178",
+              "29:INSP-01:1039"
+            ]
+          },
+          "episodes_changed": []
+        },
+        "30": {
+          "evaluated": {
+            "episodes": 26,
+            "episodes_per_kind": {
+              "CNC": 12,
+              "CONVEYOR": 9,
+              "INSPECTION": 5
+            },
+            "detected": 26,
+            "miss_rate": 0.0,
+            "lead_mean_s": 291.2307692307692,
+            "lead_median_s": 244.5,
+            "rel_lead_mean_s": 60.46153846153846,
+            "rel_lead_median_s": 55.5,
+            "rel_lead_n": 26,
+            "false_alarms": 0,
+            "negative_h": 88.9786111111111,
+            "false_alarms_per_h": 0.0,
+            "detected_episodes": [
+              "2:INSP-01:3038",
+              "3:CNC-01:736",
+              "3:CNV-02:2270",
+              "4:CNV-02:1094",
+              "5:CNV-01:1809",
+              "5:INSP-01:3347",
+              "6:CNC-01:3394",
+              "8:INSP-01:1006",
+              "10:CNV-01:1423",
+              "10:CNC-01:2758",
+              "12:CNC-01:2251",
+              "14:CNV-01:936",
+              "14:CNC-01:2075",
+              "15:CNV-01:2045",
+              "15:CNC-01:2118",
+              "15:INSP-01:1922",
+              "16:CNC-01:2187",
+              "17:CNV-02:1049",
+              "18:CNV-02:848",
+              "24:CNC-01:2752",
+              "25:CNC-01:1543",
+              "27:CNC-01:1091",
+              "27:CNV-02:2467",
+              "28:CNC-01:2029",
+              "29:CNC-01:2178",
+              "29:INSP-01:1039"
+            ]
+          },
+          "gated": {
+            "episodes": 26,
+            "episodes_per_kind": {
+              "CNC": 12,
+              "CONVEYOR": 9,
+              "INSPECTION": 5
+            },
+            "detected": 26,
+            "miss_rate": 0.0,
+            "lead_mean_s": 285.84615384615387,
+            "lead_median_s": 228.5,
+            "rel_lead_mean_s": 55.07692307692308,
+            "rel_lead_median_s": 55.5,
+            "rel_lead_n": 26,
+            "false_alarms": 0,
+            "negative_h": 88.9786111111111,
+            "false_alarms_per_h": 0.0,
+            "detected_episodes": [
+              "2:INSP-01:3038",
+              "3:CNC-01:736",
+              "3:CNV-02:2270",
+              "4:CNV-02:1094",
+              "5:CNV-01:1809",
+              "5:INSP-01:3347",
+              "6:CNC-01:3394",
+              "8:INSP-01:1006",
+              "10:CNV-01:1423",
+              "10:CNC-01:2758",
+              "12:CNC-01:2251",
+              "14:CNV-01:936",
+              "14:CNC-01:2075",
+              "15:CNV-01:2045",
+              "15:CNC-01:2118",
+              "15:INSP-01:1922",
+              "16:CNC-01:2187",
+              "17:CNV-02:1049",
+              "18:CNV-02:848",
+              "24:CNC-01:2752",
+              "25:CNC-01:1543",
+              "27:CNC-01:1091",
+              "27:CNV-02:2467",
+              "28:CNC-01:2029",
+              "29:CNC-01:2178",
+              "29:INSP-01:1039"
+            ]
+          },
+          "episodes_changed": []
+        }
+      },
+      "bundle": "linetwin-xgb v1 (xgb seed 0)"
+    }
+  ]
+}

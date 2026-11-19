@@ -334,3 +334,156 @@ def tiny_config(model: str, tmp_path: Path) -> ModelConfig:
     path = tmp_path / f"{model}.yaml"
     path.write_text(json.dumps(TINY[model]), encoding="utf-8")  # JSON is valid YAML
     return load_model_config(path)
+
+
+# ---------------------------------------------------------------------------- Phase 11 serve
+TINY_AE: dict[str, Any] = {
+    "type": "autoencoder",
+    "hidden": 16,
+    "latent": 4,
+    "epochs": 2,
+    "batch_size": 256,
+    "lr": 0.003,
+    "weight_decay": 0.0,
+    "eval_batch_size": 4096,
+    "num_threads": 2,
+}
+
+
+def _write(path: Path, data: Any) -> Path:
+    path.write_text(json.dumps(data, default=str), encoding="utf-8")  # JSON is valid YAML
+    return path
+
+
+def deploy_setup(
+    tmp: Path, ds_cfg: DatasetConfig, eval_cfg: EvalConfig, models: tuple[str, ...]
+) -> Path:
+    """Config files for quick deploy bundles (non-strict: no Phase 8 / 9 reference runs).
+
+    The supervised models are the tiny configs of ``TINY`` trained by :func:`train_e1_runs`
+    into ``eval_cfg.tracking_dir`` (experiment ``eval_cfg.experiment``, phase E1)."""
+    from twin_common.config.loader import read_yaml
+
+    tmp.mkdir(parents=True, exist_ok=True)
+    ds_path = _write(tmp / "dataset.yaml", ds_cfg.model_dump(mode="json"))
+    eval_path = _write(tmp / "eval.yaml", eval_cfg.model_dump(mode="json"))
+    ae_path = _write(tmp / "autoencoder.yaml", TINY_AE)
+    e5 = read_yaml(CONFIG_DIR / "models" / "e5.yaml")
+    e5["robustness_config"] = str(CONFIG_DIR / "models" / "robustness.yaml")
+    e5["studies"]["e5_anomaly"]["dataset_config"] = str(ds_path)
+    e5_path = _write(tmp / "e5.yaml", e5)
+    ref = {"experiment": "P_none", "phase": "P_none", "study": "none"}
+    deploy: dict[str, Any] = {
+        "experiment": "P11_test",
+        "phase_tag": "P11",
+        "registry_prefix": "test-",
+        "eval_config": str(eval_path),
+        "robustness_config": str(CONFIG_DIR / "models" / "robustness.yaml"),
+        "e5_config": str(e5_path),
+        "seed_selection": {"horizon": 30, "subset": "operating"},
+        "models": {
+            m: {
+                "config_file": str(_write(tmp / f"{m}.yaml", TINY[m])),
+                "dataset_config": str(ds_path),
+                "source_experiment": eval_cfg.experiment,
+                "source_phase": "E1",
+                "calibration_reference": ref,
+                "seeds": [0],
+            }
+            for m in models
+        },
+        "anomaly": {
+            "config_file": str(ae_path),
+            "dataset_config": str(ds_path),
+            "seed": 0,
+            "reference": ref,
+        },
+        "card": {
+            "training_data": "quick test data",
+            "real_data": "not checked",
+            "limitations": ["test bundle"],
+        },
+    }
+    return _write(tmp / "deploy.yaml", deploy)
+
+
+def train_e1_runs(
+    ds: Dataset, eval_cfg: EvalConfig, tmp: Path, models: tuple[str, ...]
+) -> dict[str, Any]:
+    """Train the tiny models (seed 0) and log them as E1 runs; returns the predictors."""
+    from twin_ml.train.trainer import train_and_log
+
+    tmp.mkdir(parents=True, exist_ok=True)
+    out = {}
+    for m in models:
+        cfg = tiny_config(m, tmp)
+        _, out[m] = train_and_log(
+            m, cfg, 0, ds, eval_cfg, REPO_ROOT, eval_cfg.tracking_dir, phase="E1"
+        )
+    return out
+
+
+@pytest.fixture(scope="session")
+def serve_setup(ml_dataset: Dataset, ml_dataset_cfg: DatasetConfig, tmp_path_factory: Any) -> Any:
+    """Quick GRU + autoencoder bundles registered in a temporary MLflow store.
+
+    Returns ``(tracking_dir, deploy_config_path, dataset, predictors)``; the registered names
+    are ``test-gru`` and ``test-autoencoder``. Loads torch (never XGBoost)."""
+    from twin_ml.config import load_deploy_config
+    from twin_ml.serve.bundle import build_and_register
+
+    tmp = tmp_path_factory.mktemp("serve")
+    eval_cfg = eval_config(tmp / "mlruns", tmp / "results")
+    preds = train_e1_runs(ml_dataset, eval_cfg, tmp / "cfg", ("gru",))
+    path = deploy_setup(tmp / "cfg", ml_dataset_cfg, eval_cfg, ("gru",))
+    cfg = load_deploy_config(path)
+    for name in ("gru", "autoencoder"):
+        build_and_register(name, cfg, REPO_ROOT, tmp / "mlruns", strict=False)
+    return tmp / "mlruns", path, ml_dataset, preds
+
+
+def series_rows(split: SplitData, sid: int) -> list[list[Any]]:
+    a = split.arrays
+    rows = np.flatnonzero(a["series"] == sid)
+    return [
+        [
+            i,
+            1_000_000.0 + float(a["t_s"][r]),
+            STATES[int(a["state"][r])].value,
+            *[None if np.isnan(v) else float(v) for v in a["raw"][r]],
+        ]
+        for i, r in enumerate(rows)
+    ]
+
+
+def configure_message(machine: str, kind: str, parts: dict[str, str]) -> dict[str, Any]:
+    return {
+        "op": "configure",
+        "machines": {machine: {"kind": kind, "sensorParts": parts}},
+        "gate": {
+            "operating": ["RUNNING", "WARNING"],
+            "waiting": ["STARVED", "BLOCKED"],
+            "maxGapRows": 5,
+        },
+        "explainAsync": False,
+        "capacity": 200,
+    }
+
+
+def run_live(worker: Any, split: SplitData, sid: int, batch: int) -> dict[int, dict[str, Any]]:
+    """Feed one test series through the worker; returns {row in series: entry}."""
+    from twin_common.config import load_line_config
+
+    line = load_line_config(CONFIG_DIR / "line.yaml")
+    machine = str(split.arrays["series_machine"][sid])
+    m = next(x for x in line.machines if x.id == machine)
+    worker.configure(configure_message(machine, m.kind.value, dict(m.sensor_parts)))
+    rows = series_rows(split, sid)
+    out: dict[int, dict[str, Any]] = {}
+    for i in range(0, len(rows), batch):
+        res = worker.step({machine: rows[i : i + batch]})
+        for e in res["rows"][machine]:
+            out[int(e["seq"])] = e
+        for x in res["explanations"]:  # synchronous explanations (explainAsync: false)
+            out[int(x["seq"])]["explanation"] = x["attributions"]
+    return out

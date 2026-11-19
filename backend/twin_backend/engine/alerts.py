@@ -94,7 +94,7 @@ class AlertManager:
             severity=kind_cfg.severity,
             kind=kind.value,
             message=message,
-            source=self.cfg.source,
+            source=self.cfg.source_of(kind),
         )
         self._open[key] = new.alert_id
         return [self._store(new)]
@@ -121,8 +121,9 @@ class AlertManager:
     def load(self, events: Iterable[Alert]) -> int:
         """Rebuild from stored alert events (any order); returns the unresolved count."""
         latest: dict[str, Alert] = {}
+        sources = self.cfg.sources()
         for a in events:
-            if a.source != self.cfg.source:
+            if a.source not in sources:
                 continue
             old = latest.get(a.alert_id)
             if old is None or a.rev > old.rev:

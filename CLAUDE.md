@@ -67,11 +67,12 @@ linetwin/
 │  ├─ engine.yaml            # state transitions, data-quality thresholds, alert kinds
 │  ├─ api.yaml               # bind address, CORS, WebSocket buffers
 │  ├─ commands.yaml          # safety rules (STOP always allowed), limits, idempotency
+│  ├─ inference.yaml         # Phase 11 live inference: deployed model + version, gate, workers (off by default)
 │  ├─ mosquitto.d/           # Mosquitto settings shared by container and native fallback
 │  ├─ mosquitto.docker.conf  # Mosquitto entry config inside the container
 │  ├─ mosquitto.conf         # Mosquitto entry config for the native fallback
 │  ├─ datasets/              # Phase 10 facts about the public datasets: metropt3.yaml (failure list + source), azure_pdm.yaml, metropt3_replay.yaml (replay demo window)
-│  └─ models/                # ML: dataset.yaml (+ dataset_e4/_aug), eval.yaml, robustness.yaml (Phase 8), e5.yaml (Phase 9, pre-registered) + e5_followup.yaml (exploratory), real.yaml (Phase 10, pre-registered) + real_<dataset>.yaml (real-data windows/labels/splits), one <model>.yaml per model/baseline, iforest.yaml + autoencoder.yaml (anomaly detectors)
+│  └─ models/                # ML: dataset.yaml (+ dataset_e4/_aug), eval.yaml, robustness.yaml (Phase 8), e5.yaml (Phase 9, pre-registered) + e5_followup.yaml (exploratory), real.yaml (Phase 10, pre-registered) + real_<dataset>.yaml (real-data windows/labels/splits), one <model>.yaml per model/baseline, iforest.yaml + autoencoder.yaml (anomaly detectors), deploy.yaml (Phase 11 deploy bundles, ADR 0029)
 ├─ common/twin_common/       # shared Pydantic contracts (Reading, Command, ...), config loaders
 ├─ simulator/twin_sim/       # physics, machines, line, scenarios, publishers (mqtt, opcua, mock server), CLI
 ├─ backend/twin_backend/
@@ -81,7 +82,7 @@ linetwin/
 │  ├─ storage/               # event store interface, timescale, sqlite, writer, snapshots, replay, export, migrations/
 │  ├─ engine/                # state machines, line propagation, data quality
 │  ├─ commands/              # command bus, safety rules, audit
-│  ├─ inference/             # online inference, windows, drift, registry
+│  ├─ inference/             # Phase 11: service (bus -> worker processes -> Predictions, alert conditions), workers, alarms (evaluated rule)
 │  ├─ whatif/
 │  └─ api/                   # REST routers, WS gateway, auth
 ├─ ml/twin_ml/
@@ -92,6 +93,7 @@ linetwin/
 │  ├─ explain/               # explain() (Phase 11 API), trees.py (TreeSHAP, Saabas), ig.py (Integrated Gradients), aggregate.py (→ sensor → part)
 │  ├─ train/  calibrate/  conformal/  evaluate/
 │  ├─ datasets/              # metropt3, azure_pdm loaders, real-data build and audit, replay.py (minimal-mode replay CSV) (python -m twin_ml.datasets build|audit|replay-csv; no twin_sim)
+│  ├─ serve/                 # Phase 11: deploy bundles + registry (bundle.py), buffers + gate, calib (exported maps), live.py, worker process, latency report (python -m twin_ml.serve deploy|worker|latency)
 │  └─ experiments/           # E1–E5, ablation runners, report generators (E5: e5.py / e5_worker.py, explain_eval.py, report_e5.py; Phase 10: real.py / real_worker.py, real_eval.py, real_explain.py, report_real.py + report_real_results.py)
 ├─ frontend/
 │  ├─ index.html             # the React dashboard (uv run poe frontend → /)
@@ -121,12 +123,12 @@ Sensor values (speed, temp, vib, load, current) are nullable: null = missing. Pa
 
 **MachineState:** `RUNNING, IDLE, WARNING, FAULT, STARVED, BLOCKED, MAINTENANCE, OFFLINE, STALE`
 
-**Prediction:** `machineId, ts, horizonS, probs {NORMAL, WARNING, FAULT}, calibrated (bool), conformalSet [classes], ttfS, ttfInterval [lo, hi], anomalyScore, attributions [{sensor, part, weight}], reliability (OK | DEGRADED), modelVersion`
+**Prediction:** `machineId, ts, horizonS, probs {NORMAL, WARNING, FAULT}, calibrated (bool), conformalSet [classes], ttfS, ttfInterval [lo, hi], anomalyScore, attributions [{sensor, part, weight}], reliability (OK | DEGRADED), modelVersion`; optional since Phase 11 (ADR 0030): `alarm` (the evaluated supervised alarm, primary horizon), `anomalyFlag`, `anomalyThreshold`, `attributionsTs` (window the attributions explain)
 
 **Command:** `commandId, idempotencyKey, machineId, type (START | STOP | SET_SPEED | SET_LOAD | SCHEDULE_MAINTENANCE | RESET), params, issuedBy, ts`
 **CommandAck:** `commandId, status (ACCEPTED | REJECTED | EXECUTED | TIMEOUT), reason, ts`
 **StateChange:** `machineId, state, previousState, ts, reason` (ts on the event-time axis, ADR 0010)
-**Alert:** `alertId, machineId, ts, severity (INFO | WARNING | CRITICAL), kind, message, source, active, acknowledged, ackedBy, ackedAt, rev` (one append-only event per lifecycle transition, ISA-18.2; current alert = highest rev; ADR 0011)
+**Alert:** `alertId, machineId, ts, severity (INFO | WARNING | CRITICAL), kind, message, source, active, acknowledged, ackedBy, ackedAt, rev` (one append-only event per lifecycle transition, ISA-18.2; current alert = highest rev; ADR 0011). Inference kinds (source `inference`, ADR 0030): `predicted_warning`, `predicted_fault`, `unusual_behaviour` (autoencoder only, cause unknown, no part), `model_drift`
 
 **ScenarioRequest / ScenarioAck** (simulation only, ADR 0015): `requestId, action (INJECT_FAULT | LOAD_SCENARIO), machineId, faultType, progressionS, scenario, seed, requestedBy, source, ts` / `requestId, status, reason, ts`
 

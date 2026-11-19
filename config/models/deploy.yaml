@@ -1,0 +1,64 @@
+# Phase 11: deployable model bundles (ADR 0029). Built by: uv run poe deploy-models
+# A bundle = one trained supervised model (reused from its training run, never retrained) +
+# its Phase 8 calibration / Mondrian conformal maps, refitted on the clean validation split and
+# checked against the numbers the Phase 8 study logged + the Phase 9 autoencoder (refitted from
+# its fixed seed and checked against the logged thresholds). Logged to MLflow and registered as
+# <registry_prefix><model>, version N. The live twin loads models:/<name>/<version>.
+experiment: P11_deploy
+phase_tag: P11
+registry_prefix: linetwin-
+eval_config: config/models/eval.yaml
+robustness_config: config/models/robustness.yaml
+e5_config: config/models/e5.yaml
+
+# Which seed of a model is deployed: highest macro F1 on the clean validation split (operating
+# windows, +30 s), computed by the bundle builder for every candidate seed. Test data is never
+# used for the choice.
+seed_selection:
+  horizon: 30
+  subset: operating
+
+models:
+  gru:                               # default (config/inference.yaml): best E1 lead, held up under E4
+    config_file: config/models/gru.yaml
+    dataset_config: config/models/dataset.yaml
+    source_experiment: E1_clean
+    source_phase: E1
+    calibration_reference: { experiment: P8_robustness, phase: P8, study: e1models }
+    seeds: [0, 1, 2]
+  xgb:                               # the fast option
+    config_file: config/models/xgb.yaml
+    dataset_config: config/models/dataset.yaml
+    source_experiment: E1_clean
+    source_phase: E1
+    calibration_reference: { experiment: P8_robustness, phase: P8, study: e1models }
+    seeds: [0, 1, 2]
+  gru_e4:                            # alternative: trained on low + medium load only (not built by default)
+    config_file: config/models/gru.yaml
+    dataset_config: config/models/dataset_e4.yaml
+    source_experiment: P8_E4
+    source_phase: P8
+    calibration_reference: { experiment: P8_robustness, phase: P8, study: e4 }
+    seeds: [0, 1, 2]
+
+# The autoencoder of the "unusual behaviour" alarm (ADR 0025): E1 training split, seed fixed
+# in advance (not chosen on results), must reproduce the Phase 9 e5_anomaly thresholds.
+anomaly:
+  config_file: config/models/autoencoder.yaml
+  dataset_config: config/models/dataset.yaml  # = e5.yaml studies.e5_anomaly.dataset_config
+  seed: 0
+  reference: { experiment: P9_e5, phase: P9, study: e5_anomaly }
+
+card:
+  training_data: >-
+    Trained and validated on simulated data only (the LineTwin simulator, 200 one-hour runs of a
+    4-machine line). Calibration and conformal sets are fitted on the clean simulated validation
+    split.
+  real_data: >-
+    Phase 10 (two public datasets) did not demonstrate early warning on real machines: on
+    MetroPT-3 no method warned beyond chance. Treat these predictions as a simulator
+    demonstration.
+  limitations:
+    - Conformal coverage is approximate and not guaranteed when reliability is DEGRADED (noise, missing data, drift, condition shift).
+    - Unseen fault types are often missed by the supervised model; the separate unusual-behaviour alarm (autoencoder) names no cause and no part.
+    - Predictions are made only while a machine has been running for a full window.

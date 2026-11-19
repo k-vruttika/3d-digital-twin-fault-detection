@@ -1,5 +1,102 @@
 # LineTwin progress
 
+## Phase 11: Live intelligence in the twin (in progress; starts Milestone C)
+
+Plan: Part A (model selection, deploy bundles, inference workers, Prediction pipeline, alerts, storage, parity and latency), Part B (dashboard), Part C (what-if, drift, demo scenarios, e2e, docs). Decisions with the user before Part A:
+- E1 GRU default, E1 XGBoost fast option.
+- Predict only RUNNING / WARNING machines, and only when the whole window is operating (warm-up after any stop).
+- No `/retrain`.
+
+### Part A (done, 2026-11-19): deploy bundles, inference workers, predictions, alerts, parity, latency
+
+**Built**
+- **Deploy bundles and registry** ([ADR 0029](adr/0029-deployed-models-and-bundles.md)):
+  - `twin_ml/serve/bundle.py`, `serve/calib.py`, `config/models/deploy.yaml`; poe task `deploy-models` builds one process per bundle.
+  - Contents: the reused trained model of the validation-chosen seed; calibration and Mondrian conformal maps refitted with the Phase 8 code, checked against the logged Phase 8 numbers, and exported as plain numbers (no scikit-learn live); the autoencoder refitted from its fixed seed, checked against the logged Phase 9 thresholds; the model card.
+  - Registry: MLflow model registry (file store), `linetwin-gru` / `linetwin-xgb` / `linetwin-autoencoder`, version per build.
+  - Additions: `TreeModel.present_classes` / `load_heads`, `AutoencoderDetector.save` / `load`.
+- **Inference workers** ([ADR 0030](adr/0030-live-inference.md)):
+  - `python -m twin_ml.serve worker`: JSON lines on stdin / stdout; GRU + autoencoder in one torch process; XGBoost and a torch monitor apart.
+  - `serve/buffers.py`: 1 Hz buffers bit-identical to the training transform, gap filling, and the gate.
+  - `serve/live.py`: the model's own `predict` on packed windows.
+  - Background explainer thread: Integrated Gradients is too slow for the prediction path, see latency below.
+- **Backend:**
+  - `twin_backend/inference/` (`service.py`, `workers.py`, `alarms.py`), started with `serve --inference` / `poe dev --inference` (`--model`, `--model-version`); never in minimal mode by default; no ML import in the API process.
+  - Shared, standard library only: `twin_common/jsonl_process.py` and `twin_common/config/inference.py` + `config/inference.yaml`.
+- **Alerts:**
+  - `predicted_warning`, `predicted_fault`, `unusual_behaviour` (and `model_drift` for Part C) in `engine.yaml`, with `source: inference` (new `AlertKindConfig.source`).
+  - `TwinEngine.update_conditions` runs them through the ISA-18.2 manager, so they restore after a restart.
+- **API and contract:**
+  - `GET /predict` (inference state, bundles + model card, per-machine gate, newest predictions) replaces the 501 stub; `GET /predict/history`; predictions in the WS snapshot; regenerated `openapi.json` / `schema.gen.ts` / `docs/api.md`.
+  - `Prediction` gains the optional `alarm`, `anomalyFlag`, `anomalyThreshold`, `attributionsTs`.
+- **Report:** `uv run poe live-latency` writes [live_inference.md](../experiments/results/live_inference.md) + `.json`: latency through the real worker processes and the gate effect.
+
+**Bundles built here** (2026-11-19, strict; `uv run poe deploy-models`):
+
+| Bundle | Seed (validation macro F1, operating +30 s) | Checks | Build time |
+|---|---|---|---|
+| `linetwin-autoencoder` v1 | 0 (fixed in advance) | thresholds reproduced | 176 s |
+| `linetwin-gru` v1 | 0 (0.835; seeds 1 / 2: 0.825 / 0.813) | test predictions identical (max diff 0.0), calibration reproduced | 559 s |
+| `linetwin-xgb` v1 | 0 (0.819; 0.813 / 0.816) | the same | 23 s |
+
+**Latency** (`live_inference.md`; one test run replayed through the workers, 4 machines, IPC included; this laptop, CPU):
+
+| Model | Per machine per tick p50 / p95 / max | Explanations, compute p50 / age at delivery p95 |
+|---|---|---|
+| GRU + autoencoder | 1.20 / 1.91 / 9.3 ms | 269 ms / 0.87 s (beside the prediction path) |
+| XGBoost + monitor | 1.53 / 3.13 / 22.2 ms | 4 ms / 16 ms |
+
+- **Within the 100 ms budget.** Worker start takes 3.5 s.
+- **First measurement, with explanations inside the prediction path** (kept here for the record): GRU ticks with an explanation took 469 ms p50, over the budget.
+  - That is why explanations moved to a background thread, keeping the evaluated 64 IG steps.
+  - Attributions are therefore shown with a slightly later prediction, tagged `attributionsTs`.
+- **ONNX:** not adopted (ADR 0029).
+
+**Gate effect** (exploratory, generated):
+- On the stored clean test predictions, predicting only fully operating windows changes no episode's detection and adds no false alarm.
+- It costs lead before the simulator's WARNING: GRU +30 s from 61.8 to 53.4 s, XGBoost from 60.5 to 55.1 s. The sustain count restarts after every short stop.
+
+**Tests** (new):
+- `ml/tests/test_ml_serve.py` (15):
+  - exported calibration equals scikit-learn;
+  - buffer transform equals the series-wide transform; gate; gaps and restarts;
+  - **live equals offline** for the same windows (GRU, autoencoder);
+  - attributions equal `explain()`; async explanations equal sync;
+  - worker process equals in-process, and loads no XGBoost;
+  - bundle checks; strict build needs its reference run;
+  - latency report;
+  - serve modules import no ML library.
+- `ml/tests/xgb_isolated_serve.py`: XGBoost bundle parity in its own process, no torch.
+- `tests/test_phase11_alarms.py`: **the alarm rule equals the experiment rule** (`sustained`); live settings equal `eval.yaml` / `e5.yaml`.
+- `backend/tests/test_inference_service.py`:
+  - alert lifecycle (raise after the sustain time, escalate, clear, unusual only without a supervised alarm);
+  - no prediction while the gate is closed;
+  - reliability from data quality; explanations attached with `attributionsTs`, none on NORMAL;
+  - worker plans keep torch and XGBoost apart;
+  - backend inference imports no ML.
+- `tests/test_phase11_inference.py`:
+  - backend predictions equal an independent worker on the same readings;
+  - a minimal-mode server with `--inference`: API process ML-free, `/predict`, stored and replayed predictions;
+  - `/predict` says "off" without inference.
+
+**Verified (end of Part A, 19:24–19:40 IST, Windows, Docker services up: TimescaleDB + Mosquitto):**
+- `uv run poe lint`: clean (ruff, format 359 files, mypy 320 source files, ESLint, tsc).
+- `uv run poe test`: pytest 935 passed, 0 skipped (services and Playwright tests included), 14 min 40 s; Vitest 163 passed (17 files).
+- The previous full run (before the fix) had one failure, `test_predictions_are_stored_and_replayed`: it read `/predict/history` before the storage writer had flushed. The test now polls for stored predictions (up to 60 s).
+
+**Known limitations (Part A)**
+- **Explanation timing:** the GRU explanation of an alarm arrives about 0.3–0.9 s after the prediction, so the part highlight follows the alarm.
+- **Model sources:** the deployed models and every confidence map come from simulated data, and Phase 10 showed no real-data early warning. The model card says so; the dashboard (Part B) shows it.
+- **Worker restarts** lose the buffers, so machines warm up again (30 s).
+- **Reliability** is DEGRADED only from data quality so far; drift comes in Part C.
+- **Latency:** measured on this laptop only.
+
+**Deviations**
+- **Separate autoencoder bundle:** the plan had the autoencoder inside each bundle. It is its own registered bundle, so an XGBoost bundle never refits torch in its process, and the monitor worker loads only it.
+- **Gate status lives in the worker** (`serve/buffers.py`, pure numpy, shared with the offline gate-effect report), not in a backend `gate.py`. The backend consumes the status per reading.
+- **Explanations run beside the prediction path** (measured reason above); the plan had them inline. `explain_per_machine` became `explain_async`.
+- **Contract:** besides the planned `alarm` and `anomalyFlag`, `anomalyThreshold` and `attributionsTs` were added (both optional).
+
 ## Phase 10: Validation on real public data (done, 2026-11-19; completes Milestone B)
 
 ### Phase 10 summary

@@ -7,6 +7,9 @@ Modes:
 - ``dev``: the active adapter from ``sources.yaml`` + TimescaleDB (start it with
   ``uv run poe up``). ``uv run poe dev`` also starts the matching simulator publisher.
 - ``config``: exactly what the config files say.
+
+``--inference`` turns on live inference (``config/inference.yaml``, Phase 11): the backend
+starts ``twin_ml.serve`` worker processes; the API process itself never imports an ML library.
 """
 
 from __future__ import annotations
@@ -23,6 +26,7 @@ from twin_common.config import (
     load_sources_config,
     load_storage_config,
 )
+from twin_common.config.inference import load_inference_config
 from twin_common.config.loader import ConfigError
 from twin_common.enums import AdapterKind
 from twin_common.logging import SecretFilter, configure_logging, get_logger
@@ -44,6 +48,9 @@ def build_for_mode(
     replay_speed: float | None = None,
     sqlite_path: str | None = None,
     loop: bool | None = None,
+    inference: bool | None = None,
+    model: str | None = None,
+    model_version: str | None = None,
 ) -> Runtime:
     """A Runtime with the mode's overrides applied (imports stay lazy for minimal mode)."""
     from twin_backend.runtime import build_runtime
@@ -77,7 +84,21 @@ def build_for_mode(
         storage_cfg = storage_cfg.model_copy(
             update={"sqlite": storage_cfg.sqlite.model_copy(update={"path": sqlite_path})}
         )
-    return build_runtime(settings, root=root, sources=sources, storage_cfg=storage_cfg)
+    inference_cfg = None
+    inference_path = config_dir / "inference.yaml"
+    if inference_path.is_file():
+        inference_cfg = load_inference_config(inference_path).with_model(model, model_version)
+        if inference is not None:
+            inference_cfg = inference_cfg.model_copy(update={"enabled": inference})
+    elif inference:
+        raise ConfigError(f"--inference needs {inference_path}")
+    return build_runtime(
+        settings,
+        root=root,
+        sources=sources,
+        storage_cfg=storage_cfg,
+        inference_cfg=inference_cfg,
+    )
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -102,6 +123,14 @@ def add_serve_args(s: argparse.ArgumentParser) -> None:
         "default: sources.yaml",
     )
     s.add_argument("--sqlite-path", help="SQLite event store file")
+    s.add_argument(
+        "--inference",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="live inference worker processes (Phase 11); default: config/inference.yaml",
+    )
+    s.add_argument("--model", help="inference model (config/inference.yaml models key)")
+    s.add_argument("--model-version", help="registered model version or 'latest'")
     s.add_argument("--host", help="bind address (default: api.yaml host)")
     s.add_argument("--port", type=int, help="port (default: api.yaml port)")
     s.add_argument(
@@ -134,6 +163,9 @@ def run_serve(args: argparse.Namespace) -> int:
             replay_speed=args.replay_speed,
             sqlite_path=args.sqlite_path,
             loop=getattr(args, "loop", None),
+            inference=getattr(args, "inference", None),
+            model=getattr(args, "model", None),
+            model_version=getattr(args, "model_version", None),
         )
     except ConfigError as exc:
         print(f"configuration error:\n{exc}", file=sys.stderr)
@@ -151,6 +183,7 @@ def run_serve(args: argparse.Namespace) -> int:
         store=runtime.storage_cfg.backend,
         line=runtime.line.line_id,
         url=f"http://{host}:{port}",
+        inference=None if runtime.inference is None else runtime.inference.cfg.model,
     )
     try:
         started = aio.run(serve(runtime, host=host, port=port))

@@ -2,7 +2,7 @@
 
 Covers auth (roles, no-key rules, WebSocket first-message auth), every Part A endpoint,
 ``/replay?t=`` == ``reconstruct(t)``, ``/history`` == store queries (both backends), CORS,
-the 501 stubs and ``/metrics``.
+the what-if 501 stub, ``/predict`` with inference off and ``/metrics``.
 """
 
 from __future__ import annotations
@@ -217,8 +217,10 @@ async def test_sources_alerts_stubs_metrics_cors(sim_export: SimExport, tmp_path
             assert hist["alerts"] == [
                 s.item.model_dump(mode="json") for s in await rt.storage.store.fetch(Stream.ALERTS)
             ]
-            assert (await c.get("/predict")).status_code == 501
-            assert (await c.post("/whatif")).status_code == 501
+            pred = (await c.get("/predict")).json()  # inference off: says so, no machines
+            assert pred["inference"]["state"] == "off"
+            assert pred["machines"] == {}
+            assert (await c.post("/whatif")).status_code == 501  # Phase 11 Part C
             metrics = await c.get("/metrics")
             assert metrics.status_code == 200
             assert "linetwin_engine_transitions_total" in metrics.text
@@ -273,7 +275,14 @@ async def test_ws_auth_subscribe_snapshot_and_filter(sim_export: SimExport, tmp_
         snap = await _recv(ws)
         assert snap["type"] == "snapshot"
         assert list(snap["data"]["machines"]) == ["CNC-01"]
-        assert set(snap["data"]) == {"asOf", "machines", "line", "dataQuality", "alerts"}
+        assert set(snap["data"]) == {
+            "asOf",
+            "machines",
+            "line",
+            "dataQuality",
+            "alerts",
+            "predictions",
+        }
         for _ in range(3):
             msg = await _recv(ws)
             assert msg["type"] == "reading"
