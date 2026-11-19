@@ -18,6 +18,7 @@ import type {
   MachineState,
   MachineView,
   Prediction,
+  PredictResponse,
   Reading,
   ReplayResponse,
   RootCauseView,
@@ -32,6 +33,7 @@ import { DASHBOARD_CONFIG, type DashboardConfig } from "../config.ts";
 import { applyAlertEvent, mergeAlertEvents } from "./alerts.ts";
 import { INITIAL_AUTH, type AuthState } from "./auth.ts";
 import { connectionView, type ConnectionView } from "./connection.ts";
+import { highlightKey, highlightsFor, predictionAt } from "./predictions.ts";
 import { createStore, type Store } from "./store.ts";
 
 export interface MachineInfo {
@@ -54,6 +56,7 @@ export interface EngineLike {
   applyAlert(alert: Alert): void;
   applyLine(view: LineViewModel): void;
   setPrediction(prediction: Prediction): void;
+  highlightParts(machineId: string, parts: readonly { part: string; intensity: number }[]): unknown;
   setConnected(connected: boolean): void;
   setMode(mode: "live" | "replay"): void;
   select(machineId: string | null): void;
@@ -84,6 +87,12 @@ export class DashboardModel implements EngineSink {
   readonly engineReady: Store<boolean> = createStore(false);
   /** GET /sources, polled by the dashboard (active adapter, capabilities, health, ingest). */
   readonly sources: Store<SourcesResponse | null> = createStore<SourcesResponse | null>(null);
+  /** Newest prediction per machine and horizon key ("10", "30"): stream, snapshot, replay. */
+  readonly predictions: Store<Record<string, Record<string, Prediction>>> = createStore<
+    Record<string, Record<string, Prediction>>
+  >({});
+  /** GET /predict, polled in live mode (inference state, bundles, per-machine gate). */
+  readonly inference: Store<PredictResponse | null> = createStore<PredictResponse | null>(null);
 
   private engine: EngineLike | null = null;
   private readonly readingListeners = new Set<ReadingListener>();
@@ -93,6 +102,7 @@ export class DashboardModel implements EngineSink {
   private everLive = false;
   private notLiveSince: number | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
+  private readonly highlightKeys = new Map<string, string>();
 
   constructor(
     readonly cfg: DashboardConfig = DASHBOARD_CONFIG,
@@ -120,6 +130,7 @@ export class DashboardModel implements EngineSink {
     this.applyState(snapshot);
     if ("asOf" in snapshot && typeof snapshot.asOf === "string") this.asOf.set(snapshot.asOf);
     this.engine?.applySnapshot(snapshot);
+    this.refreshHighlights();
   }
 
   applyReading(reading: Reading): void {
@@ -137,6 +148,7 @@ export class DashboardModel implements EngineSink {
     const asOf = this.asOf.get();
     if (asOf === null || Date.parse(reading.ts) > Date.parse(asOf)) this.asOf.set(reading.ts);
     this.engine?.applyReading(reading);
+    this.refreshHighlights(); // the time on screen moved: highlights may have gone stale
     for (const l of [...this.readingListeners]) l(reading);
   }
 
@@ -166,7 +178,38 @@ export class DashboardModel implements EngineSink {
   }
 
   setPrediction(prediction: Prediction): void {
+    const all = this.predictions.get();
+    const cur = all[prediction.machineId] ?? {};
+    const key = String(prediction.horizonS);
+    const old = cur[key];
+    if (old !== undefined && Date.parse(old.ts) > Date.parse(prediction.ts)) return;
+    this.predictions.set({ ...all, [prediction.machineId]: { ...cur, [key]: prediction } });
     this.engine?.setPrediction(prediction);
+    this.refreshHighlight(prediction.machineId);
+  }
+
+  /** Stale time of predictions: the backend's value once /predict answered. */
+  predictionStaleMs(): number {
+    const s = this.inference.get()?.inference.predictionStaleS;
+    return s === null || s === undefined ? this.cfg.predictionStaleMsFallback : s * 1000;
+  }
+
+  primaryHorizonS(): number {
+    return this.inference.get()?.inference.primaryHorizonS ?? this.cfg.primaryHorizonS;
+  }
+
+  /** Highlight the parts named by the machine's supervised attributions (never autoencoder). */
+  refreshHighlight(machineId: string): void {
+    const p = predictionAt(this.predictions.get()[machineId], this.primaryHorizonS());
+    const h = highlightsFor(p, this.asOf.get(), this.predictionStaleMs(), this.cfg.highlightTopParts);
+    const key = highlightKey(h);
+    if (this.highlightKeys.get(machineId) === key) return;
+    this.highlightKeys.set(machineId, key);
+    this.engine?.highlightParts(machineId, h);
+  }
+
+  refreshHighlights(): void {
+    for (const id of Object.keys(this.machines.get())) this.refreshHighlight(id);
   }
 
   setConnected(connected: boolean): void {
@@ -200,6 +243,7 @@ export class DashboardModel implements EngineSink {
     this.applyState(snapshot);
     this.asOf.set(t);
     this.engine?.applySnapshot(snapshot);
+    this.refreshHighlights();
   }
 
   // ------------------------------------------------------------------ engine
@@ -214,6 +258,8 @@ export class DashboardModel implements EngineSink {
     engine.setConnected(this.connection.get().status === "connected");
     engine.setLabelMode(this.labelMode.get());
     engine.select(this.selection.get());
+    this.highlightKeys.clear();
+    this.refreshHighlights();
     this.engineReady.set(true);
     return () => {
       if (this.engine === engine) {
@@ -241,7 +287,13 @@ export class DashboardModel implements EngineSink {
     }
     const dataQuality: Record<string, DataQualityReport> = {};
     for (const m of Object.values(this.machines.get())) if (m.dataQuality !== null) dataQuality[m.id] = m.dataQuality;
-    return { machines, line: this.lineView.get(), dataQuality, alerts: [...this.alerts.get().values()] };
+    return {
+      machines,
+      line: this.lineView.get(),
+      dataQuality,
+      alerts: [...this.alerts.get().values()],
+      predictions: this.predictions.get(),
+    };
   }
 
   select(machineId: string | null): void {
@@ -352,6 +404,7 @@ export class DashboardModel implements EngineSink {
     }
     this.machines.set(next);
     if (snapshot.line !== undefined) this.lineView.set(snapshot.line);
+    if (snapshot.predictions !== undefined) this.predictions.set(snapshot.predictions);
     if (snapshot.alerts !== undefined) {
       let alerts: Map<string, Alert> = new Map();
       for (const a of snapshot.alerts) alerts = applyAlertEvent(alerts, a);

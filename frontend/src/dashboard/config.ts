@@ -28,6 +28,14 @@ export interface DashboardConfig {
   /** Replay: one step every replayTickMs advances event time by speed x replayTickMs. */
   replayTickMs: number;
   replaySpeeds: number[];
+  /** GET /predict poll interval (inference state, per-machine gate) in live mode. */
+  predictPollMs: number;
+  /** Prediction horizon the alarm and the highlight use, until /predict says otherwise. */
+  primaryHorizonS: number;
+  /** Older predictions are not shown, until /predict reports the backend's value. */
+  predictionStaleMsFallback: number;
+  /** At most this many parts are highlighted from one prediction's attributions. */
+  highlightTopParts: number;
 }
 
 export const DASHBOARD_CONFIG: DashboardConfig = {
@@ -49,4 +57,8 @@ export const DASHBOARD_CONFIG: DashboardConfig = {
   auditLookbackS: 3600,
   replayTickMs: 500,
   replaySpeeds: [1, 5, 20],
+  predictPollMs: 2_000,
+  primaryHorizonS: 30,
+  predictionStaleMsFallback: 5_000,
+  highlightTopParts: 2,
 };

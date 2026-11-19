@@ -20,6 +20,8 @@ import type {
   LineResponse,
   MachinesResponse,
   MachineStateResponse,
+  PredictionsResponse,
+  PredictResponse,
   ReplayRangeResponse,
   ReplayResponse,
   ScenarioOptionsResponse,
@@ -61,6 +63,7 @@ export const ENDPOINTS = [
   ["post", "/scenario"],
   ["get", "/scenario/options"],
   ["get", "/predict"],
+  ["get", "/predict/history"],
   ["post", "/whatif"],
 ] as const satisfies readonly (readonly [Method, keyof ApiPaths])[];
 
@@ -148,9 +151,13 @@ export class RestClient {
     return this.get("/scenario/options", {});
   }
 
-  /** Phase 11 stub: rejects with ApiError 501 until the inference service exists. */
-  async getPredict(): Promise<unknown> {
-    return this.request("GET", "/predict", {}, undefined, undefined);
+  /** Live predictions: inference state, deployed bundles, per-machine gate (Phase 11). */
+  getPredict(query: Query<Operation<"/predict", "get">> = {}): Promise<PredictResponse> {
+    return this.get("/predict", {}, query);
+  }
+
+  getPredictHistory(query: Query<Operation<"/predict/history", "get">>): Promise<PredictionsResponse> {
+    return this.get("/predict/history", {}, query);
   }
 
   /** Phase 11 stub: rejects with ApiError 501 until the what-if service exists. */

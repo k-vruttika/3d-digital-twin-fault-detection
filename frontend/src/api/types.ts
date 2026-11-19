@@ -56,6 +56,12 @@ export type ScenarioOptionsResponse = Schemas["ScenarioOptionsResponse"];
 export type ScenarioRecord = Schemas["ScenarioRecord"];
 export type ScenarioPayload = Schemas["ScenarioPayload"];
 export type ScenariosResponse = Schemas["ScenariosResponse"];
+export type PredictResponse = Schemas["PredictResponse"];
+export type PredictionsResponse = Schemas["PredictionsResponse"];
+export type InferenceInfo = Schemas["InferenceInfoModel"];
+export type MachineGate = Schemas["MachineGateModel"];
+export type MachinePrediction = Schemas["MachinePredictionModel"];
+export type BundleInfo = Schemas["BundleInfoModel"];
 
 export type WsClientMessage = Schemas["WsClientMessage"];
 export type WsServerMessage = Schemas["WsServerMessage"];

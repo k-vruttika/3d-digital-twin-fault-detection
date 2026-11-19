@@ -1,8 +1,8 @@
 /**
- * Prediction and what-if placeholders. The backend answers 501 until Phase 11; the panels say
- * so instead of failing.
+ * What-if placeholder. The backend answers 501 until Phase 11 Part C; the panel says so instead
+ * of failing.
  */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { ApiError } from "../../api/rest.ts";
 import { useRest } from "../context.ts";
@@ -25,7 +25,7 @@ function OutcomeView({ outcome, what }: { outcome: Outcome; what: string }) {
     case "notYet":
       return (
         <div className="result" data-testid="placeholder-501">
-          <strong>{what}: available in Phase 11.</strong>
+          <strong>{what}: available later in Phase 11.</strong>
           <div className="small muted">Backend: {outcome.detail}</div>
         </div>
       );
@@ -36,35 +36,8 @@ function OutcomeView({ outcome, what }: { outcome: Outcome; what: string }) {
         </p>
       );
     case "ok":
-      return <p className="small">The backend answered; this panel is filled in Phase 11.</p>;
+      return <p className="small">The backend answered; this panel is filled later in Phase 11.</p>;
   }
-}
-
-export function PredictionPanel() {
-  const rest = useRest();
-  const [outcome, setOutcome] = useState<Outcome>({ kind: "loading" });
-  useEffect(() => {
-    let cancelled = false;
-    rest
-      .getPredict()
-      .then(() => {
-        if (!cancelled) setOutcome({ kind: "ok" });
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setOutcome(describe(e));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [rest]);
-  return (
-    <div data-testid="prediction-panel">
-      <p className="small muted">
-        Fault predictions (state at +10 s / +30 s, time to fault) with calibrated confidence and explanations on the 3D parts.
-      </p>
-      <OutcomeView outcome={outcome} what="Predictions" />
-    </div>
-  );
 }
 
 export function WhatIfPanel() {

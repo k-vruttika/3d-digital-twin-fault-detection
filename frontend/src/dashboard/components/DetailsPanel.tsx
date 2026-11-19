@@ -9,7 +9,9 @@ import { displayUnit, formatAge, formatDateTime, formatPct, formatValue } from "
 import { groupOf } from "../state/alerts.ts";
 import { rootCauseOf } from "../state/model.ts";
 import { useStore } from "../state/store.ts";
+import { AlertKindBadge } from "./AlertsPanel.tsx";
 import { AlertTimesText } from "./AlertTimesText.tsx";
+import { PredictionSummary } from "./PredictionPanel.tsx";
 import { StateBadge } from "./StateBadge.tsx";
 
 export function DetailsPanel() {
@@ -58,6 +60,9 @@ export function DetailsPanel() {
       </div>
       {m?.reason !== null && m?.reason !== undefined && m.reason !== label && <p className="small muted">Reason: {m.reason}</p>}
       <p className="small muted">Since {formatDateTime(m?.stateTs ?? null)}</p>
+
+      <h3>Prediction</h3>
+      <PredictionSummary id={id} />
 
       <h3>Readings</h3>
       <table className="kv" data-testid="details-readings">
@@ -117,7 +122,8 @@ export function DetailsPanel() {
         <ul className="small alert-mini">
           {machineAlerts.map((a) => (
             <li key={a.alertId}>
-              <span className={`sev sev-${a.severity}`}>{a.severity}</span> {a.message}
+              <span className={`sev sev-${a.severity}`}>{a.severity}</span>{" "}
+              <AlertKindBadge kind={a.kind} /> {a.message}
               <div className="muted">
                 <AlertTimesText alert={a} />
               </div>

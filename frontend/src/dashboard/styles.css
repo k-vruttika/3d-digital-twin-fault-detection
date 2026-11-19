@@ -19,6 +19,8 @@
   --banner-err-bg: #4d1d1b;
   --replay-bg: #5a4316;
   --sim-bg: #3d2a4f;
+  --unusual: #a24cc0;
+  --predicted: #2f7de1;
   --radius: 6px;
   color-scheme: dark;
 }
@@ -42,6 +44,8 @@
   --banner-warn-bg: #fff1c7;
   --banner-err-bg: #fde0de;
   --replay-bg: #ffe6b0;
+  --unusual: #7b2f99;
+  --predicted: #1d5fb8;
   --sim-bg: #eadcf7;
   color-scheme: light;
 }
@@ -739,4 +743,64 @@ table.alerts td:nth-child(6) {
 /* "raised 00:12:57" never breaks inside a part; whole parts wrap. */
 .alert-times > span {
   white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- predictions (Phase 11) */
+.kind-unusual {
+  background: var(--unusual);
+}
+
+tr.kind-unusual {
+  background: color-mix(in srgb, var(--unusual) 14%, transparent);
+}
+
+tr.kind-unusual .kind .badge {
+  background: var(--unusual);
+}
+
+.kind-predicted,
+.kind-drift {
+  background: var(--predicted);
+}
+
+table.predictions {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+table.predictions th,
+table.predictions td {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+table.predictions tbody tr {
+  cursor: pointer;
+}
+
+table.predictions tr.selected {
+  background: var(--panel-2);
+}
+
+table.predictions .badge + .badge {
+  margin-left: 4px;
+}
+
+.prediction-details {
+  margin-top: 8px;
+}
+
+details.about {
+  margin-top: 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+details.about summary {
+  cursor: pointer;
+  font-weight: 600;
 }

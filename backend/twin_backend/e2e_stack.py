@@ -45,6 +45,15 @@ MINIMAL_REPLAY_SPEED = 60.0
 # Dev mode: the quiet scenario at a simulator speed that brings a 720 s fault in well under 30 s.
 DEV_SCENARIO = REPO_ROOT / "config" / "scenarios" / "e2e_quiet.yaml"
 DEV_SIM_SPEED = 30.0
+# Dev mode with live inference: real time. Explanations run beside the prediction path and are
+# attached only while younger than inference.yaml prediction_stale_s on the event-time axis
+# (ADR 0030). With Chromium's software WebGL on the same CPU they took 1-5 s each here (vs
+# 0.3-0.9 s alone, live_inference.md); at 4x that is 4-20 s of event time and every explanation
+# was dropped, so no part was highlighted. A 720 s fault (the shortest training progression,
+# simulator.yaml) reaches WARNING in about 9 minutes.
+PREDICT_SIM_SPEED = 1.0
+PREDICT_PROGRESSION_S = 720.0
+PREDICT_PLAYWRIGHT_TIMEOUT_S = 1500
 E2E_OPERATOR = "e2e"
 
 READY_TIMEOUT_S = 90.0
@@ -317,6 +326,28 @@ def wait_for_eof(api_url: str, proc: subprocess.Popen[Any], log: Path) -> None:
     raise RuntimeError(f"the replay did not finish within {READY_TIMEOUT_S:.0f} s; see {log}")
 
 
+def wait_for_inference(
+    api_url: str, proc: subprocess.Popen[Any], log: Path, key: str | None = None
+) -> None:
+    """Until ``GET /predict`` reports the inference workers ready (they load torch / XGBoost)."""
+    from twin_common.config.inference import load_inference_config
+
+    start_s = load_inference_config(REPO_ROOT / "config" / "inference.yaml").worker.start_timeout_s
+    deadline = time.monotonic() + start_s + READY_TIMEOUT_S
+    state = None
+    while time.monotonic() < deadline:
+        if proc.poll() is not None:
+            raise RuntimeError(f"backend exited with {proc.returncode}; see {log}")
+        info = get_json(f"{api_url}/predict", key).get("inference") or {}
+        state = info.get("state")
+        if state == "ready":
+            return
+        if state == "failed":
+            raise RuntimeError(f"live inference failed ({info.get('reason')}); see {log}")
+        time.sleep(POLL_S)
+    raise RuntimeError(f"live inference not ready (state {state}); see {log}")
+
+
 def pg_env(dsn: str) -> dict[str, str]:
     u = urlparse(dsn)
     return {
@@ -329,11 +360,20 @@ def pg_env(dsn: str) -> dict[str, str]:
 
 
 @contextlib.contextmanager
-def dev_stack(workdir: Path, dsn: str, operator_key: str) -> Iterator[Stack]:
+def dev_stack(
+    workdir: Path,
+    dsn: str,
+    operator_key: str,
+    *,
+    inference: bool = False,
+    sim_speed: float = DEV_SIM_SPEED,
+) -> Iterator[Stack]:
     """Mock machine server + backend (dev mode, TimescaleDB) + Vite.
 
     The mock server is started here, not by devstack (``--no-sim``): a child of devstack would
     outlive it on Windows, where terminating a process does not run its cleanup.
+    ``inference`` adds ``--inference`` (Phase 11 live inference with the deployed bundles of
+    ``config/inference.yaml``); the stack is yielded once ``GET /predict`` reports it running.
     """
     from twin_backend.devstack import port_open
     from twin_common.config import load_sources_config
@@ -361,7 +401,7 @@ def dev_stack(workdir: Path, dsn: str, operator_key: str) -> Iterator[Stack]:
             "--scenario",
             str(DEV_SCENARIO),
             "--speed",
-            str(DEV_SIM_SPEED),
+            str(sim_speed),
         ],
         cwd=REPO_ROOT,
         env=env,
@@ -388,6 +428,7 @@ def dev_stack(workdir: Path, dsn: str, operator_key: str) -> Iterator[Stack]:
                 str(api_port),
                 "--cors-origin",
                 origin,
+                *(["--inference"] if inference else []),
             ],
             cwd=REPO_ROOT,
             env=env,
@@ -397,6 +438,8 @@ def dev_stack(workdir: Path, dsn: str, operator_key: str) -> Iterator[Stack]:
         stack.procs.append(backend)
         stack.api_url = f"http://127.0.0.1:{api_port}"
         wait_http(f"{stack.api_url}/health", backend, log)
+        if inference:
+            wait_for_inference(stack.api_url, backend, log, operator_key)
         vite, web = start_vite(workdir, stack.api_url, web_port)
         stack.procs.append(vite)
         stack.web_url = web
@@ -406,7 +449,10 @@ def dev_stack(workdir: Path, dsn: str, operator_key: str) -> Iterator[Stack]:
 
 
 def run_playwright(
-    project: str, stack: Stack, extra_env: Mapping[str, str] | None = None
+    project: str,
+    stack: Stack,
+    extra_env: Mapping[str, str] | None = None,
+    timeout_s: float = 900,
 ) -> subprocess.CompletedProcess[str]:
     """Run one Playwright project against `stack` (retries 0; trace on failure)."""
     cli = FRONTEND / "node_modules" / "@playwright" / "test" / "cli.js"
@@ -424,50 +470,85 @@ def run_playwright(
         env=env,
         capture_output=True,
         text=True,
-        timeout=900,
+        timeout=timeout_s,
     )
 
 
 # ---------------------------------------------------------------- screenshots CLI
-def screenshots(minimal_only: bool) -> int:
+def screenshots(minimal_only: bool, predict: bool = True, predict_only: bool = False) -> int:
+    """All dashboard shots; ``predict_only`` reruns only the prediction panel shots and keeps
+    the rest of ``summary.json``."""
     import tempfile
 
     if (reason := chromium_missing()) is not None:
         print(reason, file=sys.stderr)
         return 1
     SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
-    failed = False
-    with tempfile.TemporaryDirectory(prefix="linetwin_shots_") as tmp:
+    summary_path = SCREENSHOT_DIR / "summary.json"
+    predict_skipped: str | None = None
+    if minimal_only or not predict:
+        predict_skipped = "not requested"
+    elif (missing := bundles_missing()) is not None:
+        predict_skipped = missing
+        print(f"prediction shots skipped: {missing}", file=sys.stderr)
+        if predict_only:
+            return 1
+    prev: dict[str, Any] = {}
+    if predict_only and summary_path.exists():
+        prev = json.loads(summary_path.read_text(encoding="utf-8"))
+    moments_out = prev.get("minimalMoments")
+    base_failed = False
+    predict_failed = False
+    # Inference workers exit on stdin EOF just after their backend; on Windows they may still hold
+    # the backend log for a moment when the folder is removed.
+    with tempfile.TemporaryDirectory(prefix="linetwin_shots_", ignore_cleanup_errors=True) as tmp:
         work = Path(tmp)
-        with minimal_stack(work / "minimal") as (stack, moments):
-            res = run_playwright(
-                "shots-minimal",
-                stack,
-                {
-                    "E2E_MOMENTS": json.dumps({k: v.as_dict() for k, v in moments.items()}),
-                    "E2E_SHOTS_DIR": str(SCREENSHOT_DIR),
-                },
-            )
-            print(res.stdout[-4000:])
-            if res.returncode != 0:
-                print(res.stderr[-4000:], file=sys.stderr)
-                failed = True
-        if not minimal_only:
-            failed = _dev_screenshots(work / "dev") or failed
+        if not predict_only:
+            with minimal_stack(work / "minimal") as (stack, moments):
+                base_failed = _report(
+                    run_playwright(
+                        "shots-minimal",
+                        stack,
+                        {
+                            "E2E_MOMENTS": json.dumps({k: v.as_dict() for k, v in moments.items()}),
+                            "E2E_SHOTS_DIR": str(SCREENSHOT_DIR),
+                        },
+                    )
+                )
+            moments_out = {k: v.as_dict() for k, v in moments.items()}
+            if not minimal_only:
+                base_failed = _dev_screenshots(work / "dev") or base_failed
+        if predict_skipped is None:
+            predict_failed = _predict_screenshots(work / "predict")
+    # ok per part, so --predict-only replaces only the prediction result
+    base_ok = bool(prev.get("baseOk", prev.get("ok", True))) if predict_only else not base_failed
+    predict_ok = None if predict_skipped is not None else not predict_failed
     summary = {
         "source": "real backend via twin_backend.e2e_stack (no recorded data)",
         "minimalReplayFile": f"generate --quick, run {MINIMAL_RUN_INDEX}",
-        "minimalMoments": {k: v.as_dict() for k, v in moments.items()},
-        "devMode": not minimal_only,
+        "minimalMoments": moments_out,
+        "devMode": prev.get("devMode", False) if predict_only else not minimal_only,
+        "predictMode": (
+            {
+                "simSpeed": PREDICT_SIM_SPEED,
+                "fault": "bearing_wear on CNC-01",
+                "progressionS": PREDICT_PROGRESSION_S,
+            }
+            if predict_skipped is None
+            else {"skipped": predict_skipped}
+        ),
         "screenshots": sorted(f.stem for f in SCREENSHOT_DIR.glob("*.png")),
-        "ok": not failed,
+        "baseOk": base_ok,
+        "predictOk": predict_ok,
+        "ok": base_ok and predict_ok is not False,
     }
-    text = json.dumps(summary, indent=2) + "\n"
-    (SCREENSHOT_DIR / "summary.json").write_text(text, encoding="utf-8")
-    return 1 if failed else 0
+    summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    return 1 if (base_failed or predict_failed) else 0
 
 
-def _dev_screenshots(work: Path) -> bool:
+@contextlib.contextmanager
+def throwaway_db() -> Iterator[str | None]:
+    """A fresh TimescaleDB test database (dropped afterwards); None when it is not reachable."""
     import secrets
 
     from twin_backend.testing import (
@@ -486,23 +567,80 @@ def _dev_screenshots(work: Path) -> bool:
             "(or pass --minimal-only)",
             file=sys.stderr,
         )
-        return True
+        yield None
+        return
     name = f"{TEST_DB_PREFIX}{secrets.token_hex(6)}"
     test_dsn = settings.model_copy(update={"pg_db": name}).pg_dsn
     run_in_thread(_create_test_db(settings.pg_dsn, name, test_dsn))
-    key = secrets.token_hex(16)
     try:
-        with dev_stack(work, test_dsn, key) as stack:
-            res = run_playwright(
-                "shots-dev", stack, {"E2E_OPERATOR_KEY": key, "E2E_SHOTS_DIR": str(SCREENSHOT_DIR)}
-            )
-            print(res.stdout[-4000:])
-            if res.returncode != 0:
-                print(res.stderr[-4000:], file=sys.stderr)
-                return True
+        yield test_dsn
     finally:
         run_in_thread(_drop_test_db(settings.pg_dsn, name))
+
+
+def _report(res: subprocess.CompletedProcess[str]) -> bool:
+    """Print a Playwright run's output; True when it failed."""
+    print(res.stdout[-4000:])
+    if res.returncode != 0:
+        print(res.stderr[-4000:], file=sys.stderr)
+        return True
     return False
+
+
+def _dev_screenshots(work: Path) -> bool:
+    import secrets
+
+    with throwaway_db() as dsn:
+        if dsn is None:
+            return True
+        key = secrets.token_hex(16)
+        with dev_stack(work, dsn, key) as stack:
+            return _report(
+                run_playwright(
+                    "shots-dev",
+                    stack,
+                    {"E2E_OPERATOR_KEY": key, "E2E_SHOTS_DIR": str(SCREENSHOT_DIR)},
+                )
+            )
+
+
+def bundles_missing() -> str | None:
+    """None when the bundles of config/inference.yaml are registered, else the reason."""
+    from twin_common.config.inference import load_inference_config
+
+    cfg = load_inference_config(REPO_ROOT / "config" / "inference.yaml")
+    models = REPO_ROOT / cfg.tracking_dir / "models"
+    names = [cfg.models[cfg.model].registered, cfg.anomaly.registered]
+    absent = [n for n in names if not (models / n).is_dir()]
+    if absent:
+        return (
+            f"deployed bundles not registered ({', '.join(absent)}); build them with: "
+            "uv run poe deploy-models"
+        )
+    return None
+
+
+def _predict_screenshots(work: Path) -> bool:
+    """Prediction panel shots: dev mode + live inference, bearing_wear on CNC-01."""
+    import secrets
+
+    with throwaway_db() as dsn:
+        if dsn is None:
+            return True
+        key = secrets.token_hex(16)
+        with dev_stack(work, dsn, key, inference=True, sim_speed=PREDICT_SIM_SPEED) as stack:
+            return _report(
+                run_playwright(
+                    "shots-predict",
+                    stack,
+                    {
+                        "E2E_OPERATOR_KEY": key,
+                        "E2E_SHOTS_DIR": str(SCREENSHOT_DIR),
+                        "E2E_PROGRESSION_S": f"{PREDICT_PROGRESSION_S:g}",
+                    },
+                    timeout_s=PREDICT_PLAYWRIGHT_TIMEOUT_S,
+                )
+            )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -512,9 +650,19 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument(
         "--minimal-only", action="store_true", help="skip the dev-mode (TimescaleDB) shots"
     )
+    s.add_argument(
+        "--no-predict",
+        action="store_true",
+        help="skip the prediction panel shots (dev mode + live inference, needs deploy-models)",
+    )
+    s.add_argument(
+        "--predict-only",
+        action="store_true",
+        help="only the prediction panel shots (still runs the minimal-mode shots first)",
+    )
     args = p.parse_args(argv)
     if args.command == "screenshots":
-        return screenshots(args.minimal_only)
+        return screenshots(args.minimal_only, not args.no_predict, args.predict_only)
     return 2
 
 

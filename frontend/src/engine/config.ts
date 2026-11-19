@@ -73,6 +73,8 @@ export interface VisualConfig {
     offline: number;
     dataQuality: number;
     highlight: number;
+    /** Whole-machine outline of an "unusual behaviour, cause unknown" alarm (no part named). */
+    unusual: number;
     selection: number;
     alert: { INFO: number; WARNING: number; CRITICAL: number };
     label: { text: number; background: number };
@@ -151,6 +153,7 @@ export const DEFAULT_CONFIG: VisualConfig = {
     offline: 0x6e7378,
     dataQuality: 0xb39ddb,
     highlight: 0x40c4ff,
+    unusual: 0xab47bc,
     selection: 0xffffff,
     alert: { INFO: 0x4fc3f7, WARNING: 0xffb300, CRITICAL: 0xff3d00 },
     label: { text: 0xffffff, background: 0x14181d },

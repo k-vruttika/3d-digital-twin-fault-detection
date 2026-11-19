@@ -390,20 +390,16 @@ describe("replay", () => {
 
 describe("placeholders", () => {
   const notImplemented: Route = (c) =>
-    pathOf(c) === "/predict" || pathOf(c) === "/whatif"
-      ? { status: 501, body: { detail: "available from Phase 11 (inference service); not implemented yet" } }
+    pathOf(c) === "/whatif"
+      ? { status: 501, body: { detail: "what-if projections arrive in Phase 11 Part C; not implemented yet" } }
       : undefined;
 
-  it("prediction and what-if handle the 501 gracefully", async () => {
+  it("what-if handles the 501 gracefully", async () => {
     renderDashboard({ auth: OPERATOR, routes: [notImplemented] });
-    fireEvent.click(screen.getByTestId("tab-prediction"));
-    await waitFor(() => {
-      expect(screen.getByTestId("placeholder-501").textContent).toContain("available in Phase 11");
-    });
     fireEvent.click(screen.getByTestId("tab-whatif"));
     fireEvent.click(screen.getByTestId("whatif-run"));
     await waitFor(() => {
-      expect(screen.getByTestId("placeholder-501").textContent).toContain("What-if: available in Phase 11");
+      expect(screen.getByTestId("placeholder-501").textContent).toContain("What-if: available later in Phase 11");
     });
     expect(screen.queryByRole("alert")).toBeNull();
   });

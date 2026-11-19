@@ -14,6 +14,9 @@
  * | OFFLINE      | stopped  | greyed out                                               |
  * | link lost    | stopped  | semi-transparent (the WebSocket is down)                 |
  *
+ * An active `unusual_behaviour` alert (autoencoder, cause unknown) outlines the whole machine in
+ * purple when no state outline is shown: it never names a part (ADR 0026 / 0030).
+ *
  * Independent of the state: data quality DEGRADED shows a subtle halo, and active alerts a
  * floating marker in the colour of the highest severity. Every state also gets a text label
  * (colour is never the only cue), e.g. "BLOCKED by CNC-01".
@@ -43,7 +46,7 @@ export interface VisualInput {
   /** The newest StateChange reason (fallback when no root cause is known yet). */
   reason?: string | null;
   dataQuality?: "OK" | "DEGRADED" | null;
-  alerts?: readonly { severity: AlertSeverity; active?: boolean }[];
+  alerts?: readonly { severity: AlertSeverity; active?: boolean; kind?: string }[];
   attributions?: readonly { part: string; weight: number }[] | null;
   parts: readonly string[];
   /** false while the stream is down. */
@@ -67,8 +70,13 @@ export interface VisualSpec {
   flashColor: number | null;
   dqBadge: boolean;
   alertMarker: AlertSeverity | null;
+  /** An active unusual-behaviour alarm (autoencoder): whole machine, cause unknown. */
+  unusual: boolean;
   label: { text: string; tone: Tone } | null;
 }
+
+/** Alert kind of the autoencoder alarm (engine.yaml). */
+export const UNUSUAL_KIND = "unusual_behaviour";
 
 const SEVERITY_RANK: Record<AlertSeverity, number> = { INFO: 0, WARNING: 1, CRITICAL: 2 };
 
@@ -132,6 +140,7 @@ export function machineVisual(input: VisualInput, cfg: VisualConfig): VisualSpec
     dqBadge: input.dataQuality === "DEGRADED",
     alertMarker: highestActiveSeverity(input.alerts ?? []),
     label: null,
+    unusual: (input.alerts ?? []).some((a) => a.kind === UNUSUAL_KIND && a.active !== false),
   };
   const linkLost = input.connected === false;
 
@@ -176,6 +185,13 @@ export function machineVisual(input: VisualInput, cfg: VisualConfig): VisualSpec
         spec.tone = "neutral";
         break;
     }
+  }
+  // Unusual behaviour (autoencoder): the whole machine, never a part, and never over a state
+  // outline or a stale / offline look.
+  const visible = spec.tone !== "stale" && spec.tone !== "offline";
+  if (spec.unusual && visible && spec.outlineParts.length === 0 && spec.flashParts.length === 0) {
+    spec.outlineParts = [...input.parts];
+    spec.outlineColor = c.unusual;
   }
   if (cfg.labels.enabled) spec.label = { text: stateLabel(input), tone: spec.tone };
   return spec;

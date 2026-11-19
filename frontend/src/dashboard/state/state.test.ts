@@ -220,6 +220,7 @@ describe("DashboardModel", () => {
       applyAlert: () => undefined,
       applyLine: () => undefined,
       setPrediction: () => undefined,
+      highlightParts: () => [],
       setConnected: () => undefined,
       setMode: () => undefined,
       select: () => undefined,

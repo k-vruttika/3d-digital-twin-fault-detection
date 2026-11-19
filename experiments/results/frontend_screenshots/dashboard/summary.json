@@ -24,8 +24,15 @@
     }
   },
   "devMode": true,
+  "predictMode": {
+    "simSpeed": 1.0,
+    "fault": "bearing_wear on CNC-01",
+    "progressionS": 720.0
+  },
   "screenshots": [
     "alerts",
+    "alerts_predicted",
+    "alerts_unusual",
     "command_confirm_stop",
     "command_result",
     "machine_details",
@@ -33,9 +40,17 @@
     "overview_dark_1920",
     "overview_light_1280",
     "overview_light_1920",
+    "prediction_alarm",
+    "prediction_normal",
+    "prediction_unusual",
+    "prediction_warning",
     "replay_mode",
     "scenario_warning",
-    "sources"
+    "sources",
+    "twin_alarm_closeup",
+    "twin_unusual_closeup"
   ],
+  "baseOk": true,
+  "predictOk": true,
   "ok": true
 }

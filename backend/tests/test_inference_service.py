@@ -182,10 +182,14 @@ async def test_unusual_behaviour_only_without_a_supervised_alarm(svc: Any) -> No
 
 async def test_closed_gate_clears_alarms_and_restarts_the_count(svc: Any) -> None:
     await feed(svc, *[("predict", out(WARN))] * 3)
+    assert svc.machine_status(M)["alarm"] is True
     events = await feed(svc, ("stopped", None))
     assert [(a.kind, a.active) for a in events] == [("predicted_warning", False)]
     drain_predictions(svc)
-    assert svc.machine_status(M)["status"] == "stopped"
+    status = svc.machine_status(M)
+    assert status["status"] == "stopped"
+    # the GET /predict gate view clears with the alerts (it kept alarm: true before)
+    assert (status["alarm"], status["predictedFault"], status["unusual"]) == (False, False, False)
     assert (
         await feed(svc, ("warming_up", None), ("predict", out(WARN)), ("predict", out(WARN))) == []
     )

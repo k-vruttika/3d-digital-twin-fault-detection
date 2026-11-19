@@ -113,10 +113,13 @@ Every part named in a machine's `parts` list is a named `Group`. A part the buil
 | stream down | stopped | semi-transparent | `LINK LOST` |
 | no data yet | stopped | normal | `NO DATA` |
 
-- **At-risk part:** the highest-weighted attribution of the newest prediction (`setPrediction`) that names one of the machine's parts. Without one (predictions arrive in Phase 11), the whole machine.
+- **At-risk part:** the highest-weighted attribution of the newest prediction (`setPrediction`) that names one of the machine's parts. Without one, the whole machine.
 - **Overlays on any state:**
   - data quality DEGRADED: a faint violet ring on the floor;
   - active alerts: a floating marker in the colour of the highest severity (INFO blue, WARNING amber, CRITICAL red).
+- **Live inference (Phase 11, ADR 0030):**
+  - **Part highlight** (`highlightParts`, cyan glow, `colors.highlight`): the parts with positive attributions in the supervised model's explanation of its own alarm. The dashboard sends at most `highlightTopParts` (2) parts, with intensity relative to the strongest (`highlightsFor` in `dashboard/state/predictions.ts`). It clears when the newest +30 s prediction is NORMAL, has no attributions, or is older than the stale time. It works on top of any state, so a part can glow while the machine is still RUNNING (the warning came before the state changed).
+  - **Unusual behaviour** (`VisualSpec.unusual`, purple outline, `colors.unusual`): an active `unusual_behaviour` alert (autoencoder, cause unknown) outlines **every part of the machine**, never one part. It is not drawn over a state outline (WARNING) or a flashing part (FAULT), nor on a STALE / OFFLINE machine. The backend raises it only while the supervised model has no alarm, so it never comes with a part highlight.
 - **Labels:** camera-facing text above a machine, so colour is never the only cue (`engine/labelPolicy.ts`, values in `engine/config.ts` `labels`):
   - **Declutter:** by default a machine label shows only for a state other than RUNNING / IDLE (NO DATA and LINK LOST count), and a buffer label only for FULL / EMPTY / UNKNOWN. Hovering or selecting shows the label anyway; `setLabelMode("all")` (the dashboard's "All labels" toggle) shows every label.
   - **Size:** a constant height on screen (`pixelHeight`, 22 px). On a viewport smaller than `referenceViewportPx` labels shrink with it, never below `minPixelHeight` (14 px).
@@ -172,7 +175,7 @@ engine.dispose();                              // frees everything; safe to call
 
 ## API client
 
-- **`RestClient`** (`api/rest.ts`): typed methods for every endpoint the frontend uses (`ENDPOINTS`): `/line`, `/machines`, `/history`, `/replay`, `/replay/range`, `/alerts` and ack, `/commands` (send, audit, limits), `/auth/me`, `/sources` and switch, `/scenario` (send, audit, options), `/health`, and the Phase 11 stubs `/predict` and `/whatif`.
+- **`RestClient`** (`api/rest.ts`): typed methods for every endpoint the frontend uses (`ENDPOINTS`): `/line`, `/machines`, `/history`, `/replay`, `/replay/range`, `/alerts` and ack, `/commands` (send, audit, limits), `/auth/me`, `/sources` and switch, `/scenario` (send, audit, options), `/health`, `/predict` and `/predict/history` (Phase 11), and the `/whatif` stub (Part C).
   - Sends `X-API-Key`.
   - Throws `ApiError` with status and detail.
   - Every endpoint it calls is checked against the committed OpenAPI schema.
@@ -329,9 +332,28 @@ While replaying:
 - data quality shows as "not replayed": it is measured over a live wall-clock window, so it cannot be reconstructed for a past time;
 - the 3D view gets an amber frame with a soft vignette. In the dark theme the scene background also turns a warmer dark; in the light theme the scene is not tinted (a warm tint over a light scene looked muddy), so the banner and the frame carry the cue.
 
-### Prediction and what-if
+### Prediction (Phase 11)
 
-Both panels are placeholders. They call `GET /predict` / `POST /whatif` and show "available in Phase 11" with the backend's 501 detail; any other error shows as an error.
+Live predictions from the backend's inference service (ADR 0030; `uv run poe dev --source mock --inference`, or `serve --inference`). Without inference the panel says "Live inference is off". Minimal mode needs none of it.
+
+- **Data:**
+  - predictions arrive on the WS `predictions` channel and in the snapshot; they are kept per machine and horizon in the model's `predictions` store;
+  - `GET /predict` is polled every `predictPollMs` (2 s) in live mode (`usePredictPolling.ts`). It gives the inference state, the bundles with their model card, and the backend's per-machine gate;
+  - in replay, `GET /replay` returns the stored predictions at t, and the gate is derived locally from the machine state and the prediction's age.
+- **Table, one row per machine:** the current state, then the +10 s and +30 s predictions (the top class with its calibrated confidence), the conformal set at the primary horizon in words ("WARNING or FAULT", "empty set", "any state"), time to fault with its interval (or "beyond 600 s (no fault expected sooner)" at the model's cap), reliability, and an `alarm` badge.
+  - The alarm is the evaluated rule (`Prediction.alarm`: uncalibrated +30 s argmax WARNING or FAULT for the sustain time), never the confidence.
+  - **Sets can look odd.** Mondrian LAC gives each class its own threshold. The deployed GRU bundle's +30 s thresholds admit NORMAL only at p ≥ 0.997, and FAULT already at p ≥ 0.0014. So the live run showed healthy conveyors at "NORMAL 1.00" (0.996) with the set "FAULT". This is the evaluated Phase 8 method, not a display bug. The "About" note says so.
+- **Gate texts instead of a prediction:** "No prediction (machine stopped)", "No prediction (machine waiting)", "Warming up (n/30 s of running data)", "Predictions unavailable (inference not ready)", "No recent prediction". A prediction older than the backend's `predictionStaleS` (5 s, relative to the newest data on screen) is never shown as current.
+- **Selected machine:** the alarm, the top three attributions as `sensor → part (weight)` with the window they explain (`attributionsTs`; explanations run beside the prediction path, so the window can be slightly older than the prediction), and the autoencoder score against its threshold ("above threshold · cause unknown"). Once the machine stops or waits it shows the gate text instead, never the last alarm or score.
+- **Model line:** the inference state (`ready`, `starting`, ...) and the model version, e.g. `linetwin-gru v1 (gru seed 0) + linetwin-autoencoder v1 (autoencoder seed 0)`.
+- **"About these predictions"** (collapsed): the models were trained, validated and calibrated on simulator data only; Phase 10 did not demonstrate early warning on real machines; the coverage of the sets; what the alarm, unusual behaviour and highlights mean; plus the bundle's model card.
+- **Details panel:** one line with the +30 s prediction (`PredictionSummary`) or the gate text.
+- **Alerts panel:** inference kinds have badges (`AlertKindBadge`): `predicted WARNING`, `predicted FAULT`, `model drift`, and `unusual behaviour · cause unknown` in purple with a tinted row.
+- **3D view:** part highlights and the unusual-behaviour outline, see [State → visual mapping](#state--visual-mapping).
+
+### What-if
+
+Still a placeholder until Phase 11 Part C: it calls `POST /whatif` and shows the backend's 501 detail; any other error shows as an error.
 
 ### Tests
 
@@ -344,7 +366,8 @@ Both panels are placeholders. They call `GET /predict` / `POST /whatif` and show
 - the scenario panel: visibility, label and request body;
 - sources metrics;
 - replay: banner, engine replay mode, return to live, request coalescing;
-- the 501 placeholders;
+- predictions (`predictions.test.tsx`): the view helpers, the unusual-behaviour visual (whole machine, own colour, never over a state outline or on a stale machine), part highlights only from supervised attributions (cleared on NORMAL and when stale), the panel (gate texts, sets in words, time to fault, the honest note, inference off), no stale alarm in the details of a stopped machine, replay of stored predictions, and the distinct unusual-behaviour alert;
+- the what-if 501 placeholder;
 - missing values drawn as chart gaps;
 - the API key never in a URL or localStorage.
 
@@ -368,3 +391,9 @@ Both panels are placeholders. They call `GET /predict` / `POST /whatif` and show
 
 - **minimal mode**, with replay seeks to moments found in the file: `overview_{dark,light}_{1280,1920}`, `machine_details`, `alerts`, `replay_mode`;
 - **dev mode** (mock source, TimescaleDB): `sources`, `scenario_warning`, `command_confirm_stop`, `command_result`. These need `uv run poe up`; `--minimal-only` skips them.
+- **prediction panel** (Phase 11; Playwright project `shots-predict`): a second dev-mode stack with `--inference`. The simulator runs in real time, and `bearing_wear` is injected on CNC-01 with a 720 s progression (the shortest training progression). These shots need `up` and the deployed bundles (`uv run poe deploy-models`); without the bundles they are skipped with a message (`summary.json` `predictMode.skipped`). `--no-predict` skips them and `--predict-only` reruns only them (about 12 minutes). The spec checks in the running app:
+  1. `prediction_normal`: the healthy line, every machine predicted NORMAL after its warm-up;
+  2. `prediction_unusual`, `alerts_unusual`, `twin_unusual_closeup`: the autoencoder's unusual-behaviour alarm while the supervised model still predicts NORMAL. Every part of CNC-01 is outlined in the unusual colour and no part is highlighted;
+  3. `prediction_alarm`, `twin_alarm_closeup`, `alerts_predicted`: the supervised predicted alarm, with `spindle_bearing` as the strongest highlighted part;
+  4. `prediction_warning`: the simulator's own WARNING, with the bearing outlined in the warning colour.
+- **Why real time:** an explanation is attached to predictions only while it is younger than `prediction_stale_s` on the event-time axis (ADR 0030). With Chromium's software WebGL on the same CPU, Integrated Gradients took 1–5 s per explanation in this run. At 4× that is 4–20 s of event time, so no part was ever highlighted. The close-ups move the camera with `engine.focus` for the picture only.

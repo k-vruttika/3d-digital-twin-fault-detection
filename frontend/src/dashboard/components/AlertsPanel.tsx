@@ -8,10 +8,24 @@ import { ApiError } from "../../api/rest.ts";
 import type { AlertSeverity } from "../../api/types.ts";
 import { useCanAct, useModel, useRest } from "../context.ts";
 import { GROUP_ORDER, GROUP_TITLE, groupAlerts } from "../state/alerts.ts";
+import { alertKindView } from "../state/predictions.ts";
 import { useStore } from "../state/store.ts";
 import { AlertTimesText } from "./AlertTimesText.tsx";
 
 const SEVERITIES: AlertSeverity[] = ["CRITICAL", "WARNING", "INFO"];
+
+/** An alert kind as text with its icon; inference kinds look distinct (ADR 0030). */
+export function AlertKindBadge({ kind }: { kind: string }) {
+  const v = alertKindView(kind);
+  if (v.className === "") return <span>{kind}</span>;
+  return (
+    <span className={`badge ${v.className}`} title={v.note ?? undefined} data-testid={`kind-${kind}`}>
+      {v.icon !== "" && <span aria-hidden="true">{v.icon} </span>}
+      {v.label}
+      {kind === "unusual_behaviour" && <span className="small"> · cause unknown</span>}
+    </span>
+  );
+}
 
 export function AlertsPanel() {
   const model = useModel();
@@ -101,7 +115,7 @@ export function AlertsPanel() {
             <table className="alerts">
               <tbody>
                 {groups[g].map((a) => (
-                  <tr key={a.alertId} data-testid={`alert-${a.alertId}`}>
+                  <tr key={a.alertId} data-testid={`alert-${a.alertId}`} className={alertKindView(a.kind).className || undefined}>
                     <td>
                       <span className={`sev sev-${a.severity}`}>{a.severity}</span>
                     </td>
@@ -117,7 +131,9 @@ export function AlertsPanel() {
                         {a.machineId}
                       </button>
                     </td>
-                    <td className="kind">{a.kind}</td>
+                    <td className="kind">
+                      <AlertKindBadge kind={a.kind} />
+                    </td>
                     <td>{a.message}</td>
                     <td className="small muted">
                       <AlertTimesText alert={a} />

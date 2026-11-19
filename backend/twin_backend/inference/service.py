@@ -313,6 +313,7 @@ class InferenceService:
                 if gate.status != PREDICT or not out:
                     gate.explanation = None
                     self.alarms[machine].reset()
+                    gate.alarms = OFF
                     conditions += self._conditions(machine, OFF, ts, None)
                     continue
                 primary = out["probs"][str(self.cfg.primary_horizon_s)]

@@ -7,6 +7,83 @@ Plan: Part A (model selection, deploy bundles, inference workers, Prediction pip
 - Predict only RUNNING / WARNING machines, and only when the whole window is operating (warm-up after any stop).
 - No `/retrain`.
 
+### Part B (done, 2026-11-19): live predictions in the dashboard
+
+**Built (frontend):**
+- `dashboard/state/predictions.ts`: pure helpers.
+  - Highlights come only from positive supervised attributions, are capped at `highlightTopParts`, and clear when the prediction is stale or NORMAL.
+  - Gate texts: stopped, waiting, warming up n/30, unavailable, no recent prediction. The gate is derived locally in replay.
+  - Display: conformal set in words ("WARNING or FAULT"), time to fault with its interval or "beyond cap", top class.
+  - Alert-kind view: unusual behaviour is purple with "cause unknown"; predicted and drift kinds have their own badges.
+- **Model** (`state/model.ts`):
+  - a `predictions` store (stream, snapshot, replay) and an `inference` store (GET /predict, polled live by `usePredictPolling.ts`);
+  - `refreshHighlight(s)` drives `engine.highlightParts`; `EngineLike` gained `highlightParts`;
+  - `toSnapshot` includes predictions.
+- **Engine:** `VisualSpec.unusual` plus `colors.unusual`. An active `unusual_behaviour` alert outlines the whole machine in purple, never one part, and never over a state outline or on a stale / offline machine.
+- **UI:**
+  - `components/PredictionPanel.tsx` replaces the placeholder: a per-machine table (now vs +10 s / +30 s with calibrated confidence, set, time to fault, reliability, alarm, gate text), details of the selected machine (attributions with `attributionsTs`, autoencoder score / threshold), the model version and state, and the "About these predictions" note with the bundle's model card.
+  - `PredictionSummary` in the Details panel.
+  - `AlertKindBadge` and row styling in the Alerts panel.
+  - The what-if placeholder stays until Part C.
+- **Plumbing:**
+  - REST: typed `getPredict` / `getPredictHistory` (`ENDPOINTS` updated); new type aliases in `api/types.ts`; config `predictPollMs`, `primaryHorizonS`, `predictionStaleMsFallback`, `highlightTopParts`; styles.
+- **Tests:** `dashboard/predictions.test.tsx` (new); `partb.test.tsx`'s placeholder test is now what-if only; `FakeEngine` records `highlightParts`.
+- **Fixed after the live check:**
+  - The selected machine's details kept showing the last alarm and autoencoder score after the machine stopped. They now show the gate text, with a new test.
+  - "About these predictions" now explains the Mondrian sets (see the live check below).
+
+**Built (backend and test tooling):**
+- **Fix in `inference/service.py`** (Part A bug, found live): when the worker reported a closed gate (e.g. the machine went FAULT), the alarm state machine was reset and the alerts cleared, but `gate.alarms` was not. So `GET /predict` kept `alarm: true` for a stopped machine. The dashboard was not affected, because it reads `Prediction.alarm`. `test_closed_gate_clears_alarms_and_restarts_the_count` now checks the gate view.
+- **`twin_backend/e2e_stack.py`:**
+  - `dev_stack(..., inference=True, sim_speed=...)` starts `devstack --inference` and waits until `GET /predict` reports the workers `ready` (also needed for the Part C e2e tests);
+  - `throwaway_db()`; `bundles_missing()`;
+  - screenshots CLI: `--no-predict` and `--predict-only`;
+  - `summary.json` has `predictMode`, `baseOk` and `predictOk`.
+- **Playwright:** project `shots-predict` (`frontend/e2e/shots-predict.spec.ts`), part of `uv run poe screenshots`. Without the deployed bundles it is skipped with a message.
+
+**Live check in the running app** (dev mode, mock source, TimescaleDB, `--inference` with `linetwin-gru v1` + `linetwin-autoencoder v1`; `bearing_wear` on CNC-01, progression 720 s, simulator in real time; the `shots-predict` spec asserts each step through the engine's dev hook):
+1. **Healthy line:** every machine predicted NORMAL after its 30 s warm-up.
+2. **Unusual behaviour first:** the autoencoder alarm came while the supervised model still predicted NORMAL and the twin showed RUNNING. All three CNC config parts (spindle, spindle motor, spindle bearing) were outlined in the unusual colour, no part was highlighted, and the alert read "unusual behaviour · cause unknown".
+3. **Predicted alarm:** `predicted_warning` came with `spindle_bearing` as the strongest highlighted part while the twin still showed **RUNNING**. The alert text ends "top signal vib (spindle_bearing)", and the unusual-behaviour alert cleared as the rule requires.
+   - The highlight held in 30 of 40 and 36 of 40 samples (every 0.25 s for 10 s of the alarm) in the two passing spec runs. It drops out between explanations (see limitations).
+4. **Simulator WARNING:** the bearing was outlined in the warning colour.
+
+The scripted API runs before the spec (same stack, no browser, 4× speed) give the timing: `unusual_behaviour` raised about 3 min of sim time after injection, `predicted_warning` about 50 s of sim time before the simulator's WARNING. These are single runs, not an evaluation.
+
+**Unseen fault, live** (scripted run, `lubrication_loss` on CNC-01, 720 s, 4×, no browser): the GRU predicted NORMAL (1.00) throughout, even while the simulator showed WARNING, and raised no alarm. The autoencoder's `unusual_behaviour` raised within about 50 s of sim time and then switched on and off several times as the score crossed its threshold. This matches the Phase 9 E5 finding (supervised blind to the unseen fault; the autoencoder reacts, with flapping). It is one run.
+
+**Screenshots** (`experiments/results/frontend_screenshots/dashboard/`, generated by `python -m twin_backend.e2e_stack screenshots --predict-only`): `prediction_normal`, `prediction_unusual`, `alerts_unusual`, `twin_unusual_closeup`, `prediction_alarm`, `twin_alarm_closeup`, `alerts_predicted`, `prediction_warning`; `summary.json` updated.
+
+**How to run**
+
+```text
+uv run poe up && uv run poe deploy-models          # once: services, bundles
+uv run poe dev --source mock --inference           # backend with live inference
+uv run poe frontend                                # dashboard: Prediction tab; inject a fault in "Scenario (sim)"
+uv run python -m twin_backend.e2e_stack screenshots --predict-only   # prediction shots, ~12 min
+```
+
+Minimal mode is unchanged and needs no ML: without `--inference` the panel says "Live inference is off".
+
+**Known limitations (Part B)**
+- **Highlights depend on CPU load and replay speed** (Part A design, ADR 0030). An explanation is attached only while it is younger than `prediction_stale_s` (5 s) on the event-time axis, and that age has to cover both the Integrated Gradients compute and the wait for the next explanation.
+  - Measured here: IG took 0.3–0.9 s alone (Part A), but 1–5 s per explanation (mean 2.0 s, `linetwin_inference_explain_age_seconds`, 24 explanations) with Chromium's software WebGL on the same CPU.
+  - At 4× sim speed every explanation was dropped, so no part was ever highlighted. At real time the highlight held in 30 / 40 and 36 / 40 samples and flickers off between explanations.
+  - **For the user to decide (Part C or later):** a separate `explanation_max_age_s` (the window is 30 s, so an explanation a few seconds old still describes mostly the same data), or keeping the last highlight while the alarm stays on. Not changed here, because it changes ADR 0030 semantics.
+- **Conformal sets look odd at the extremes.** The bundle's Mondrian +30 s thresholds admit NORMAL only at p ≥ 0.997, and FAULT at p ≥ 0.0014. Healthy conveyors at NORMAL 0.996 (shown "1.00") therefore get the set "FAULT". This is the evaluated Phase 8 method; the panel's note explains it.
+- **Time to fault near the cap:** healthy machines show "about 598 s (interval 256–600 s)", the model's regression just under its 600 s cap. Only values within 0.5 s of the cap read "beyond 600 s".
+- **Unusual-behaviour flapping** (lubrication_loss run): the alert raises and clears as the score crosses the threshold. The alert manager applies no hysteresis to it.
+- **Screenshot run time:** the prediction shots run in real time, about 12 minutes.
+
+**Deviations**
+- **Two backend changes in a frontend part:** the `/predict` gate fix and the `e2e_stack` additions (both found or needed during the live check).
+- **Prediction shots run in real time,** not at the e2e stack's 30×, for the measured reason above.
+
+**Verified (end of Part B, 2026-11-20, Windows, Docker services up: TimescaleDB + Mosquitto):**
+- `uv run poe lint`: clean (ruff, format 359 files, mypy 320 source files, ESLint, tsc).
+- `uv run poe test`: pytest 935 passed, 0 skipped (12 min 43 s); Vitest 176 passed (18 files; 163 at the end of Part A).
+- `python -m twin_backend.e2e_stack screenshots --predict-only`: passed twice (8.8 min each); `summary.json` `ok: true`.
+
 ### Part A (done, 2026-11-19): deploy bundles, inference workers, predictions, alerts, parity, latency
 
 **Built**

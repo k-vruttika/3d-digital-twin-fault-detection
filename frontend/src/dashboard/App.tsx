@@ -5,7 +5,8 @@ import { HistoryPanel } from "./charts/HistoryPanel.tsx";
 import { LiveCharts } from "./charts/LiveCharts.tsx";
 import { AlertsPanel } from "./components/AlertsPanel.tsx";
 import { CommandPanel } from "./components/CommandPanel.tsx";
-import { PredictionPanel, WhatIfPanel } from "./components/PlaceholderPanels.tsx";
+import { WhatIfPanel } from "./components/PlaceholderPanels.tsx";
+import { PredictionPanel } from "./components/PredictionPanel.tsx";
 import { ReplayBar, ReplayButton } from "./components/ReplayBar.tsx";
 import { ScenarioPanel } from "./components/ScenarioPanel.tsx";
 import { SourcesPanel } from "./components/SourcesPanel.tsx";
@@ -20,6 +21,7 @@ import { groupAlerts } from "./state/alerts.ts";
 import { useStore } from "./state/store.ts";
 import { useTheme } from "./theme.ts";
 import { useAlertBackfill } from "./useAlertBackfill.ts";
+import { usePredictPolling } from "./usePredictPolling.ts";
 import { useSourcesPolling } from "./useSourcesPolling.ts";
 
 function AlertsTabLabel() {
@@ -37,6 +39,7 @@ export function App() {
   const theme = useTheme();
   const sources = useStore(model.sources);
   useSourcesPolling();
+  usePredictPolling();
   useAlertBackfill();
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
