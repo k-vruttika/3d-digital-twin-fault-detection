@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-libra
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Command, CommandAck, CommandLimitsResponse, SourcesResponse } from "../api/types.ts";
-import { OPERATOR, pathOf, renderDashboard, snapshot, VIEWER, type Route } from "../test/dashboard.tsx";
+import { pathOf, renderDashboard, snapshot, VIEWER, type Route } from "../test/dashboard.tsx";
 import { reduceFlows, ruleHint, type CommandFlow } from "./state/commandFlow.ts";
 import { ENGINE_THEME } from "./theme.ts";
 
@@ -385,22 +385,5 @@ describe("replay", () => {
       h.replay.pause();
     });
     h.replay.dispose();
-  });
-});
-
-describe("placeholders", () => {
-  const notImplemented: Route = (c) =>
-    pathOf(c) === "/whatif"
-      ? { status: 501, body: { detail: "what-if projections arrive in Phase 11 Part C; not implemented yet" } }
-      : undefined;
-
-  it("what-if handles the 501 gracefully", async () => {
-    renderDashboard({ auth: OPERATOR, routes: [notImplemented] });
-    fireEvent.click(screen.getByTestId("tab-whatif"));
-    fireEvent.click(screen.getByTestId("whatif-run"));
-    await waitFor(() => {
-      expect(screen.getByTestId("placeholder-501").textContent).toContain("What-if: available later in Phase 11");
-    });
-    expect(screen.queryByRole("alert")).toBeNull();
   });
 });

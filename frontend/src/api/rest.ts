@@ -21,6 +21,8 @@ import type {
   MachinesResponse,
   MachineStateResponse,
   PredictionsResponse,
+  WhatIfPayload,
+  WhatIfResponse,
   PredictResponse,
   ReplayRangeResponse,
   ReplayResponse,
@@ -160,9 +162,9 @@ export class RestClient {
     return this.get("/predict/history", {}, query);
   }
 
-  /** Phase 11 stub: rejects with ApiError 501 until the what-if service exists. */
-  async postWhatif(body: unknown = {}): Promise<unknown> {
-    return this.request("POST", "/whatif", {}, undefined, body);
+  /** What-if projection of one change (simulation only): 409 without the capability, 422 if refused. */
+  async postWhatif(body: WhatIfPayload): Promise<WhatIfResponse> {
+    return (await this.request("POST", "/whatif", {}, undefined, body)) as WhatIfResponse;
   }
 
   getAlerts(query: Query<Operation<"/alerts", "get">> = {}): Promise<AlertsResponse> {

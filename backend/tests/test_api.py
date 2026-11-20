@@ -2,7 +2,8 @@
 
 Covers auth (roles, no-key rules, WebSocket first-message auth), every Part A endpoint,
 ``/replay?t=`` == ``reconstruct(t)``, ``/history`` == store queries (both backends), CORS,
-the what-if 501 stub, ``/predict`` with inference off and ``/metrics``.
+the what-if 409 for a source without the capability, ``/predict`` with inference off and
+``/metrics``.
 """
 
 from __future__ import annotations
@@ -220,7 +221,9 @@ async def test_sources_alerts_stubs_metrics_cors(sim_export: SimExport, tmp_path
             pred = (await c.get("/predict")).json()  # inference off: says so, no machines
             assert pred["inference"]["state"] == "off"
             assert pred["machines"] == {}
-            assert (await c.post("/whatif")).status_code == 501  # Phase 11 Part C
+            wi = await c.post("/whatif", json={"machineId": "CNC-01", "type": "STOP"})
+            assert wi.status_code == 409  # the file source cannot fork a simulation
+            assert "does not support what-if" in wi.json()["detail"]
             metrics = await c.get("/metrics")
             assert metrics.status_code == 200
             assert "linetwin_engine_transitions_total" in metrics.text

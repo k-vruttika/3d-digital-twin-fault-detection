@@ -62,6 +62,10 @@ export type InferenceInfo = Schemas["InferenceInfoModel"];
 export type MachineGate = Schemas["MachineGateModel"];
 export type MachinePrediction = Schemas["MachinePredictionModel"];
 export type BundleInfo = Schemas["BundleInfoModel"];
+export type WhatIfPayload = Schemas["WhatIfPayload"];
+export type WhatIfResponse = Schemas["WhatIfResponse"];
+export type ProjectionPoint = Schemas["ProjectionPoint"];
+export type MachineProjection = Schemas["MachineProjection"];
 
 export type WsClientMessage = Schemas["WsClientMessage"];
 export type WsServerMessage = Schemas["WsServerMessage"];

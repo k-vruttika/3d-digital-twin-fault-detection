@@ -5,7 +5,7 @@ import { HistoryPanel } from "./charts/HistoryPanel.tsx";
 import { LiveCharts } from "./charts/LiveCharts.tsx";
 import { AlertsPanel } from "./components/AlertsPanel.tsx";
 import { CommandPanel } from "./components/CommandPanel.tsx";
-import { WhatIfPanel } from "./components/PlaceholderPanels.tsx";
+import { WhatIfPanel } from "./components/WhatIfPanel.tsx";
 import { PredictionPanel } from "./components/PredictionPanel.tsx";
 import { ReplayBar, ReplayButton } from "./components/ReplayBar.tsx";
 import { ScenarioPanel } from "./components/ScenarioPanel.tsx";

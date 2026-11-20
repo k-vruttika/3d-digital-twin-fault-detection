@@ -1,0 +1,11 @@
+# What-if projections (Phase 11 Part C, ADR 0031). Validated by twin_common.config.WhatIfConfig.
+# POST /whatif forks a copy of the simulator behind the active source (snapshot -> change one
+# setting -> fast-forward) and, when live inference is on, scores the projected readings with
+# the deployed model in a separate worker pool. Needs the source capability "whatif" (mock).
+
+horizon_default_s: 120        # projection length when the request names none
+horizon_max_s: 300            # longest projection a request may ask for
+history_s: 60                 # recent readings sent along so the model's 30 s window is filled
+request_timeout_s: 60         # the simulator fork (fast-forward of two copies)
+rows_per_step: 60             # readings per machine in one batch to the scoring workers
+ghost_horizons_s: [10, 30]    # projected states shown next to "now" (and the end of the run)

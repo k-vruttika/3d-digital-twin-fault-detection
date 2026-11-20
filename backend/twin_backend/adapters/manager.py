@@ -18,7 +18,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from twin_backend.adapters.base import AdapterHealth, SourceAdapter
+from twin_backend.adapters.base import AdapterHealth, SourceAdapter, WhatIfUnsupportedError
 from twin_backend.adapters.registry import build_adapter, mappings_from
 from twin_backend.bus.base import EventBus, Topic
 from twin_backend.clock import Clock, SystemClock
@@ -30,6 +30,7 @@ from twin_common.config.sources import SourcesConfig
 from twin_common.contracts import Command, CommandAck, ScenarioAck, ScenarioRequest
 from twin_common.enums import AckStatus, AdapterKind, AdapterStatus, Capability
 from twin_common.logging import get_logger
+from twin_common.whatif import WhatIfSimRequest, WhatIfSimResult
 
 if TYPE_CHECKING:
     from twin_backend.storage.service import StorageService
@@ -218,6 +219,15 @@ class SourceManager:
     def supports(self, capability: Capability) -> bool:
         adapter = self._adapter
         return adapter is not None and capability in adapter.capabilities
+
+    async def whatif(self, req: WhatIfSimRequest, timeout_s: float) -> WhatIfSimResult:
+        """Simulation only (ADR 0031): fork the simulator behind the active source."""
+        adapter = self._adapter
+        fork = getattr(adapter, "whatif", None)
+        if adapter is None or fork is None or Capability.WHATIF not in adapter.capabilities:
+            raise WhatIfUnsupportedError(adapter.kind.value if adapter is not None else "no")
+        result: WhatIfSimResult = await fork(req, timeout_s)
+        return result
 
     async def send_scenario(self, req: ScenarioRequest) -> ScenarioAck:
         """Simulation only (ADR 0015): forward to the active adapter (no bus publishing)."""

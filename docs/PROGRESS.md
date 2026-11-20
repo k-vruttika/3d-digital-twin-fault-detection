@@ -2,13 +2,18 @@
 
 ## Phase 11: Live intelligence in the twin (in progress; starts Milestone C)
 
-**Part C in progress (updated 2026-11-20). Resume here.**
+**Part C in progress (updated 2026-11-20, after Group 2). Resume with Group 3.**
 - **Group 1, display-only fixes: done** (lint clean, Vitest 181 passed). The alarm rule and all evaluated numbers are unchanged.
   - Part highlight is kept while the predicted alarm stays on, labelled with the time of the window it explains (`resolveHighlight`, `model.highlights`, "Highlighted: …" line in the Prediction details); cleared when the alarm clears, the prediction is stale, or at a replay jump. ADR 0030 § "Display rules added in Phase 11 Part C".
   - Conformal wording: "Most likely NORMAL (1.00) · cannot rule out FAULT" (`confidenceText`); "About these predictions" explains the per-class coverage.
   - Intermittent unusual behaviour (UI only): `unusualView` over the stored alert events, config `unusualFlapMinSwitches` 4 / `unusualFlapWindowS` 300 / `unusualHoldS` 30 in `dashboard/config.ts`; label in the Alerts / Details panels and the Prediction details, and the 3D outline is held via `TwinEngine.holdUnusual`.
   - Not run after Group 1: the full pytest suite and the `shots-predict` screenshots (frontend-only change; the screenshots are regenerated in Group 4).
-- **Remaining:** Group 2 (what-if: mock endpoint, `POST /whatif` with 409, panel, apply as command), Group 3 (drift: PSI + ADWIN, DEGRADED, `model_drift`, banner, false-drift rate), Group 4 (demo scenarios a–d as e2e at real-time speed with the (c) ordering check, screenshots, ADR 0031, `docs/demo_script.md` incl. the unusual-behaviour false-alarm note, other docs, final lint + full tests, Part C entry, suggested commit message).
+- **Group 2, what-if: done** (ADR 0031 § What-if; lint clean; Vitest 193 passed; pytest 374 passed (`backend/tests`, `test_ml_serve`, `test_phase11_whatif`, `test_phase11_alarms`) and 323 passed (simulator, common, phase 4 e2e / minimal, phase 11 inference, results policy; MQTT tests excluded). Full `poe test` and screenshots not run yet).
+  - **Simulator / mock server:** `twin_sim/whatif.py` + `SimSession.whatif` + `POST /whatif` on the mock server, contracts in `twin_common/whatif.py`. Fork = snapshot + history taken in one tick-boundary call (a test caught a race where history was read after the fork), an unchanged and a changed copy fast-forwarded in a thread. The unchanged copy equals the live simulator's next seconds (tested).
+  - **Backend:** capability `whatif` (mock adapter only; `SourceManager.whatif`), `twin_backend/whatif/` (`service.py`: safety rules / limits / horizon, ghost states, first warning / fault / alarm; `scoring.py`: its own worker pool with the live alarm rule, no attributions; `models.py`), `config/whatif.yaml` + `twin_common/config/whatif.py`, `Runtime.whatif`, `POST /whatif` (404 / 409 / 422 / 502; viewer is enough) replacing the 501 stub. Worker `configure` got `explain: false`.
+  - **Frontend:** `WhatIfPanel.tsx`, `state/whatif.ts`, `charts/ProjectionChart.tsx` (dashed projections), ghost-state table, apply as command (operator, live, confirmation, normal command path). `PlaceholderPanels.tsx` removed.
+  - **Docs:** `architecture.md`, `frontend.md`, `simulator.md`, `api.md` (regenerated), CLAUDE.md layout (`whatif.yaml`, `whatif/`).
+- **Remaining:** Group 3 (drift: PSI + ADWIN, DEGRADED, `model_drift`, banner, false-drift rate), Group 4 (demo scenarios a–d as e2e at real-time speed with the (c) ordering check, screenshots, ADR 0031, `docs/demo_script.md` incl. the unusual-behaviour false-alarm note, other docs, final lint + full tests, Part C entry, suggested commit message).
 
 Plan: Part A (model selection, deploy bundles, inference workers, Prediction pipeline, alerts, storage, parity and latency), Part B (dashboard), Part C (what-if, drift, demo scenarios, e2e, docs). Decisions with the user before Part A:
 - E1 GRU default, E1 XGBoost fast option.

@@ -5,6 +5,8 @@
 - ``GET /history?machineId=&sinceSeq=&limit=``: Readings with seq > sinceSeq, oldest first
 - ``WS /stream``: every Reading as ``{"reading": {...}, "sentAt": "<wall-clock ISO>"}``
 - ``POST /command``: a ``Command``; responds with the simulator's ``CommandAck``
+- ``POST /whatif``: a ``WhatIfSimRequest`` (ADR 0031): forks a copy of the running simulation,
+  applies one command, fast-forwards, answers a ``WhatIfSimResult`` (503 if not running)
 - ``POST /scenario``: a ``ScenarioRequest`` (simulation only, ADR 0015); responds with a
   ``ScenarioAck``
 
@@ -21,17 +23,19 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 
 from twin_common.contracts import Command, CommandAck, Reading, ScenarioAck, ScenarioRequest
 from twin_common.enums import AckStatus
 from twin_common.logging import get_logger
+from twin_common.whatif import WhatIfSimRequest, WhatIfSimResult
 from twin_sim.publishers.scenario import timeout_ack
 from twin_sim.publishers.session import SimSession
 
 log = get_logger(__name__)
 
 DEFAULT_COMMAND_TIMEOUT_S = 5.0
+DEFAULT_WHATIF_TIMEOUT_S = 60.0
 DEFAULT_HISTORY_LIMIT = 1000
 WS_QUEUE_SIZE = 10_000  # per client; full -> messages dropped, client backfills from /history
 
@@ -45,6 +49,7 @@ def create_app(
     *,
     own_session: bool = False,
     command_timeout_s: float = DEFAULT_COMMAND_TIMEOUT_S,
+    whatif_timeout_s: float = DEFAULT_WHATIF_TIMEOUT_S,
 ) -> FastAPI:
     """Build the app. With ``own_session`` the app starts and stops the simulation itself."""
 
@@ -93,6 +98,13 @@ def create_app(
     async def scenario(req: ScenarioRequest) -> ScenarioAck:
         ack = await session.submit_scenario(req, command_timeout_s)
         return ack if ack is not None else timeout_ack(req)
+
+    @app.post("/whatif")
+    async def whatif(req: WhatIfSimRequest) -> WhatIfSimResult:
+        result = await session.whatif(req, whatif_timeout_s)
+        if result is None:
+            raise HTTPException(503, "the simulator is not running or the fork timed out")
+        return result
 
     @app.websocket("/stream")
     async def stream(ws: WebSocket) -> None:

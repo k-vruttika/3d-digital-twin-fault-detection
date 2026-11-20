@@ -20,6 +20,7 @@ from twin_common.config import load_line_config
 from twin_common.config.line import LineConfig
 from twin_common.contracts import Command, CommandAck, Reading, ScenarioAck, ScenarioRequest
 from twin_common.logging import get_logger
+from twin_common.whatif import WhatIfSimRequest, WhatIfSimResult
 from twin_sim.config import (
     ScenarioConfig,
     SimConfig,
@@ -31,6 +32,7 @@ from twin_sim.line import LineSimulator
 from twin_sim.publishers.scenario import apply_scenario
 from twin_sim.runner import RealtimeRunner
 from twin_sim.scenario import make_run_plan
+from twin_sim.whatif import run_fork, take_fork
 
 log = get_logger(__name__)
 
@@ -78,6 +80,12 @@ class ReadingHistory:
         buf = self._by_machine.get(reading.machine_id)
         if buf is not None:
             buf.append(reading)
+
+    def recent(self, n: int) -> list[Reading]:
+        """The last ``n`` Readings of every machine, oldest first (what-if history)."""
+        out = [r for buf in self._by_machine.values() for r in list(buf)[-n:]]
+        out.sort(key=lambda r: (r.ts, r.machine_id))
+        return out
 
     def latest(self) -> list[Reading]:
         return [buf[-1] for buf in self._by_machine.values() if buf]
@@ -171,6 +179,28 @@ class SimSession:
         fut = self.runner.submit_call(lambda sim: apply_scenario(sim, req, scenario_dir))
         try:
             return await asyncio.wait_for(fut, timeout=timeout_s)
+        except TimeoutError:
+            fut.cancel()
+            return None
+
+    async def whatif(self, req: WhatIfSimRequest, timeout_s: float) -> WhatIfSimResult | None:
+        """Fork the running simulation (ADR 0031): None if it is not running or too slow.
+
+        The state is copied at the next tick boundary; the two copies then run in a thread,
+        so the live simulation keeps its pace.
+        """
+        if not self.running:
+            return None
+        # the history is taken in the same tick-boundary call as the snapshot, so it ends at
+        # the fork point (the simulation goes on while the copies run)
+        fut = self.runner.submit_call(
+            lambda sim: (take_fork(sim), self.history.recent(req.history_s))
+        )
+        try:
+            fork, history = await asyncio.wait_for(fut, timeout=timeout_s)
+            return await asyncio.wait_for(
+                asyncio.to_thread(run_fork, self.sim, fork, req, history), timeout=timeout_s
+            )
         except TimeoutError:
             fut.cancel()
             return None

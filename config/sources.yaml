@@ -26,6 +26,7 @@ mock:
   history_path: /history
   command_path: /command
   scenario_path: /scenario          # simulation only (ADR 0015)
+  whatif_path: /whatif              # simulation only (ADR 0031)
   rest_poll_s: 1.0                  # REST fallback poll period while the WebSocket is down
   history_limit: 1000
 

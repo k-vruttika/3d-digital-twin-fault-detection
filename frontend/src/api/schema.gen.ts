@@ -418,7 +418,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** What-if simulation (Phase 11 Part C; returns 501 until then) */
+        /**
+         * What-if projection of one change (simulation only)
+         * @description Forks a copy of the simulation behind the active source, applies one command to the copy now, fast-forwards it and an unchanged copy, and (with live inference on) scores both projections with the deployed model. Nothing is sent to the machine: apply the change for real with `POST /commands`. The change must pass the same safety rules as a command.
+         */
         post: operations["whatif_whatif_post"];
         delete?: never;
         options?: never;
@@ -1041,6 +1044,38 @@ export interface components {
                 [key: string]: components["schemas"]["Prediction"];
             };
         };
+        /** MachineProjection */
+        MachineProjection: {
+            /**
+             * Firstalarms
+             * @description model alarm (None: none, or no model)
+             */
+            firstAlarmS?: number | null;
+            /**
+             * Firstfaults
+             * @description simulator FAULT (truth)
+             */
+            firstFaultS?: number | null;
+            /**
+             * Firstwarnings
+             * @description simulator WARNING (truth)
+             */
+            firstWarningS?: number | null;
+            /**
+             * Ghost
+             * @description projected simulator state at each ghost horizon ("10", "30") and "end"
+             */
+            ghost: {
+                [key: string]: components["schemas"]["MachineState"];
+            };
+            /** Maxpfault */
+            maxPFault?: number | null;
+            /**
+             * Points
+             * @description t_s > 0, oldest first
+             */
+            points: components["schemas"]["ProjectionPoint"][];
+        };
         /**
          * MachineState
          * @description Operational state of a single machine.
@@ -1171,6 +1206,58 @@ export interface components {
         PredictionsResponse: {
             /** Predictions */
             predictions: components["schemas"]["Prediction"][];
+        };
+        /**
+         * ProjectionPoint
+         * @description One machine at one second: the simulated reading and, with a model, its prediction.
+         */
+        ProjectionPoint: {
+            /**
+             * Alarm
+             * @description the evaluated alarm rule
+             */
+            alarm?: boolean | null;
+            /** Current */
+            current?: number | null;
+            /**
+             * Gate
+             * @description predict | warming_up | waiting | stopped; None without a model
+             */
+            gate?: string | null;
+            /** Load */
+            load?: number | null;
+            /**
+             * Pfault
+             * @description calibrated, primary horizon
+             */
+            pFault?: number | null;
+            /**
+             * Pwarning
+             * @description calibrated, primary horizon
+             */
+            pWarning?: number | null;
+            /** Speed */
+            speed?: number | null;
+            state: components["schemas"]["MachineState"];
+            /**
+             * Ts
+             * @description seconds after the fork point (history: zero or negative)
+             */
+            tS: number;
+            /** Temp */
+            temp?: number | null;
+            topClass?: components["schemas"]["HealthClass"] | null;
+            /**
+             * Ts
+             * Format: date-time
+             */
+            ts: string;
+            /** Ttfs */
+            ttfS?: number | null;
+            /** Unusual */
+            unusual?: boolean | null;
+            /** Vib */
+            vib?: number | null;
         };
         /**
          * Quality
@@ -1517,6 +1604,78 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** Variant */
+        Variant: {
+            /** Machines */
+            machines: {
+                [key: string]: components["schemas"]["MachineProjection"];
+            };
+        };
+        /**
+         * WhatIfPayload
+         * @description Body of ``POST /whatif``: one change to one machine, applied at the fork point (now).
+         */
+        WhatIfPayload: {
+            /**
+             * Horizons
+             * @description projection length (default and maximum: whatif.yaml)
+             */
+            horizonS?: number | null;
+            /** Machineid */
+            machineId: string;
+            /** Params */
+            params?: {
+                [key: string]: boolean | number | string;
+            };
+            type: components["schemas"]["CommandType"];
+        };
+        /** WhatIfResponse */
+        WhatIfResponse: {
+            /**
+             * Asof
+             * Format: date-time
+             */
+            asOf: string;
+            /** @description nothing changed */
+            baseline: components["schemas"]["Variant"];
+            /** Elapsedms */
+            elapsedMs: number;
+            /** Ghosthorizonss */
+            ghostHorizonsS: number[];
+            /**
+             * History
+             * @description t_s <= 0, per machine
+             */
+            history: {
+                [key: string]: components["schemas"]["ProjectionPoint"][];
+            };
+            /** Horizons */
+            horizonS: number;
+            /** Machineid */
+            machineId: string;
+            /**
+             * Model
+             * @description model version scoring the projection
+             */
+            model?: string | null;
+            /**
+             * Modelnote
+             * @description why there are no predictions
+             */
+            modelNote?: string | null;
+            /** Params */
+            params: {
+                [key: string]: boolean | number | string;
+            };
+            /**
+             * Primaryhorizons
+             * @description horizon of p_* and alarm
+             */
+            primaryHorizonS?: number | null;
+            /** @description the change applied now */
+            scenario: components["schemas"]["Variant"];
+            type: components["schemas"]["CommandType"];
         };
         /** WsAckMessage */
         WsAckMessage: {
@@ -2556,16 +2715,48 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WhatIfPayload"];
+            };
+        };
         responses: {
-            /** @description what-if projections arrive in Phase 11 Part C; not implemented yet */
-            501: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["WhatIfResponse"];
                 };
+            };
+            /** @description Unknown machine */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The active source does not support what-if (simulation only) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not allowed by the safety rules, or rejected by the simulator */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The simulator behind the source could not run the projection */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

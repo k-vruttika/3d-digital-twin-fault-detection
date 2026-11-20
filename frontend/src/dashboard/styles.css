@@ -804,3 +804,38 @@ details.about summary {
   cursor: pointer;
   font-weight: 600;
 }
+
+/* ---------------------------------------------------------------- what-if (Phase 11 Part C) */
+table.whatif-ghosts {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin: 8px 0;
+}
+
+table.whatif-ghosts th,
+table.whatif-ghosts td {
+  text-align: left;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+table.whatif-ghosts tr {
+  cursor: pointer;
+}
+
+table.whatif-ghosts tr.selected {
+  background: var(--selected, rgba(31, 111, 209, 0.1));
+}
+
+table.whatif-ghosts td.differs {
+  box-shadow: inset 3px 0 0 var(--predicted);
+}
+
+/* a projected ("ghost") state: translucent with a dashed edge, never mistaken for a real one */
+.badge.ghost {
+  opacity: 0.72;
+  outline: 1px dashed rgba(255, 255, 255, 0.85);
+  outline-offset: -3px;
+}

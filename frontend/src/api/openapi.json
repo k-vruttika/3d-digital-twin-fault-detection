@@ -1524,6 +1524,80 @@
         "title": "MachinePredictionModel",
         "type": "object"
       },
+      "MachineProjection": {
+        "additionalProperties": false,
+        "properties": {
+          "firstAlarmS": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "model alarm (None: none, or no model)",
+            "title": "Firstalarms"
+          },
+          "firstFaultS": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "simulator FAULT (truth)",
+            "title": "Firstfaults"
+          },
+          "firstWarningS": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "simulator WARNING (truth)",
+            "title": "Firstwarnings"
+          },
+          "ghost": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MachineState"
+            },
+            "description": "projected simulator state at each ghost horizon (\"10\", \"30\") and \"end\"",
+            "title": "Ghost",
+            "type": "object"
+          },
+          "maxPFault": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxpfault"
+          },
+          "points": {
+            "description": "t_s > 0, oldest first",
+            "items": {
+              "$ref": "#/components/schemas/ProjectionPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "points",
+          "ghost"
+        ],
+        "title": "MachineProjection",
+        "type": "object"
+      },
       "MachineState": {
         "description": "Operational state of a single machine.",
         "enum": [
@@ -1962,6 +2036,167 @@
           "predictions"
         ],
         "title": "PredictionsResponse",
+        "type": "object"
+      },
+      "ProjectionPoint": {
+        "additionalProperties": false,
+        "description": "One machine at one second: the simulated reading and, with a model, its prediction.",
+        "properties": {
+          "alarm": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the evaluated alarm rule",
+            "title": "Alarm"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "gate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "predict | warming_up | waiting | stopped; None without a model",
+            "title": "Gate"
+          },
+          "load": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load"
+          },
+          "pFault": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "calibrated, primary horizon",
+            "title": "Pfault"
+          },
+          "pWarning": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "calibrated, primary horizon",
+            "title": "Pwarning"
+          },
+          "speed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speed"
+          },
+          "state": {
+            "$ref": "#/components/schemas/MachineState"
+          },
+          "tS": {
+            "description": "seconds after the fork point (history: zero or negative)",
+            "title": "Ts",
+            "type": "integer"
+          },
+          "temp": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temp"
+          },
+          "topClass": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HealthClass"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "ttfS": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ttfs"
+          },
+          "unusual": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unusual"
+          },
+          "vib": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vib"
+          }
+        },
+        "required": [
+          "tS",
+          "ts",
+          "state"
+        ],
+        "title": "ProjectionPoint",
         "type": "object"
       },
       "Quality": {
@@ -2858,6 +3093,197 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "Variant": {
+        "additionalProperties": false,
+        "properties": {
+          "machines": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/MachineProjection"
+            },
+            "title": "Machines",
+            "type": "object"
+          }
+        },
+        "required": [
+          "machines"
+        ],
+        "title": "Variant",
+        "type": "object"
+      },
+      "WhatIfPayload": {
+        "additionalProperties": false,
+        "description": "Body of ``POST /whatif``: one change to one machine, applied at the fork point (now).",
+        "properties": {
+          "horizonS": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "projection length (default and maximum: whatif.yaml)",
+            "title": "Horizons"
+          },
+          "machineId": {
+            "minLength": 1,
+            "title": "Machineid",
+            "type": "string"
+          },
+          "params": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "type": {
+            "$ref": "#/components/schemas/CommandType"
+          }
+        },
+        "required": [
+          "machineId",
+          "type"
+        ],
+        "title": "WhatIfPayload",
+        "type": "object"
+      },
+      "WhatIfResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "title": "Asof",
+            "type": "string"
+          },
+          "baseline": {
+            "$ref": "#/components/schemas/Variant",
+            "description": "nothing changed"
+          },
+          "elapsedMs": {
+            "title": "Elapsedms",
+            "type": "integer"
+          },
+          "ghostHorizonsS": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Ghosthorizonss",
+            "type": "array"
+          },
+          "history": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/ProjectionPoint"
+              },
+              "type": "array"
+            },
+            "description": "t_s <= 0, per machine",
+            "title": "History",
+            "type": "object"
+          },
+          "horizonS": {
+            "title": "Horizons",
+            "type": "integer"
+          },
+          "machineId": {
+            "title": "Machineid",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "model version scoring the projection",
+            "title": "Model"
+          },
+          "modelNote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "why there are no predictions",
+            "title": "Modelnote"
+          },
+          "params": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "title": "Params",
+            "type": "object"
+          },
+          "primaryHorizonS": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "horizon of p_* and alarm",
+            "title": "Primaryhorizons"
+          },
+          "scenario": {
+            "$ref": "#/components/schemas/Variant",
+            "description": "the change applied now"
+          },
+          "type": {
+            "$ref": "#/components/schemas/CommandType"
+          }
+        },
+        "required": [
+          "asOf",
+          "machineId",
+          "type",
+          "params",
+          "horizonS",
+          "ghostHorizonsS",
+          "history",
+          "baseline",
+          "scenario",
+          "elapsedMs"
+        ],
+        "title": "WhatIfResponse",
         "type": "object"
       },
       "WsAckMessage": {
@@ -4868,15 +5294,40 @@
     },
     "/whatif": {
       "post": {
+        "description": "Forks a copy of the simulation behind the active source, applies one command to the copy now, fast-forwards it and an unchanged copy, and (with live inference on) scores both projections with the deployed model. Nothing is sent to the machine: apply the change for real with `POST /commands`. The change must pass the same safety rules as a command.",
         "operationId": "whatif_whatif_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WhatIfPayload"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
-          "501": {
+          "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/WhatIfResponse"
+                }
               }
             },
-            "description": "what-if projections arrive in Phase 11 Part C; not implemented yet"
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Unknown machine"
+          },
+          "409": {
+            "description": "The active source does not support what-if (simulation only)"
+          },
+          "422": {
+            "description": "Not allowed by the safety rules, or rejected by the simulator"
+          },
+          "502": {
+            "description": "The simulator behind the source could not run the projection"
           }
         },
         "security": [
@@ -4884,7 +5335,7 @@
             "APIKeyHeader": []
           }
         ],
-        "summary": "What-if simulation (Phase 11 Part C; returns 501 until then)",
+        "summary": "What-if projection of one change (simulation only)",
         "tags": [
           "system"
         ]

@@ -62,6 +62,20 @@ class AdapterError(RuntimeError):
     """An adapter cannot start (bad config, missing file, ...)."""
 
 
+class WhatIfUnsupportedError(RuntimeError):
+    """The active source cannot fork a simulation (a simulation-only capability)."""
+
+    def __init__(self, kind: str) -> None:
+        super().__init__(
+            f"the active source ({kind} adapter) does not support what-if projections "
+            "(a simulation-only capability; use the mock source)"
+        )
+
+
+class WhatIfError(RuntimeError):
+    """A what-if fork failed at the source (not running, timeout, transport)."""
+
+
 @runtime_checkable
 class SourceAdapter(Protocol):
     kind: AdapterKind

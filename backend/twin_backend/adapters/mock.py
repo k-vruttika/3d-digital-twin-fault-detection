@@ -8,6 +8,7 @@
   reconnect attempt (exponential backoff).
 - **Commands:** ``POST {command_path}``.
 - **Scenario injection** (simulation only, ADR 0015): ``POST {scenario_path}``.
+- **What-if** (simulation only, ADR 0031): ``POST /whatif`` forks the running simulation.
 
 Machine ids come from the loaded line config.
 """
@@ -23,13 +24,14 @@ import httpx
 from websockets.asyncio.client import connect
 from websockets.exceptions import WebSocketException
 
-from twin_backend.adapters.base import BaseAdapter, scenario_ack
+from twin_backend.adapters.base import BaseAdapter, WhatIfError, scenario_ack
 from twin_backend.clock import Clock
 from twin_common.config.line import LineConfig
 from twin_common.config.sources import MockSourceConfig, ReconnectConfig
 from twin_common.contracts import Command, CommandAck, ScenarioAck, ScenarioRequest
 from twin_common.enums import AckStatus, AdapterKind, Capability
 from twin_common.logging import get_logger
+from twin_common.whatif import WhatIfSimRequest, WhatIfSimResult
 
 log = get_logger(__name__)
 
@@ -44,7 +46,9 @@ def _ws_url(base_url: str, path: str) -> str:
 
 class MockServerAdapter(BaseAdapter):
     kind = AdapterKind.MOCK
-    capabilities = frozenset({Capability.COMMANDS, Capability.HISTORY, Capability.SCENARIO})
+    capabilities = frozenset(
+        {Capability.COMMANDS, Capability.HISTORY, Capability.SCENARIO, Capability.WHATIF}
+    )
 
     def __init__(
         self,
@@ -185,6 +189,29 @@ class MockServerAdapter(BaseAdapter):
                 reason=f"command transport failed: {type(exc).__name__}: {exc}",
                 ts=self.clock.now(),
             )
+
+    async def whatif(self, req: WhatIfSimRequest, timeout_s: float) -> WhatIfSimResult:
+        """Fork the simulator behind the mock server; raises ``WhatIfError`` on any failure."""
+        if self._http is None:
+            raise WhatIfError("mock adapter is not started")
+        try:
+            resp = await self._http.post(
+                self.cfg.whatif_path,
+                content=req.model_dump_json(),
+                headers={"content-type": "application/json"},
+                timeout=timeout_s,
+            )
+            resp.raise_for_status()
+            return WhatIfSimResult.model_validate(resp.json())
+        except httpx.TimeoutException as exc:
+            raise WhatIfError(f"the simulator did not answer within {timeout_s:g} s") from exc
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text[:200]
+            raise WhatIfError(
+                f"the simulator refused the what-if ({exc.response.status_code}): {detail}"
+            ) from exc
+        except (httpx.HTTPError, ValueError) as exc:
+            raise WhatIfError(f"what-if transport failed: {type(exc).__name__}: {exc}") from exc
 
     async def send_scenario(self, req: ScenarioRequest) -> ScenarioAck:
         now = self.clock.now

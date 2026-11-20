@@ -36,6 +36,9 @@ export interface DashboardConfig {
   predictionStaleMsFallback: number;
   /** At most this many parts are highlighted from one prediction's attributions. */
   highlightTopParts: number;
+  /** What-if: projection lengths offered (s), and the default one. */
+  whatifHorizonsS: number[];
+  whatifDefaultHorizonS: number;
   /** Unusual-behaviour display (UI only): "intermittent" after this many on/off switches ... */
   unusualFlapMinSwitches: number;
   /** ... within this period (event-time seconds), and the indicator stays this long after a clear. */
@@ -66,6 +69,8 @@ export const DASHBOARD_CONFIG: DashboardConfig = {
   primaryHorizonS: 30,
   predictionStaleMsFallback: 5_000,
   highlightTopParts: 2,
+  whatifHorizonsS: [60, 120, 300],
+  whatifDefaultHorizonS: 120,
   unusualFlapMinSwitches: 4,
   unusualFlapWindowS: 300,
   unusualHoldS: 30,

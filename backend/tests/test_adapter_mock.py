@@ -145,6 +145,7 @@ async def test_stream_and_backfill_from_start(
         Capability.COMMANDS,
         Capability.HISTORY,
         Capability.SCENARIO,
+        Capability.WHATIF,
     }
     lat = rig.pipeline.metrics.registry.get_sample_value(
         "linetwin_ingest_e2e_latency_seconds_count", {"source": "mock", "basis": "source"}

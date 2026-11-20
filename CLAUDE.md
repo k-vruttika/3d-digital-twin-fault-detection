@@ -68,6 +68,7 @@ linetwin/
 │  ├─ api.yaml               # bind address, CORS, WebSocket buffers
 │  ├─ commands.yaml          # safety rules (STOP always allowed), limits, idempotency
 │  ├─ inference.yaml         # Phase 11 live inference: deployed model + version, gate, workers (off by default)
+│  ├─ whatif.yaml            # Phase 11 what-if: projection lengths, history, ghost horizons (needs the source capability `whatif`)
 │  ├─ mosquitto.d/           # Mosquitto settings shared by container and native fallback
 │  ├─ mosquitto.docker.conf  # Mosquitto entry config inside the container
 │  ├─ mosquitto.conf         # Mosquitto entry config for the native fallback
@@ -83,7 +84,7 @@ linetwin/
 │  ├─ engine/                # state machines, line propagation, data quality
 │  ├─ commands/              # command bus, safety rules, audit
 │  ├─ inference/             # Phase 11: service (bus -> worker processes -> Predictions, alert conditions), workers, alarms (evaluated rule)
-│  ├─ whatif/
+│  ├─ whatif/                # Phase 11: what-if service (fork via the source, safety rules, scoring in its own worker pool)
 │  └─ api/                   # REST routers, WS gateway, auth
 ├─ ml/twin_ml/
 │  ├─ data/                  # windowing, labels, splits, build (python -m twin_ml.data build), perturbations

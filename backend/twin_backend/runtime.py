@@ -40,9 +40,11 @@ from twin_common.config import (
 from twin_common.config.inference import InferenceConfig, load_inference_config
 from twin_common.config.loader import ConfigError
 from twin_common.config.settings import TwinSettings
+from twin_common.config.whatif import WhatIfConfig, load_whatif_config
 
 if TYPE_CHECKING:
     from twin_backend.inference.service import InferenceService
+    from twin_backend.whatif.service import WhatIfService
 
 
 @dataclass
@@ -66,6 +68,8 @@ class Runtime:
     # Phase 11: live inference (None unless enabled; never in minimal mode by default)
     inference_cfg: InferenceConfig | None = None
     inference: InferenceService | None = None
+    # Phase 11 Part C: what-if projections (None without config/whatif.yaml)
+    whatif: WhatIfService | None = None
 
     async def start(self) -> None:
         """Storage, then the source, then the engine (after restoring its alerts).
@@ -85,6 +89,8 @@ class Runtime:
     async def stop(self) -> None:
         if self.inference is not None:
             await self.inference.stop()  # its last predictions are on the bus before storage stops
+        if self.whatif is not None:
+            await self.whatif.close()
         await self.manager.stop(before_storage=self.engine.stop)
 
 
@@ -110,6 +116,7 @@ def build_runtime(
     api_cfg: ApiConfig | None = None,
     commands_cfg: CommandsConfig | None = None,
     inference_cfg: InferenceConfig | None = None,
+    whatif_cfg: WhatIfConfig | None = None,
     with_storage: bool = True,
 ) -> Runtime:
     settings = settings if settings is not None else TwinSettings()
@@ -133,6 +140,8 @@ def build_runtime(
     )
     if inference_cfg is None and (config_dir / "inference.yaml").is_file():
         inference_cfg = load_inference_config(config_dir / "inference.yaml")
+    if whatif_cfg is None and (config_dir / "whatif.yaml").is_file():
+        whatif_cfg = load_whatif_config(config_dir / "whatif.yaml")
     check_storage_against_ingest(storage_cfg, sources)
     clock = clock if clock is not None else SystemClock()
     bus = InMemoryEventBus(sources.bus.queue_size, clock=clock)
@@ -171,6 +180,13 @@ def build_runtime(
         inference = InferenceService(
             inference_cfg, line, bus, engine, clock, root, registry=metrics.registry
         )
+    whatif = None
+    if whatif_cfg is not None:
+        from twin_backend.whatif.service import WhatIfService  # no ML import (ADR 0031)
+
+        whatif = WhatIfService(
+            whatif_cfg, commands_cfg, line, manager, engine, clock, root, inference_cfg
+        )
     return Runtime(
         settings,
         line,
@@ -190,4 +206,5 @@ def build_runtime(
         scenarios,
         inference_cfg,
         inference,
+        whatif,
     )

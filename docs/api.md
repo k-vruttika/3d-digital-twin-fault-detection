@@ -483,11 +483,19 @@ Prometheus metrics (text exposition format). Role: **viewer**.
 
 ##### `POST /whatif`
 
-What-if simulation (Phase 11 Part C; returns 501 until then). Role: **viewer**.
+What-if projection of one change (simulation only). Role: **viewer**.
+
+Forks a copy of the simulation behind the active source, applies one command to the copy now, fast-forwards it and an unchanged copy, and (with live inference on) scores both projections with the deployed model. Nothing is sent to the machine: apply the change for real with `POST /commands`. The change must pass the same safety rules as a command.
+
+Request body: [WhatIfPayload](#whatifpayload)
 
 | Status | Description | Body |
 |---|---|---|
-| 501 | what-if projections arrive in Phase 11 Part C; not implemented yet |  |
+| 200 | Successful Response | [WhatIfResponse](#whatifresponse) |
+| 404 | Unknown machine |  |
+| 409 | The active source does not support what-if (simulation only) |  |
+| 422 | Not allowed by the safety rules, or rejected by the simulator |  |
+| 502 | The simulator behind the source could not run the projection |  |
 
 #### Schemas
 
@@ -865,6 +873,17 @@ One of: `CONVEYOR`, `CNC`, `INSPECTION`
 | `gate` | [MachineGateModel](#machinegatemodel) | yes |  |
 | `predictions` | map of [Prediction](#prediction) | no | newest prediction per horizon |
 
+##### MachineProjection
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `points` | array of [ProjectionPoint](#projectionpoint) | yes | t_s > 0, oldest first |
+| `ghost` | map of [MachineState](#machinestate) | yes | projected simulator state at each ghost horizon ("10", "30") and "end" |
+| `firstWarningS` | integer \| null | no | simulator WARNING (truth) |
+| `firstFaultS` | integer \| null | no | simulator FAULT (truth) |
+| `firstAlarmS` | integer \| null | no | model alarm (None: none, or no model) |
+| `maxPFault` | number \| null | no |  |
+
 ##### MachineState
 
 Operational state of a single machine.
@@ -951,6 +970,28 @@ Model output for one machine at one horizon.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `predictions` | array of [Prediction](#prediction) | yes |  |
+
+##### ProjectionPoint
+
+One machine at one second: the simulated reading and, with a model, its prediction.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `tS` | integer | yes | seconds after the fork point (history: zero or negative) |
+| `ts` | string (date-time) | yes |  |
+| `state` | [MachineState](#machinestate) | yes |  |
+| `speed` | number \| null | no |  |
+| `temp` | number \| null | no |  |
+| `vib` | number \| null | no |  |
+| `load` | number \| null | no |  |
+| `current` | number \| null | no |  |
+| `gate` | string \| null | no | predict \| warming_up \| waiting \| stopped; None without a model |
+| `pWarning` | number \| null | no | calibrated, primary horizon |
+| `pFault` | number \| null | no | calibrated, primary horizon |
+| `topClass` | [HealthClass](#healthclass) \| null | no |  |
+| `alarm` | boolean \| null | no | the evaluated alarm rule |
+| `unusual` | boolean \| null | no |  |
+| `ttfS` | number \| null | no |  |
 
 ##### Quality
 
@@ -1165,6 +1206,41 @@ A machine's effective state changed (bus topic ``states``).  Emitted by the inge
 | `type` | string | yes |  |
 | `input` | any | no |  |
 | `ctx` | object | no |  |
+
+##### Variant
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `machines` | map of [MachineProjection](#machineprojection) | yes |  |
+
+##### WhatIfPayload
+
+Body of ``POST /whatif``: one change to one machine, applied at the fork point (now).
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `machineId` | string | yes |  |
+| `type` | [CommandType](#commandtype) | yes |  |
+| `params` | map of boolean \| integer \| number \| string | no |  |
+| `horizonS` | integer \| null | no | projection length (default and maximum: whatif.yaml) |
+
+##### WhatIfResponse
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `asOf` | string (date-time) | yes |  |
+| `machineId` | string | yes |  |
+| `type` | [CommandType](#commandtype) | yes |  |
+| `params` | map of boolean \| integer \| number \| string | yes |  |
+| `horizonS` | integer | yes |  |
+| `ghostHorizonsS` | array of integer | yes |  |
+| `primaryHorizonS` | integer \| null | no | horizon of p_* and alarm |
+| `model` | string \| null | no | model version scoring the projection |
+| `modelNote` | string \| null | no | why there are no predictions |
+| `history` | map of array of [ProjectionPoint](#projectionpoint) | yes | t_s <= 0, per machine |
+| `baseline` | [Variant](#variant) | yes | nothing changed |
+| `scenario` | [Variant](#variant) | yes | the change applied now |
+| `elapsedMs` | integer | yes |  |
 
 ##### WsAckMessage
 

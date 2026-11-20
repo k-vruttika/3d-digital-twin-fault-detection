@@ -60,9 +60,10 @@ class WorkerPool:
         ]
         self.info = PoolInfo()
 
-    def configure_message(self) -> dict[str, Any]:
+    def configure_message(self, *, explain: bool = True) -> dict[str, Any]:
         return {
             "op": "configure",
+            "explain": explain,
             "machines": {
                 m.id: {"kind": m.kind.value, "sensorParts": dict(m.sensor_parts)}
                 for m in self.line.machines
@@ -110,6 +111,12 @@ class WorkerPool:
             workers={n: p["libraries"] for n, p in self.info.processes.items()},
         )
         return self.info
+
+    async def reconfigure(self, *, explain: bool = True) -> None:
+        """Configure the workers again: empty buffers, same models (what-if: no attributions)."""
+        conf = self.configure_message(explain=explain)
+        timeout = self.cfg.worker.request_timeout_s
+        await asyncio.gather(*(p.arequest(conf, timeout) for p in self.procs))
 
     async def step(self, rows: dict[str, list[list[Any]]]) -> dict[str, Any]:
         """Send one batch to every worker; per machine, one merged entry per new reading."""

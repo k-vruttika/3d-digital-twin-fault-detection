@@ -290,3 +290,7 @@ Real equipment would not offer this. All three publishers accept scenario reques
 - **`LOAD_SCENARIO`** (`scenario`, optional `seed`): a file named `<scenario>.yaml` in the session's scenario directory (the directory of `--scenario`). Its fault, sensor-fault and command events are scheduled relative to now (`LineSimulator.schedule_plan`); loads, thresholds and the source keep the current values.
 
 Requests run at a tick boundary (`RealtimeRunner.submit_call`, like commands), and the ack carries simulation time.
+
+### What-if forks (simulation only, Phase 11 Part C)
+
+The mock server also answers `POST /whatif` ([ADR 0031](adr/0031-whatif-drift-demo.md); contracts in `twin_common/whatif.py`, code in `twin_sim/whatif.py`). `SimSession.whatif` copies the simulator state (`LineSimulator.snapshot`) and the last `historyS` readings of every machine in one tick-boundary call, so the history ends exactly at the fork point. Two copies are then built with `LineSimulator.from_snapshot` and fast-forwarded in a worker thread: one unchanged, one with a single command applied by `apply_command` at the fork point. The live simulation is never advanced or changed. Because the snapshot restores the random-number streams, the unchanged copy is bit-for-bit what the live simulation does next (`test_sim_whatif.py`). A change the simulator rejects leaves the projection equal to the baseline and the answer says so (`actionStatus`). The MQTT and OPC UA publishers do not offer it; the capability is `whatif` and only the mock source has it.

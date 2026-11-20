@@ -13,7 +13,8 @@ Requests (one JSON object per line, answered in order, each answer echoes ``id``
 
 * ``{"op": "hello"}`` -> bundle info, loaded libraries;
 * ``{"op": "configure", "machines": {id: {"kind", "sensorParts"}}, "gate": {...},
-  "explainAsync": bool, "capacity": rows}``;
+  "explainAsync": bool, "explain": bool (default true; false = no attributions, used by
+  what-if), "capacity": rows}``;
 * ``{"op": "step", "rows": {machine: [[seq, tsEpochS, state, speed, temp, vib, load,
   current], ...]}}`` -> for every new reading its gate status, and the model outputs of every
   predicted window, plus finished explanations and per-stage timings;
@@ -161,6 +162,7 @@ class Worker:
         self.bundles = bundles
         self.buffers: dict[str, MachineBuffer] = {}
         self.parts: dict[str, Mapping[str, str]] = {}
+        self.explain = True
         self.explain_async = True
         self.explainer: Explainer | None = None
 
@@ -182,7 +184,8 @@ class Worker:
         g = msg["gate"]
         cfg = GateConfig.of(self.window, g["operating"], g["waiting"], int(g["maxGapRows"]))
         capacity = int(msg["capacity"])
-        self.explain_async = bool(msg.get("explainAsync", True))
+        self.explain = bool(msg.get("explain", True))
+        self.explain_async = bool(msg.get("explainAsync", True)) and self.explain
         if self.explainer is not None:
             self.explainer.stop()
             self.explainer = None
@@ -236,7 +239,7 @@ class Worker:
                     outs[i] |= r
             for (_, _, entry), out in zip(todo, outs, strict=True):
                 entry["out"] = out
-            if sup_windows is not None:
+            if sup_windows is not None and self.explain:
                 explanations += self._explain(todo, outs, sup_windows, timer)
         if self.explainer is not None:
             explanations += self.explainer.collect()

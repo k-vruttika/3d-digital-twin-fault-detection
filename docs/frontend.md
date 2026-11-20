@@ -175,7 +175,7 @@ engine.dispose();                              // frees everything; safe to call
 
 ## API client
 
-- **`RestClient`** (`api/rest.ts`): typed methods for every endpoint the frontend uses (`ENDPOINTS`): `/line`, `/machines`, `/history`, `/replay`, `/replay/range`, `/alerts` and ack, `/commands` (send, audit, limits), `/auth/me`, `/sources` and switch, `/scenario` (send, audit, options), `/health`, `/predict` and `/predict/history` (Phase 11), and the `/whatif` stub (Part C).
+- **`RestClient`** (`api/rest.ts`): typed methods for every endpoint the frontend uses (`ENDPOINTS`): `/line`, `/machines`, `/history`, `/replay`, `/replay/range`, `/alerts` and ack, `/commands` (send, audit, limits), `/auth/me`, `/sources` and switch, `/scenario` (send, audit, options), `/health`, `/predict` and `/predict/history` (Phase 11), and `/whatif` (Part C).
   - Sends `X-API-Key`.
   - Throws `ApiError` with status and detail.
   - Every endpoint it calls is checked against the committed OpenAPI schema.
@@ -353,7 +353,15 @@ Live predictions from the backend's inference service (ADR 0030; `uv run poe dev
 
 ### What-if
 
-Still a placeholder until Phase 11 Part C: it calls `POST /whatif` and shows the backend's 501 detail; any other error shows as an error.
+`WhatIfPanel.tsx` + `state/whatif.ts` (pure helpers) + `charts/ProjectionChart.tsx` (config in `charts/projectionConfig.ts`). A form (machine, change, parameter, projection length) calls `POST /whatif` and shows:
+
+- **Ghost states:** a table with the real state now and, per machine, the projected state at +10 s, +30 s and the end, "no change → with change" (translucent badges with a dashed edge, a marker where the two differ). Click a row to chart that machine.
+- **Dashed projection lines:** the chart draws the measured recent values solid, the unchanged projection dashed grey and the changed one dashed orange (per signal; with a model also calibrated P(FAULT) / P(WARNING)).
+- **Outcome text:** first simulator WARNING / FAULT in each projection and, with a model, the first alarm.
+- **Apply as command…** (operator only, live mode): a confirmation dialog, then `POST /commands` with a fresh idempotency key and the normal safety rules. A viewer can project but not apply.
+- **Errors in words:** 409 ("Not available: …", also disabled up front when `GET /sources` lacks the `whatif` capability or in replay), 422 ("Refused: …": safety rules and limits), others with their status.
+
+Projection lengths offered and the default are `whatifHorizonsS` / `whatifDefaultHorizonS` in `dashboard/config.ts`.
 
 ### Tests
 
@@ -367,7 +375,7 @@ Still a placeholder until Phase 11 Part C: it calls `POST /whatif` and shows the
 - sources metrics;
 - replay: banner, engine replay mode, return to live, request coalescing;
 - predictions (`predictions.test.tsx`): the view helpers, the unusual-behaviour visual (whole machine, own colour, never over a state outline or on a stale machine), part highlights only from supervised attributions (cleared on NORMAL and when stale), the panel (gate texts, sets in words, time to fault, the honest note, inference off), no stale alarm in the details of a stopped machine, replay of stored predictions, and the distinct unusual-behaviour alert;
-- the what-if 501 placeholder;
+- the what-if panel (`whatif.test.tsx`): helpers, ghost states, dashed projection lines, the 409 / 422 messages, disabled without the capability or in replay, apply as command only after a confirmation and only for an operator;
 - missing values drawn as chart gaps;
 - the API key never in a URL or localStorage.
 

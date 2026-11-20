@@ -133,8 +133,12 @@ See [ADR 0014](adr/0014-command-path.md). Scenario injection (simulation only, [
 
 ```mermaid
 flowchart LR
-    D["Dashboard"] -->|POST /whatif| SN["Simulator snapshot"] --> FF["Fast-forward copy"] --> MDL["Model"] --> T["Projected trajectory"]
+    D["Dashboard"] -->|POST /whatif| SR["Safety rules<br/>(same as a command)"] --> SN["Simulator snapshot<br/>(mock server, tick boundary)"]
+    SN --> FF["Fast-forward two copies<br/>(no change / the change)"] --> MDL["Scoring workers<br/>(own pool, same bundles)"] --> T["Projected trajectories<br/>+ ghost states"]
+    T -->|"apply as command<br/>(operator, confirmed)"| CMD["POST /commands"]
 ```
+
+`POST /whatif` needs the source capability `whatif` (the mock server; a simulation-only feature like scenario injection), and answers 409 otherwise. The mock server copies the simulator state at a tick boundary, then runs an unchanged copy and a changed copy for `horizonS` seconds in a thread, so the live simulation keeps its pace. The simulator restores its random-number streams too, so the unchanged copy is exactly what the live simulation would do next. With live inference on, a separate worker pool (same bundles and gate, no attributions) scores both projections from empty buffers over the recent readings plus the projection, with the evaluated alarm rule; the live inference, its alerts and the event store are not touched. Without inference the projection shows the simulator only. Running a what-if sends nothing to a machine and stores nothing; applying the change for real goes through `POST /commands` ([ADR 0031](adr/0031-whatif-drift-demo.md)).
 
 ## Minimal mode
 
