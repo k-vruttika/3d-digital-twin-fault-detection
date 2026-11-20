@@ -9,8 +9,11 @@ decision rule and ADWIN as the live monitor (no numbers are typed by hand):
    operating rows of every clean validation and test machine run; drift episodes per
    machine-hour of operating time are counted.
 2. **The live margin** is chosen on the *validation* runs only: the smallest margin whose false
-   episodes per hour are at most ``max_false_episodes_per_hour``. The test numbers are
-   reported at every margin and never used for the choice.
+   episodes per hour are at most ``max_false_episodes_per_hour`` **and** at which drift can
+   clear in normal operation: at least ``min_calm_fraction`` of the clean validation rows have
+   every channel below its clear level (the PSI of a machine in one load band sits close to the
+   alert level, so a margin of 1 raises rarely but never clears; the first live demo showed
+   it). The test numbers are reported at every margin and never used for the choice.
 3. **Detection of synthetic input shifts.** The operating-condition inputs of the clean test
    runs are shifted from the middle of each run (load plus a few percentage points, speed by
    a fraction of the mean training speed). This is a *synthetic* shift of recorded rows, not a
@@ -74,25 +77,28 @@ def psi_arrays(
 
 def run_decider(
     psis: dict[str, npt.NDArray[np.float64]], ref_kind: dict[str, Any], cfg: DriftSettings
-) -> tuple[list[int], int]:
-    """Episode start rows (index into the PSI arrays) and the number of rows in drift."""
+) -> tuple[list[int], int, int]:
+    """Episode start rows (index into the PSI arrays), the number of rows in drift, and the
+    number of calm rows (every channel below its clear level)."""
     alert = {ch: float(r["psi_threshold"]) * cfg.margin for ch, r in ref_kind.items()}
     clear = {ch: a * cfg.clear_ratio for ch, a in alert.items()}
     decider = Decider(alert, clear, cfg)
     starts: list[int] = []
-    drifted_rows = 0
+    drifted_rows = calm_rows = 0
     n = min(len(v) for v in psis.values())
     for i in range(n):
-        if decider.step({ch: float(v[i]) for ch, v in psis.items()}):
+        row = {ch: float(v[i]) for ch, v in psis.items()}
+        if decider.step(row):
             starts.append(i)
         drifted_rows += decider.drifted
-    return starts, drifted_rows
+        calm_rows += all(p < clear[ch] for ch, p in row.items())
+    return starts, drifted_rows, calm_rows
 
 
 def clean_rates(
     series: Series, ref: dict[str, Any], sensors: list[str], cfg: DriftSettings
 ) -> dict[str, Any]:
-    episodes = rows = drifted = 0
+    episodes = rows = drifted = calm = 0
     runs_with = 0
     for raw, kind in series:
         if kind not in ref:
@@ -101,10 +107,11 @@ def clean_rates(
         n = min(len(v) for v in psis.values())
         if n == 0:
             continue
-        starts, d_rows = run_decider(psis, ref[kind], cfg)
+        starts, d_rows, c_rows = run_decider(psis, ref[kind], cfg)
         episodes += len(starts)
         rows += n
         drifted += d_rows
+        calm += c_rows
         runs_with += bool(starts)
     hours = rows / 3600.0
     return {
@@ -114,6 +121,7 @@ def clean_rates(
         "episodes_per_hour": episodes / hours if hours else None,
         "runs_with_drift": runs_with,
         "drifted_row_fraction": drifted / rows if rows else None,
+        "calm_row_fraction": calm / rows if rows else None,
     }
 
 
@@ -155,7 +163,7 @@ def detection(
         is_outside = med < edges[0] or med > edges[-1]
         outside += is_outside
         psis = psi_arrays(x, ref[kind], sensors, cfg.window_s)
-        starts, _ = run_decider(psis, ref[kind], cfg)
+        starts, _, _ = run_decider(psis, ref[kind], cfg)
         # PSI index i ends at operating row i + window - 1
         after = [s + cfg.window_s - 1 - at for s in starts if s + cfg.window_s - 1 >= at]
         if after:
@@ -241,6 +249,7 @@ def evaluate(deploy: Any, inference: Any, root: Path) -> dict[str, Any]:
         g
         for g in grid
         if (g["validation"]["episodes_per_hour"] or 0.0) <= rep.max_false_episodes_per_hour
+        and (g["validation"]["calm_row_fraction"] or 0.0) >= rep.min_calm_fraction
     ]
     chosen = ok[0] if ok else None
     result: dict[str, Any] = {
@@ -273,6 +282,7 @@ def evaluate(deploy: Any, inference: Any, root: Path) -> dict[str, Any]:
         "false_drift": grid,
         "rule": {
             "max_false_episodes_per_hour": rep.max_false_episodes_per_hour,
+            "min_calm_fraction": rep.min_calm_fraction,
             "chosen_margin": chosen["margin"] if chosen else None,
         },
         "shifts": [],
@@ -364,19 +374,23 @@ def write_report(result: dict[str, Any], out: Path) -> None:
         "Episodes of drift per machine-hour of operating time on runs with no condition shift "
         "(every episode is a false alarm). The live margin is chosen on the validation runs only "
         f"(the smallest margin with at most {result['rule']['max_false_episodes_per_hour']:g} "
-        "episodes per hour); the test columns are not used for the choice.",
+        "episodes per hour **and** at least "
+        f"{result['rule']['min_calm_fraction']:.0%} of the clean validation rows calm, i.e. below "
+        "the clear level on every channel, so that drift can also end in normal operation); the "
+        "test columns are not used for the choice.",
         "",
-        "| Margin | Val episodes / h | Val runs with drift | Test episodes / h | "
-        "Test runs with drift | Test rows in drift |",
-        "|---|---|---|---|---|---|",
+        "| Margin | Val episodes / h | Val runs with drift | Val rows calm | Test episodes / h | "
+        "Test runs with drift | Test rows in drift | Test rows calm |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for g in result["false_drift"]:
         v, t = g["validation"], g["test"]
         mark = " (chosen)" if g["margin"] == chosen else ""
         lines.append(
             f"| {g['margin']:g}{mark} | {_fmt(v['episodes_per_hour'], 3)} | "
-            f"{v['runs_with_drift']} / {v['runs']} | {_fmt(t['episodes_per_hour'], 3)} | "
-            f"{t['runs_with_drift']} / {t['runs']} | {_fmt(t['drifted_row_fraction'], 4)} |"
+            f"{v['runs_with_drift']} / {v['runs']} | {_fmt(v['calm_row_fraction'], 3)} | "
+            f"{_fmt(t['episodes_per_hour'], 3)} | {t['runs_with_drift']} / {t['runs']} | "
+            f"{_fmt(t['drifted_row_fraction'], 4)} | {_fmt(t['calm_row_fraction'], 3)} |"
         )
     lines.append("")
     if chosen is None:

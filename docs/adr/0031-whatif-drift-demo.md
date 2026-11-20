@@ -1,6 +1,6 @@
 # ADR 0031: What-if projections, drift detection and the demo scenarios
 
-- **Status:** Accepted (what-if: Group 2, drift: Group 3 of Phase 11 Part C). The demo section is added with Group 4.
+- **Status:** Accepted (Phase 11 Part C: what-if, drift, demo scenarios)
 - **Date:** 2026-11-20
 - **Phase:** 11 Part C
 
@@ -38,7 +38,8 @@ The dashboard can show predictions (ADR 0030). Operators also want to ask "what 
 - **What is monitored: speed and load only** (`deploy.yaml` `drift.channels`). Vibration, temperature and current are health signals: a developing fault changes them by design, so drift on them would fire during every real fault and say nothing about the operating condition.
 - **PSI against the training distribution** of the machine's kind: 10 quantile bins of the training rows inside a 0.1 %–99.9 % support, plus an overflow bin on each side, over a rolling window of 120 operating rows, with additively smoothed counts. The overflow bins matter: without them a load far above the trained range lands in the top bin and looks like "the top decile".
 - **The alert level is calibrated, not 0.25.** A machine sits in one load band for long stretches, so even a clean window differs from the pooled training distribution and the textbook 0.25 would flag clean runs (a unit test and the first worker test showed this). The alert level per kind and channel is the 99.9 % quantile of the PSI of *clean validation windows* (`calibrate_thresholds`), times a live `threshold_margin`.
-- **Decision rule** (one class, `Decider`, shared by the live monitor and the report): PSI at or above the alert level on any channel for 30 s raises drift; it clears below 0.6 × the alert level on every channel for 60 s.
+- **Decision rule** (one class, `Decider`, shared by the live monitor and the report): PSI at or above the alert level on any channel for 30 s raises drift; it clears below 0.85 × the alert level on every channel for 60 s.
+- **The live margin must also let drift clear (found by the first live demo).** The PSI of a machine in one load band is nearly constant and sits close to the alert level (about 4.7 against an alert level of 4.8, because the statistic saturates when most bins are empty). With the first settings (margin 1.0, clear at 0.6 × the alert level) drift was raised correctly but never cleared after the load returned to normal. The report rule now picks the smallest margin with at most 0.1 false episodes per machine-hour **and** at least 95 % of the clean validation rows below the clear level (`min_calm_fraction`); that is margin 1.25, now the live setting, and a test checks that the config equals the report's choice.
 - **ADWIN** (`river`, delta 0.002) runs on the standardised value of each channel and **does not decide**. It dates the change: the drift's `since` is ADWIN's last change time on a channel over its alert level. A decision by ADWIN alone would flag every legitimate change of band; PSI against the training range is the decision.
 - **Where it runs:** in the monitor worker (the autoencoder bundle), because the reference is the autoencoder's training split (the E1 dataset, all load bands). The reference, the window and the alert levels are part of that bundle; a bundle built before this part has none and drift detection is simply off (`drift.enabled` in `config/inference.yaml`). Only operating rows (RUNNING / WARNING) count; the monitor keeps its window across short stops. Backend and dashboard never see ML code.
 - **Consequence for the supervised models:** `gru_e4` (trained on low and medium load) is monitored against the E1 reference, not its own training range, so a high-load run is not drift for it.
@@ -48,9 +49,30 @@ The dashboard can show predictions (ADR 0030). Operators also want to ask "what 
 
 ### Measured (from the report; simulator data only)
 
-- Clean runs, margin 1.0 (the live setting, chosen by the rule): 0.064 false drift episodes per machine-hour on validation runs and 0.022 on test runs (2 of 120 runs). Margins from 1.25 gave none on either split, at the price of lower sensitivity.
-- A shift that leaves the training support was detected in every case (load +5 to +45 points, speed +5 % to +40 %), with a median delay of about 1–2 minutes (the window is 120 s, plus the 30 s sustain), and ADWIN dated the change 20 s after it on median.
+- Clean runs at the live margin 1.25 (chosen by the rule on validation runs): no false drift episode on the validation or the test runs (0 of 120 runs each), and 100 % / 99.9 % of the rows calm. At margin 1.0 there were 0.064 and 0.022 episodes per machine-hour (2 of 120 test runs), but drift could not clear.
+- A shift that leaves the training support was detected in every case (load +5 to +45 points, speed +5 % to +40 %), with a median delay of about 90–110 s after the shift (the window is 120 s, plus the 30 s sustain), and ADWIN dated the change 20 s after it on median.
 - A shift that stays inside the trained range is, by design, not drift. For the load that is most runs below +30 points: the trained loads cover 10–96 %.
+
+### Demo scenarios as end-to-end tests
+
+Four scenarios (`docs/demo_script.md`, `tests/test_phase11_demo.py`), each against the real stack and in **real time**: the mock machine server (the simulator), the dev-mode backend on a throw-away TimescaleDB database with live inference on the deployed bundles, and the REST API. Nothing is replayed or faked; the assertions are on what the running system reports, compared on the **event-time axis** (alert `ts`, state `ts`).
+
+- **(a) Healthy line + what-if:** no alert of any kind for 120 s, predictions NORMAL with reliability OK; a what-if "stop CNC-01" shows CNC-01 IDLE and INSP-01 starved, scored by the model, and leaves the real line and the command audit untouched.
+- **(b) Unseen fault (`lubrication_loss`):** the supervised model stays NORMAL and raises no alarm; the autoencoder's "unusual behaviour, cause unknown" is raised, names no part.
+- **(c) Known fault (`bearing_wear`), the ordering check:** injection < unusual behaviour <= predicted WARNING < the simulator's own WARNING, and the strongest explained part at the alarm is the spindle bearing. This is the claim of the live check in Part B turned into a failing test, not a recorded observation.
+- **(d) Operating-condition drift:** load 120 % raises `model_drift`, marks the predictions DEGRADED, raises no predicted alarm, and clears after the load is back at 55 %.
+
+Why real time: with Chromium's software WebGL and the workers sharing the CPU, explanations took 1–5 s each in Part B, so a faster simulator drops every explanation and the part highlight disappears (ADR 0030). The scenarios cost 3–15 minutes each; they are skipped, with a message, when the deployed bundles are not registered.
+
+Measured by one run (written by the tests to `experiments/results/demo_scenarios/*.json`; event times, one laptop, not guarantees):
+
+| Scenario | Result |
+|---|---|
+| (b) | unusual behaviour 49 s after the injection; supervised NORMAL (0.9998) with no alarm; the alert switched on and off twice in the following minutes |
+| (c) | unusual behaviour at +173 s, predicted WARNING at +444 s, simulator WARNING at +501 s (predicted 57 s before it); top part `spindle_bearing` (vibration, 0.74) |
+| (d) | drift raised 119 s after the load change, cleared 135 s after the load went back; no predicted alarm during it |
+
+The first run of (d) failed, and that is how the drift clearing problem above was found (alert raised, never cleared); it passed after the margin rule was fixed.
 
 ## Consequences
 
@@ -60,4 +82,5 @@ The dashboard can show predictions (ADR 0030). Operators also want to ask "what 
 - **Not covered (what-if):** several changes at once, delayed changes, and projections from replay time (the fork is always the running simulation).
 - **Drift is not fault detection.** It says the conditions differ from the training data, not that a prediction is wrong, and it is blind to a drift of the health signals themselves.
 - **Detection delay is minutes:** a 120 s window plus a 30 s sustain. A sudden condition change is flagged after about 1–2 minutes, not at once.
-- **False drift is rare but not zero** (0.022–0.064 per machine-hour, a few independent runs); the margin trades it against sensitivity.
+- **The demo numbers are single runs** of a seeded simulator in real time, not distributions; the evaluated distributions are in the Phase 8 / 9 reports. The unusual-behaviour alarm's false-alarm rate on clean data (about 0.6 per hour, Phase 9) is stated in the demo script.
+- **False drift is rare, and zero in the 120 + 120 clean runs of the report, but that is one simulator and one dataset;** the margin trades it against sensitivity (margin 1.0 raised 0.02–0.06 episodes per machine-hour).

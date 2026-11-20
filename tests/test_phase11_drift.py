@@ -103,3 +103,16 @@ async def test_drift_can_be_switched_off_in_the_settings(serve_setup: Any, tmp_p
         assert not any("drift" in e for e in entries)
     finally:
         await pool.close()
+
+
+def test_the_live_margin_is_the_one_the_report_chose() -> None:
+    """``config/inference.yaml`` drift.threshold_margin must equal the margin that the stated
+    rule picked on the validation runs in the committed report (rerun ``poe drift-report`` and
+    update the config together)."""
+    import json
+
+    report = json.loads((REPO_ROOT / "experiments/results/drift.json").read_text(encoding="utf-8"))
+    live = read_yaml(CONFIG / "inference.yaml")["drift"]
+    assert report["rule"]["chosen_margin"] == live["threshold_margin"]
+    assert report["settings"]["live_margin"] == live["threshold_margin"]
+    assert report["settings"]["clear_ratio"] == live["clear_ratio"]

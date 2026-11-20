@@ -35,5 +35,6 @@ export default defineConfig({
     { name: "shots-minimal", testMatch: "shots-minimal.spec.ts" },
     { name: "shots-dev", testMatch: "shots-dev.spec.ts" },
     { name: "shots-predict", testMatch: "shots-predict.spec.ts" },
+    { name: "shots-demo", testMatch: "shots-demo.spec.ts" },
   ],
 });

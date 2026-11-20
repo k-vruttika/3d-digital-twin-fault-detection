@@ -409,6 +409,7 @@ def deploy_setup(
             "report": {
                 "margins": [1.0, 2.0],
                 "max_false_episodes_per_hour": 5.0,
+                "min_calm_fraction": 0.5,
                 "load_shifts": [30.0],
                 "speed_shifts": [0.3],
                 "shift_at_fraction": 0.5,

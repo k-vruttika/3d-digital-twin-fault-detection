@@ -35,6 +35,7 @@ import { INITIAL_AUTH, type AuthState } from "./auth.ts";
 import { connectionView, type ConnectionView } from "./connection.ts";
 import {
   highlightKey,
+  isFresh,
   predictionAt,
   resolveHighlight,
   unusualView,
@@ -202,6 +203,7 @@ export class DashboardModel implements EngineSink {
     this.predictions.set({ ...all, [prediction.machineId]: { ...cur, [key]: prediction } });
     this.engine?.setPrediction(prediction);
     this.refreshHighlight(prediction.machineId);
+    this.refreshUnusual(); // a supervised alarm supersedes the unusual-behaviour hold
   }
 
   /** Stale time of predictions: the backend's value once /predict answered. */
@@ -245,8 +247,11 @@ export class DashboardModel implements EngineSink {
     const prev = this.unusual.get();
     const next: Record<string, UnusualView> = {};
     let changed = false;
+    const staleMs = this.predictionStaleMs();
     for (const id of Object.keys(this.machines.get())) {
-      const v = unusualView(events, id, asOf, cfg);
+      const p = predictionAt(this.predictions.get()[id], this.primaryHorizonS());
+      const alarmOn = p !== null && p.alarm === true && isFresh(p, asOf, staleMs);
+      const v = unusualView(events, id, asOf, cfg, alarmOn);
       next[id] = v;
       const o = prev[id];
       if (o === undefined || o.visible !== v.visible || o.active !== v.active || o.intermittent !== v.intermittent) {

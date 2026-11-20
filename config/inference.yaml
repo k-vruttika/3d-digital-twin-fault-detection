@@ -48,8 +48,8 @@ gate:
 # model_drift alert.
 drift:
   enabled: true                       # off automatically when the monitor bundle has no reference
-  threshold_margin: 1.0               # live alert level = the bundle's level x this
-  clear_ratio: 0.6                    # clears below 0.6 x the alert level ...
+  threshold_margin: 1.25              # live alert level = the bundle's level x this (chosen by uv run poe drift-report)
+  clear_ratio: 0.85                   # clears below 0.85 x the alert level ...
   sustain_s: 30                       # ... raised after this long above it
   clear_s: 60                         # ... cleared after this long below the clear level
   adwin_delta: 0.002

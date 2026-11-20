@@ -1,0 +1,8 @@
+{
+  "scenario": "d_load_drift",
+  "load_set_at": "2026-01-01 00:00:30+00:00",
+  "drift_raised_after_load_change_s": 119.0,
+  "drift_message": "CNC-01: operating conditions differ from the training data (speed PSI 8.74 vs alert level 7.88, load PSI 9.10 vs alert level 6.00) since 00:01:04 UTC; predictions are marked DEGRADED and their confidence may not hold",
+  "predicted_alarms_during_drift": 0,
+  "drift_cleared_after_load_back_s": 135.0
+}

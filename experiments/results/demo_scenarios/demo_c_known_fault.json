@@ -1,0 +1,27 @@
+{
+  "scenario": "c_known_fault_bearing_wear",
+  "injected_at": "2026-01-01 00:00:31+00:00",
+  "unusual_after_injection_s": 173.0,
+  "predicted_warning_after_injection_s": 444.0,
+  "simulator_warning_after_injection_s": 501.0,
+  "predicted_lead_over_simulator_warning_s": 57.0,
+  "unusual_lead_over_predicted_s": 271.0,
+  "top_part_at_alarm": "spindle_bearing",
+  "attributions_at_alarm": [
+    {
+      "sensor": "vib",
+      "part": "spindle_bearing",
+      "weight": 0.7449180783870037
+    },
+    {
+      "sensor": "load",
+      "part": "spindle",
+      "weight": 0.00638067668958951
+    },
+    {
+      "sensor": "temp",
+      "part": "spindle_motor",
+      "weight": -0.006939152746362032
+    }
+  ]
+}

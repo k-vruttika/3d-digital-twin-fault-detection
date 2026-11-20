@@ -1,0 +1,15 @@
+{
+  "scenario": "b_unseen_fault_lubrication_loss",
+  "injected_at": "2026-01-01 00:00:31+00:00",
+  "unusual_raised_at": "2026-01-01 00:01:20+00:00",
+  "unusual_after_injection_s": 49.0,
+  "unusual_events": 3,
+  "on_off_switches": 2,
+  "supervised_alarm_raised": false,
+  "supervised_top_class_at_alarm": "NORMAL",
+  "probs_at_alarm": {
+    "NORMAL": 0.9998153039560163,
+    "WARNING": 7.454051636682757e-05,
+    "FAULT": 0.00011015552761691993
+  }
+}

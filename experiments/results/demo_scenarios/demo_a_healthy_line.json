@@ -1,0 +1,30 @@
+{
+  "scenario": "a_healthy_line",
+  "watched_s": 120.0,
+  "alerts": 0,
+  "primary_cnc": {
+    "probs": {
+      "NORMAL": 0.999967324644878,
+      "WARNING": 2.8739678586870064e-06,
+      "FAULT": 2.9801387263275794e-05
+    },
+    "conformalSet": [
+      "NORMAL"
+    ],
+    "reliability": "OK"
+  },
+  "what_if": {
+    "elapsed_ms": 5925,
+    "ghost_cnc": {
+      "10": "IDLE",
+      "30": "IDLE",
+      "end": "IDLE"
+    },
+    "ghost_insp": {
+      "10": "RUNNING",
+      "30": "STARVED",
+      "end": "STARVED"
+    },
+    "model": "linetwin-gru v1 (gru seed 0) + linetwin-autoencoder v2 (autoencoder seed 0)"
+  }
+}

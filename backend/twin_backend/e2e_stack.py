@@ -54,6 +54,7 @@ DEV_SIM_SPEED = 30.0
 PREDICT_SIM_SPEED = 1.0
 PREDICT_PROGRESSION_S = 720.0
 PREDICT_PLAYWRIGHT_TIMEOUT_S = 1500
+DEMO_PLAYWRIGHT_TIMEOUT_S = 1500  # what-if and load-drift shots (real time, about 10 minutes)
 E2E_OPERATOR = "e2e"
 
 READY_TIMEOUT_S = 90.0
@@ -475,7 +476,12 @@ def run_playwright(
 
 
 # ---------------------------------------------------------------- screenshots CLI
-def screenshots(minimal_only: bool, predict: bool = True, predict_only: bool = False) -> int:
+def screenshots(
+    minimal_only: bool,
+    predict: bool = True,
+    predict_only: bool = False,
+    demo_only: bool = False,
+) -> int:
     """All dashboard shots; ``predict_only`` reruns only the prediction panel shots and keeps
     the rest of ``summary.json``."""
     import tempfile
@@ -494,11 +500,13 @@ def screenshots(minimal_only: bool, predict: bool = True, predict_only: bool = F
         if predict_only:
             return 1
     prev: dict[str, Any] = {}
+    predict_only = predict_only or demo_only
     if predict_only and summary_path.exists():
         prev = json.loads(summary_path.read_text(encoding="utf-8"))
     moments_out = prev.get("minimalMoments")
     base_failed = False
     predict_failed = False
+    demo_failed = False
     # Inference workers exit on stdin EOF just after their backend; on Windows they may still hold
     # the backend log for a moment when the folder is removed.
     with tempfile.TemporaryDirectory(prefix="linetwin_shots_", ignore_cleanup_errors=True) as tmp:
@@ -519,10 +527,12 @@ def screenshots(minimal_only: bool, predict: bool = True, predict_only: bool = F
             if not minimal_only:
                 base_failed = _dev_screenshots(work / "dev") or base_failed
         if predict_skipped is None:
-            predict_failed = _predict_screenshots(work / "predict")
+            if not demo_only:
+                predict_failed = _predict_screenshots(work / "predict")
+            demo_failed = _demo_screenshots(work / "demo")
     # ok per part, so --predict-only replaces only the prediction result
     base_ok = bool(prev.get("baseOk", prev.get("ok", True))) if predict_only else not base_failed
-    predict_ok = None if predict_skipped is not None else not predict_failed
+    predict_ok = None if predict_skipped is not None else not (predict_failed or demo_failed)
     summary = {
         "source": "real backend via twin_backend.e2e_stack (no recorded data)",
         "minimalReplayFile": f"generate --quick, run {MINIMAL_RUN_INDEX}",
@@ -533,6 +543,7 @@ def screenshots(minimal_only: bool, predict: bool = True, predict_only: bool = F
                 "simSpeed": PREDICT_SIM_SPEED,
                 "fault": "bearing_wear on CNC-01",
                 "progressionS": PREDICT_PROGRESSION_S,
+                "demoShots": "what-if projection and load drift (SET_LOAD 120 on CNC-01)",
             }
             if predict_skipped is None
             else {"skipped": predict_skipped}
@@ -543,7 +554,7 @@ def screenshots(minimal_only: bool, predict: bool = True, predict_only: bool = F
         "ok": base_ok and predict_ok is not False,
     }
     summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
-    return 1 if (base_failed or predict_failed) else 0
+    return 1 if (base_failed or predict_failed or demo_failed) else 0
 
 
 @contextlib.contextmanager
@@ -643,6 +654,25 @@ def _predict_screenshots(work: Path) -> bool:
             )
 
 
+def _demo_screenshots(work: Path) -> bool:
+    """What-if and drift shots: dev mode + live inference, real time (ADR 0031)."""
+    import secrets
+
+    with throwaway_db() as dsn:
+        if dsn is None:
+            return True
+        key = secrets.token_hex(16)
+        with dev_stack(work, dsn, key, inference=True, sim_speed=PREDICT_SIM_SPEED) as stack:
+            return _report(
+                run_playwright(
+                    "shots-demo",
+                    stack,
+                    {"E2E_OPERATOR_KEY": key, "E2E_SHOTS_DIR": str(SCREENSHOT_DIR)},
+                    timeout_s=DEMO_PLAYWRIGHT_TIMEOUT_S,
+                )
+            )
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="python -m twin_backend.e2e_stack", description=__doc__)
     sub = p.add_subparsers(dest="command", required=True)
@@ -660,9 +690,16 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="only the prediction panel shots (still runs the minimal-mode shots first)",
     )
+    s.add_argument(
+        "--demo-only",
+        action="store_true",
+        help="only the what-if and drift shots (live inference, about 3 minutes)",
+    )
     args = p.parse_args(argv)
     if args.command == "screenshots":
-        return screenshots(args.minimal_only, not args.no_predict, args.predict_only)
+        return screenshots(
+            args.minimal_only, not args.no_predict, args.predict_only, args.demo_only
+        )
     return 2
 
 

@@ -64,7 +64,8 @@ drift:
   calibration_stride_s: 10
   report:                             # uv run poe drift-report -> experiments/results/drift.md
     margins: [1.0, 1.1, 1.25, 1.5, 2.0, 3.0]
-    max_false_episodes_per_hour: 0.1  # the live margin = the smallest one below this on validation runs
+    max_false_episodes_per_hour: 0.1  # the live margin = the smallest one below this on validation runs ...
+    min_calm_fraction: 0.95           # ... where drift can also CLEAR: this share of clean validation rows is below the clear level
     load_shifts: [5.0, 10.0, 20.0, 30.0, 45.0]   # percentage points added to the load
     speed_shifts: [0.05, 0.1, 0.2, 0.4]          # fraction of the kind's mean training speed
     shift_at_fraction: 0.5

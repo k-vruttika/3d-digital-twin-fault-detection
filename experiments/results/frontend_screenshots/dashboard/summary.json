@@ -27,10 +27,12 @@
   "predictMode": {
     "simSpeed": 1.0,
     "fault": "bearing_wear on CNC-01",
-    "progressionS": 720.0
+    "progressionS": 720.0,
+    "demoShots": "what-if projection and load drift (SET_LOAD 120 on CNC-01)"
   },
   "screenshots": [
     "alerts",
+    "alerts_drift",
     "alerts_predicted",
     "alerts_unusual",
     "command_confirm_stop",
@@ -41,6 +43,7 @@
     "overview_light_1280",
     "overview_light_1920",
     "prediction_alarm",
+    "prediction_drift",
     "prediction_normal",
     "prediction_unusual",
     "prediction_warning",
@@ -48,7 +51,11 @@
     "scenario_warning",
     "sources",
     "twin_alarm_closeup",
-    "twin_unusual_closeup"
+    "twin_unusual_closeup",
+    "whatif_apply_confirm",
+    "whatif_chart",
+    "whatif_probability",
+    "whatif_projection"
   ],
   "baseOk": true,
   "predictOk": true,

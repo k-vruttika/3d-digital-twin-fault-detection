@@ -209,13 +209,16 @@ export function unusualSwitches(events: readonly Alert[], machineId: string): { 
 /**
  * Display only (the alert lifecycle and the stored events stay as they are): an unusual-behaviour
  * alarm that switched on and off several times within the period shows as "intermittent", and
- * the indicator stays visible for a short hold after it clears.
+ * the indicator stays visible for a short hold after it clears. While the supervised alarm is on
+ * the hold does not apply: the alarm supersedes "unusual behaviour" (ADR 0030), so the machine is
+ * never shown with a part highlight and a whole-machine unusual outline at once.
  */
 export function unusualView(
   events: readonly Alert[],
   machineId: string,
   asOf: string | null,
   cfg: UnusualConfig,
+  supersededByAlarm = false,
 ): UnusualView {
   const sw = unusualSwitches(events, machineId);
   const now = asOf === null ? (sw[sw.length - 1]?.ts ?? 0) : Date.parse(asOf);
@@ -224,7 +227,7 @@ export function unusualView(
   const intermittent = recent.length >= cfg.flapMinSwitches;
   const last = seen[seen.length - 1];
   const active = last?.on === true;
-  const held = last !== undefined && !last.on && now - last.ts <= cfg.holdS * 1000;
+  const held = !supersededByAlarm && last !== undefined && !last.on && now - last.ts <= cfg.holdS * 1000;
   return {
     visible: active || held,
     active,

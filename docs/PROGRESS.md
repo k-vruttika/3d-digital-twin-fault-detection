@@ -1,27 +1,55 @@
 # LineTwin progress
 
-## Phase 11: Live intelligence in the twin (in progress; starts Milestone C)
+## Phase 11: Live intelligence in the twin (done, 2026-11-20; starts Milestone C)
 
-**Part C in progress (updated 2026-11-20, after Group 3). Resume with Group 4.**
-- **Group 1, display-only fixes: done** (lint clean, Vitest 181 passed). The alarm rule and all evaluated numbers are unchanged.
-  - Part highlight is kept while the predicted alarm stays on, labelled with the time of the window it explains (`resolveHighlight`, `model.highlights`, "Highlighted: …" line in the Prediction details); cleared when the alarm clears, the prediction is stale, or at a replay jump. ADR 0030 § "Display rules added in Phase 11 Part C".
-  - Conformal wording: "Most likely NORMAL (1.00) · cannot rule out FAULT" (`confidenceText`); "About these predictions" explains the per-class coverage.
-  - Intermittent unusual behaviour (UI only): `unusualView` over the stored alert events, config `unusualFlapMinSwitches` 4 / `unusualFlapWindowS` 300 / `unusualHoldS` 30 in `dashboard/config.ts`; label in the Alerts / Details panels and the Prediction details, and the 3D outline is held via `TwinEngine.holdUnusual`.
-  - Not run after Group 1: the full pytest suite and the `shots-predict` screenshots (frontend-only change; the screenshots are regenerated in Group 4).
-- **Group 2, what-if: done** (ADR 0031 § What-if; lint clean; Vitest 193 passed; pytest 374 passed (`backend/tests`, `test_ml_serve`, `test_phase11_whatif`, `test_phase11_alarms`) and 323 passed (simulator, common, phase 4 e2e / minimal, phase 11 inference, results policy; MQTT tests excluded). Full `poe test` and screenshots not run yet).
-  - **Simulator / mock server:** `twin_sim/whatif.py` + `SimSession.whatif` + `POST /whatif` on the mock server, contracts in `twin_common/whatif.py`. Fork = snapshot + history taken in one tick-boundary call (a test caught a race where history was read after the fork), an unchanged and a changed copy fast-forwarded in a thread. The unchanged copy equals the live simulator's next seconds (tested).
-  - **Backend:** capability `whatif` (mock adapter only; `SourceManager.whatif`), `twin_backend/whatif/` (`service.py`: safety rules / limits / horizon, ghost states, first warning / fault / alarm; `scoring.py`: its own worker pool with the live alarm rule, no attributions; `models.py`), `config/whatif.yaml` + `twin_common/config/whatif.py`, `Runtime.whatif`, `POST /whatif` (404 / 409 / 422 / 502; viewer is enough) replacing the 501 stub. Worker `configure` got `explain: false`.
-  - **Frontend:** `WhatIfPanel.tsx`, `state/whatif.ts`, `charts/ProjectionChart.tsx` (dashed projections), ghost-state table, apply as command (operator, live, confirmation, normal command path). `PlaceholderPanels.tsx` removed.
-  - **Docs:** `architecture.md`, `frontend.md`, `simulator.md`, `api.md` (regenerated), CLAUDE.md layout (`whatif.yaml`, `whatif/`).
-- **Group 3, drift detection: done** (ADR 0031 § Drift detection). Verified: `uv run poe lint` clean; Vitest 195 passed; pytest 598 passed (`backend/tests`, `test_ml_serve*`, `test_ml_drift`, `test_phase11_{drift,whatif,alarms,inference}`, `common/tests`). `linetwin-autoencoder` v2 was rebuilt here (strict, thresholds reproduced) and carries the drift reference. The full `poe test` is not run yet (Group 4).
-  - **Detector** (`ml/twin_ml/serve/drift.py`, pure numpy + `river` 0.27, added to `ml/pyproject.toml`): PSI of the last 120 operating rows of speed and load against the training distribution of the machine's kind (quantile bins plus overflow bins, smoothed counts), the shared `Decider` (30 s sustain, 60 s clear), ADWIN only dating the change. Health signals are not monitored.
-  - **Design findings that changed the plan** (found by tests, written up in the ADR): the textbook PSI level 0.25 flags clean runs because a machine sits in one load band, so the alert level is the 99.9 % quantile of clean *validation* windows (per kind and channel); and without overflow bins a load above the trained range lands in the top decile, so overflow bins were added.
-  - **Bundle:** the autoencoder bundle carries the reference, window and alert levels (`deploy.yaml` `drift:`); **it must be rebuilt** (`uv run python -m twin_ml.serve deploy --models autoencoder`, about 3 min; done here, see below). Older bundles simply have no drift monitor.
-  - **Worker / backend:** `drift` setting in `configure`, a `drift` report on every operating row's entry, merged by the pool; `InferenceService` sets `reliability` DEGRADED, raises / clears `model_drift`; `config/inference.yaml` `drift:` (margin 1.0, clear ratio 0.6, sustain 30 s, clear 60 s, ADWIN delta); `GET /predict` bundle info gains `drift` (api docs regenerated).
-  - **Dashboard:** `DriftBanner`, DEGRADED badge, "About" text.
-  - **Report:** `uv run poe drift-report` → [drift.md](../experiments/results/drift.md) + `.json`. Margin 1.0 chosen by the stated rule on validation runs: **0.064 false episodes per machine-hour on validation, 0.022 on test (2 of 120 runs)**; synthetic shifts that leave the training support were detected in every case (median delay about 1–2 min), ADWIN dated the change 20 s after it on median; shifts inside the trained range are by design not drift.
-  - **Tests:** `ml/tests/test_ml_drift.py` (7), `ml/tests/test_ml_serve_drift.py` (4), `tests/test_phase11_drift.py` (2, real worker pool), 3 new service tests, `predictions.test.tsx` (2 new), `common` config test unchanged. The quick test bundles are tiny, so the two worker plumbing tests lower the margin; the decision logic is tested on synthetic data.
-- **Remaining:** Group 4 (demo scenarios a–d as e2e at real-time speed with the (c) ordering check, screenshots, ADR 0031, `docs/demo_script.md` incl. the unusual-behaviour false-alarm note, other docs, final lint + full tests, Part C entry, suggested commit message).
+### Part C (done, 2026-11-20): display fixes, what-if, drift, demo scenarios, e2e, docs
+
+Built in four groups, each committed on its own. Decisions: [ADR 0031](adr/0031-whatif-drift-demo.md) (what-if, drift, demo scenarios) and [ADR 0030](adr/0030-live-inference.md) § "Display rules added in Phase 11 Part C".
+
+**Group 1: display-only fixes** (the alarm rule and every evaluated number are unchanged)
+- The part highlight is kept while the predicted alarm stays on, labelled with the time of the window it explains; it clears with the alarm, a stale prediction, or a replay jump (`resolveHighlight`).
+- Conformal text: "Most likely NORMAL (1.00) · cannot rule out FAULT"; "About these predictions" explains the per-class coverage.
+- Intermittent unusual behaviour is shown as "unusual behaviour (intermittent)" after 4 switches in 300 s, held 30 s after it clears (`dashboard/config.ts`; the alert lifecycle and stored events are unchanged). **Correction found by the Group 4 screenshots:** the hold must not apply while a supervised alarm is on, or the machine showed a bearing highlight and a whole-machine purple outline at once; the alarm now supersedes the hold.
+
+**Group 2: what-if** (simulation only)
+- Mock server `POST /whatif` forks the simulator (snapshot and recent history taken in one tick-boundary call; an unchanged and a changed copy fast-forwarded in a thread; the unchanged copy equals the live simulator's next seconds). Backend `POST /whatif` (safety rules and limits as for a command; 404, 409 for a source without the `whatif` capability, 422, 502), scoring in its own worker pool with the evaluated alarm rule, `config/whatif.yaml`. Panel with ghost states, dashed projection lines, outcome text, and "apply as command" (operator, live, confirmation).
+
+**Group 3: drift detection**
+- PSI of the last 120 operating rows of speed and load against the training distribution (quantile bins plus overflow bins, smoothed counts) decides; ADWIN (`river`) only dates the change. Reference, window and alert levels are in the autoencoder bundle (now v2; older bundles have no drift monitor). Drift marks reliability DEGRADED, raises `model_drift`, shows a banner.
+- Two design findings (ADR 0031): the textbook PSI level flags clean runs, so the alert level is calibrated on clean validation windows; and overflow bins are needed. **Correction found by the first live demo (d):** the live margin must also let drift *clear* (the PSI of a single-band window sits near the alert level). The report rule now also requires 95 % of clean validation rows calm: **margin 1.25, clear ratio 0.85** (a test checks the config equals the report's choice).
+- Report [drift.md](../experiments/results/drift.md): at margin 1.25 no false drift episode on the 120 validation and 120 test runs; every synthetic shift that leaves the training support was detected (median delay about 90–110 s); ADWIN dated the change 20 s after it on median; shifts inside the trained range are by design not drift.
+
+**Group 4: demo scenarios, screenshots, docs**
+- **Mapping of (a)–(d) (my reading; rename if the plan differed):** (a) healthy line + what-if, (b) unseen fault `lubrication_loss` (unusual behaviour only), (c) known fault `bearing_wear` with the **ordering check**, (d) operating-condition drift. [`docs/demo_script.md`](demo_script.md) includes the unusual-behaviour false-alarm note (Phase 9: about 0.57 per hour of normal operation, 95 % interval 0.31 to 0.89, plus flapping).
+- `tests/test_phase11_demo.py`: the four scenarios as real-time end-to-end tests (real simulator, real workers, throw-away TimescaleDB); skipped with a message without the deployed bundles. Measured facts are in [`experiments/results/demo_scenarios/`](../experiments/results/demo_scenarios): (b) unusual behaviour 49 s after injection, supervised NORMAL (0.9998) with no alarm, two on/off switches; (c) unusual +173 s, predicted WARNING +444 s, simulator WARNING +501 s (predicted 57 s earlier), top part `spindle_bearing` (0.74); (d) drift 119 s after the load change, cleared 135 s after it went back, no predicted alarm during it; (a) no alert in 120 s, what-if projected CNC-01 IDLE and INSP-01 STARVED.
+- Screenshots (`uv run python -m twin_backend.e2e_stack screenshots --predict-only`, real time, about 12 min; `--demo-only` about 3 min): the earlier prediction shots plus `whatif_projection`, `whatif_chart`, `whatif_probability`, `whatif_apply_confirm`, `prediction_drift`, `alerts_drift`. The bearing was highlighted in 40 of 40 samples over 10 s of the alarm (30 / 40 and 36 / 40 in Part B, before the highlight was kept while the alarm stays on).
+- Docs: ADR 0031, ADR 0030 pointers, `demo_script.md`, `architecture.md`, `frontend.md`, `simulator.md`, `experiments.md`, `api.md` (regenerated), CLAUDE.md layout (`whatif.yaml`, `whatif/`).
+
+**How to run**
+
+```text
+uv run poe up && uv run poe deploy-models              # once (the autoencoder bundle must be v2 for drift)
+uv run poe dev --source mock --inference               # backend + simulator with live inference
+uv run poe frontend                                    # dashboard: Prediction, What-if, drift banner
+uv run poe drift-report                                # experiments/results/drift.md
+uv run pytest tests/test_phase11_demo.py -s            # the four demos, real time, about 30 min
+```
+
+**Verified (end of Part C, 2026-11-20, Windows, Docker services up: TimescaleDB + Mosquitto):**
+- `uv run poe lint`: clean (ruff, format, mypy 335 source files, ESLint, tsc).
+- `uv run poe test`: **pytest 972 passed, 0 skipped** (35 min 30 s; MQTT, OPC UA, Playwright dev / minimal e2e and the four real-time demos included); Vitest 196 passed (19 files).
+- Screenshots: `shots-predict` and `shots-demo` passed; `summary.json` `ok: true`.
+
+**Known limitations (Part C)**
+- **Everything is simulator data.** What-if projections are the simulator's future under one change; drift thresholds and the demo timings come from one seeded simulator and one laptop. The demo numbers are single runs, not distributions.
+- **What-if:** one change at the fork point, no delayed or combined changes, mock source only; the first request starts a second set of scoring workers (a few seconds, more memory).
+- **Drift:** monitors speed and load only; takes about 1–2 minutes (120 s window plus 30 s sustain); a shift that stays inside the trained range is not drift; the reference is the autoencoder's E1 training split (also for `gru_e4`); the state persists through short stops, so a `model_drift` alert can stay active on a stopped machine until it runs again or its link is lost.
+- **Unusual behaviour:** false alarms (about 0.6 per hour on clean data), flapping, no cause; the UI label and hold are display only.
+- **The demo tests add about 30 minutes to a full `poe test`** when the bundles are registered; without them they skip with a message (CI has no bundles).
+
+**Deviations**
+- Beyond the plan: `river` added to `ml/pyproject.toml` (it was already in the CLAUDE.md stack); `config/whatif.yaml`; `GET /predict` bundle info gains `drift`; `--demo-only` flag of the screenshots task.
+- The drift alert level is not the textbook 0.25 and the live margin is chosen by a stated rule on validation runs (above).
 
 Plan: Part A (model selection, deploy bundles, inference workers, Prediction pipeline, alerts, storage, parity and latency), Part B (dashboard), Part C (what-if, drift, demo scenarios, e2e, docs). Decisions with the user before Part A:
 - E1 GRU default, E1 XGBoost fast option.

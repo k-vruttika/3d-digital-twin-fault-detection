@@ -278,6 +278,14 @@ describe("Part C group 1: display fixes", () => {
     expect(JSON.stringify(flap)).toBe(frozen);
   });
 
+  it("a supervised alarm supersedes the hold (no part highlight and unusual outline at once)", () => {
+    const flap = [ev(0, "2026-01-01T00:00:10Z", true), ev(1, "2026-01-01T00:00:20Z", false)];
+    expect(unusualView(flap, "CNC-01", "2026-01-01T00:00:30Z", ucfg).visible).toBe(true); // held
+    expect(unusualView(flap, "CNC-01", "2026-01-01T00:00:30Z", ucfg, true).visible).toBe(false);
+    const on = [ev(0, "2026-01-01T00:00:10Z", true)];
+    expect(unusualView(on, "CNC-01", "2026-01-01T00:00:30Z", ucfg, true).active).toBe(true); // still active: shown
+  });
+
   it("the model holds the 3D outline and shows the intermittent label", async () => {
     const h = renderDashboard({ auth: OPERATOR });
     await waitFor(() => {

@@ -690,6 +690,7 @@ class DriftReportConfig(ConfigModel):
 
     margins: list[float] = Field(min_length=1)  # candidate `threshold_margin` values
     max_false_episodes_per_hour: float = Field(gt=0)  # picks the smallest margin below this (val)
+    min_calm_fraction: float = Field(gt=0, le=1)  # ... and with this share of clean val rows calm
     load_shifts: list[float] = Field(min_length=1)  # added to the load (percentage points)
     speed_shifts: list[float] = Field(min_length=1)  # fraction of the kind's training mean speed
     shift_at_fraction: float = Field(gt=0, lt=1)  # where in each operating series it starts
