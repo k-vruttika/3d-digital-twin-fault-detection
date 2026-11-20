@@ -51,6 +51,8 @@ export interface VisualInput {
   parts: readonly string[];
   /** false while the stream is down. */
   connected?: boolean;
+  /** Display hold: keep the unusual-behaviour outline briefly after its alert cleared. */
+  unusualHeld?: boolean;
 }
 
 export interface VisualSpec {
@@ -140,7 +142,8 @@ export function machineVisual(input: VisualInput, cfg: VisualConfig): VisualSpec
     dqBadge: input.dataQuality === "DEGRADED",
     alertMarker: highestActiveSeverity(input.alerts ?? []),
     label: null,
-    unusual: (input.alerts ?? []).some((a) => a.kind === UNUSUAL_KIND && a.active !== false),
+    unusual:
+      input.unusualHeld === true || (input.alerts ?? []).some((a) => a.kind === UNUSUAL_KIND && a.active !== false),
   };
   const linkLost = input.connected === false;
 

@@ -2,6 +2,14 @@
 
 ## Phase 11: Live intelligence in the twin (in progress; starts Milestone C)
 
+**Part C in progress (updated 2026-11-20). Resume here.**
+- **Group 1, display-only fixes: done** (lint clean, Vitest 181 passed). The alarm rule and all evaluated numbers are unchanged.
+  - Part highlight is kept while the predicted alarm stays on, labelled with the time of the window it explains (`resolveHighlight`, `model.highlights`, "Highlighted: …" line in the Prediction details); cleared when the alarm clears, the prediction is stale, or at a replay jump. ADR 0030 § "Display rules added in Phase 11 Part C".
+  - Conformal wording: "Most likely NORMAL (1.00) · cannot rule out FAULT" (`confidenceText`); "About these predictions" explains the per-class coverage.
+  - Intermittent unusual behaviour (UI only): `unusualView` over the stored alert events, config `unusualFlapMinSwitches` 4 / `unusualFlapWindowS` 300 / `unusualHoldS` 30 in `dashboard/config.ts`; label in the Alerts / Details panels and the Prediction details, and the 3D outline is held via `TwinEngine.holdUnusual`.
+  - Not run after Group 1: the full pytest suite and the `shots-predict` screenshots (frontend-only change; the screenshots are regenerated in Group 4).
+- **Remaining:** Group 2 (what-if: mock endpoint, `POST /whatif` with 409, panel, apply as command), Group 3 (drift: PSI + ADWIN, DEGRADED, `model_drift`, banner, false-drift rate), Group 4 (demo scenarios a–d as e2e at real-time speed with the (c) ordering check, screenshots, ADR 0031, `docs/demo_script.md` incl. the unusual-behaviour false-alarm note, other docs, final lint + full tests, Part C entry, suggested commit message).
+
 Plan: Part A (model selection, deploy bundles, inference workers, Prediction pipeline, alerts, storage, parity and latency), Part B (dashboard), Part C (what-if, drift, demo scenarios, e2e, docs). Decisions with the user before Part A:
 - E1 GRU default, E1 XGBoost fast option.
 - Predict only RUNNING / WARNING machines, and only when the whole window is operating (warm-up after any stop).

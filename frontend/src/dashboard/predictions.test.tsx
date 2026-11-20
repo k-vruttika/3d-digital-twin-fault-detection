@@ -14,6 +14,9 @@ import { machineVisual } from "../engine/visuals.ts";
 import { OPERATOR, alert, pathOf, reading, renderDashboard, type Route } from "../test/dashboard.tsx";
 import {
   alertKindView,
+  confidenceText,
+  resolveHighlight,
+  unusualView,
   gateText,
   highlightsFor,
   localGate,
@@ -173,6 +176,9 @@ describe("unusual-behaviour visual", () => {
     expect(machineVisual({ state: "STALE", parts, alerts: unusual }, DEFAULT_CONFIG).outlineParts).toEqual([]);
     const cleared = [{ severity: "WARNING" as const, active: false, kind: "unusual_behaviour" }];
     expect(machineVisual({ state: "RUNNING", parts, alerts: cleared }, DEFAULT_CONFIG).outlineParts).toEqual([]);
+    // display hold: the outline stays briefly after the alert cleared
+    expect(machineVisual({ state: "RUNNING", parts, alerts: cleared, unusualHeld: true }, DEFAULT_CONFIG).unusual).toBe(true);
+    expect(machineVisual({ state: "RUNNING", parts, alerts: cleared }, DEFAULT_CONFIG).unusual).toBe(false);
   });
 });
 
@@ -205,6 +211,98 @@ describe("part highlights", () => {
   });
 });
 
+describe("Part C group 1: display fixes", () => {
+  it("keeps the last highlight while the alarm stays on, labelled with its window, and clears with the alarm", async () => {
+    const h = renderDashboard({ auth: OPERATOR });
+    await waitFor(() => {
+      expect(h.model.engineReady.get()).toBe(true);
+    });
+    act(() => {
+      h.model.setPrediction(pred());
+    });
+    expect(h.model.highlights.get()["CNC-01"]).toMatchObject({ windowTs: "2026-01-01T00:00:04Z", held: false });
+    // a later prediction, alarm still on, explanation late (none attached)
+    act(() => {
+      h.model.setPrediction(pred({ ts: "2026-01-01T00:00:07Z", attributions: [], attributionsTs: null }));
+    });
+    expect(h.model.highlights.get()["CNC-01"]).toMatchObject({ windowTs: "2026-01-01T00:00:04Z", held: true });
+    expect(h.engine.highlights.get("CNC-01")?.[0]?.part).toBe("spindle_bearing");
+    // alarm clears: highlight clears
+    act(() => {
+      h.model.setPrediction(pred({ ts: "2026-01-01T00:00:08Z", attributions: [], alarm: false }));
+    });
+    expect(h.model.highlights.get()["CNC-01"]).toBeUndefined();
+    expect(h.engine.highlights.get("CNC-01")).toEqual([]);
+  });
+
+  it("resolveHighlight: stale prediction or time going backwards drops the hold", () => {
+    const first = resolveHighlight(pred(), null, T, 5000, 2);
+    expect(first?.held).toBe(false);
+    const late = pred({ ts: "2026-01-01T00:00:07Z", attributions: [] });
+    expect(resolveHighlight(late, first, "2026-01-01T00:00:08Z", 5000, 2)?.held).toBe(true);
+    expect(resolveHighlight(late, first, "2026-01-01T00:00:30Z", 5000, 2)).toBeNull(); // stale
+    expect(resolveHighlight(pred({ ts: "2026-01-01T00:00:02Z", attributions: [] }), first, "2026-01-01T00:00:03Z", 5000, 2)).toBeNull();
+    expect(resolveHighlight(null, first, T, 5000, 2)).toBeNull();
+  });
+
+  it("conformal set wording: most likely first, then what cannot be ruled out", () => {
+    const normalFault = pred({ probs: { NORMAL: 0.996, WARNING: 0.003, FAULT: 0.001 }, conformalSet: ["FAULT"] });
+    expect(confidenceText(normalFault)).toBe("Most likely NORMAL (1.00) · cannot rule out FAULT");
+    expect(confidenceText(pred({ conformalSet: ["WARNING"] }))).toBe("Most likely WARNING (0.70) · no other state in the set");
+    expect(confidenceText(pred({ conformalSet: ["NORMAL", "WARNING", "FAULT"] }))).toBe(
+      "Most likely WARNING (0.70) · cannot rule out NORMAL, FAULT",
+    );
+    expect(confidenceText(pred({ conformalSet: [] }))).toContain("empty set");
+  });
+
+  const ucfg = { flapWindowS: 300, flapMinSwitches: 4, holdS: 30 };
+  const ev = (rev: number, ts: string, active: boolean, id = "u1") =>
+    alert({ alertId: id, machineId: "CNC-01", kind: "unusual_behaviour", rev, ts, active, severity: "WARNING" });
+
+  it("unusual alarm: intermittent after several switches, held briefly after it clears, events untouched", () => {
+    const one = [ev(0, "2026-01-01T00:00:10Z", true)];
+    expect(unusualView(one, "CNC-01", "2026-01-01T00:00:20Z", ucfg)).toMatchObject({ visible: true, active: true, intermittent: false, label: "unusual behaviour" });
+    const flap = [
+      ev(0, "2026-01-01T00:00:10Z", true),
+      ev(1, "2026-01-01T00:00:20Z", false),
+      ev(0, "2026-01-01T00:00:30Z", true, "u2"),
+      ev(1, "2026-01-01T00:00:40Z", false, "u2"),
+    ];
+    const frozen = JSON.stringify(flap);
+    const v = unusualView(flap, "CNC-01", "2026-01-01T00:00:50Z", ucfg);
+    expect(v).toMatchObject({ visible: true, active: false, intermittent: true, label: "unusual behaviour (intermittent)" });
+    expect(unusualView(flap, "CNC-01", "2026-01-01T00:01:20Z", ucfg).visible).toBe(false); // hold over
+    expect(unusualView(flap, "CNC-01", "2026-01-01T00:10:00Z", ucfg).intermittent).toBe(false); // outside the period
+    expect(unusualView(flap, "CNV-01", "2026-01-01T00:00:50Z", ucfg).visible).toBe(false);
+    expect(JSON.stringify(flap)).toBe(frozen);
+  });
+
+  it("the model holds the 3D outline and shows the intermittent label", async () => {
+    const h = renderDashboard({ auth: OPERATOR });
+    await waitFor(() => {
+      expect(h.model.engineReady.get()).toBe(true);
+    });
+    act(() => {
+      for (const [rev, ts, active, id] of [
+        [0, "2026-01-01T00:00:10Z", true, "u1"],
+        [1, "2026-01-01T00:00:20Z", false, "u1"],
+        [0, "2026-01-01T00:00:30Z", true, "u2"],
+        [1, "2026-01-01T00:00:40Z", false, "u2"],
+      ] as const) {
+        h.model.applyAlert(ev(rev, ts, active, id));
+      }
+      h.model.applyReading(reading("CNC-01", "RUNNING", 41));
+    });
+    expect(h.model.unusual.get()["CNC-01"]).toMatchObject({ visible: true, active: false, intermittent: true });
+    expect(h.engine.unusualHeld.get("CNC-01")).toBe(true);
+    act(() => {
+      h.model.applyReading(reading("CNC-01", "RUNNING", 75)); // 35 s after the clear
+    });
+    expect(h.model.unusual.get()["CNC-01"]?.visible).toBe(false);
+    expect(h.engine.unusualHeld.get("CNC-01")).toBe(false);
+  });
+});
+
 // ---------------------------------------------------------------------------- panel
 describe("prediction panel", () => {
   it("shows current vs predicted state, the set in words, time to fault and the model", async () => {
@@ -231,7 +329,9 @@ describe("prediction panel", () => {
     expect(screen.getByTestId("prediction-cell-CNC-01-30").textContent).toContain("WARNING");
     expect(screen.getByTestId("prediction-cell-CNC-01-30").textContent).toContain("0.70");
     expect(screen.getByTestId("prediction-cell-CNC-01-10").textContent).toContain("NORMAL");
-    expect(screen.getByTestId("prediction-set-CNC-01").textContent).toBe("WARNING or FAULT");
+    expect(screen.getByTestId("prediction-set-CNC-01").textContent).toBe(
+      "Most likely WARNING (0.70) · cannot rule out FAULT",
+    );
     expect(screen.getByTestId("prediction-ttf-CNC-01").textContent).toBe("about 140 s (interval 60–220 s)");
     expect(screen.getByTestId("prediction-reliability-CNC-01").textContent).toContain("OK");
     expect(screen.getByTestId("prediction-reliability-CNC-01").textContent).toContain("alarm");

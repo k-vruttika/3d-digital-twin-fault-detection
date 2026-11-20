@@ -123,7 +123,7 @@ export function DetailsPanel() {
           {machineAlerts.map((a) => (
             <li key={a.alertId}>
               <span className={`sev sev-${a.severity}`}>{a.severity}</span>{" "}
-              <AlertKindBadge kind={a.kind} /> {a.message}
+              <AlertKindBadge kind={a.kind} machineId={a.machineId} /> {a.message}
               <div className="muted">
                 <AlertTimesText alert={a} />
               </div>

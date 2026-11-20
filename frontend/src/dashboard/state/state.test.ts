@@ -221,6 +221,7 @@ describe("DashboardModel", () => {
       applyLine: () => undefined,
       setPrediction: () => undefined,
       highlightParts: () => [],
+      holdUnusual: () => undefined,
       setConnected: () => undefined,
       setMode: () => undefined,
       select: () => undefined,

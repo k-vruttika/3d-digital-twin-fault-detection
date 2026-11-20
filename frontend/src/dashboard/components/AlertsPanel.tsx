@@ -15,8 +15,13 @@ import { AlertTimesText } from "./AlertTimesText.tsx";
 const SEVERITIES: AlertSeverity[] = ["CRITICAL", "WARNING", "INFO"];
 
 /** An alert kind as text with its icon; inference kinds look distinct (ADR 0030). */
-export function AlertKindBadge({ kind }: { kind: string }) {
+export function AlertKindBadge({ kind, machineId }: { kind: string; machineId?: string }) {
+  const model = useModel();
+  const unusual = useStore(model.unusual);
   const v = alertKindView(kind);
+  if (kind === "unusual_behaviour" && machineId !== undefined && unusual[machineId]?.intermittent === true) {
+    v.label = "unusual behaviour (intermittent)";
+  }
   if (v.className === "") return <span>{kind}</span>;
   return (
     <span className={`badge ${v.className}`} title={v.note ?? undefined} data-testid={`kind-${kind}`}>
@@ -132,7 +137,7 @@ export function AlertsPanel() {
                       </button>
                     </td>
                     <td className="kind">
-                      <AlertKindBadge kind={a.kind} />
+                      <AlertKindBadge kind={a.kind} machineId={a.machineId} />
                     </td>
                     <td>{a.message}</td>
                     <td className="small muted">

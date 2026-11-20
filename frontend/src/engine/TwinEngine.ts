@@ -145,6 +145,7 @@ interface MachineData {
   alerts: Map<string, Alert>;
   predictions: Map<string, Prediction>;
   rootCause: RootCauseView | null;
+  unusualHeld: boolean;
 }
 
 const MAX_DT = 0.1;
@@ -390,6 +391,14 @@ export class TwinEngine {
     this.dirty.add(prediction.machineId);
   }
 
+  /** Keep the unusual-behaviour outline on after its alert cleared (display hold, set by the dashboard). */
+  holdUnusual(machineId: string, held: boolean): void {
+    const d = this.data.get(machineId);
+    if (d === undefined || d.unusualHeld === held) return;
+    d.unusualHeld = held;
+    this.dirty.add(machineId);
+  }
+
   /** Emphasise parts (intensity 0..1, 0 or an empty list clears). Returns unknown part names. */
   highlightParts(machineId: string, parts: readonly { part: string; intensity: number }[]): string[] {
     const model = this.machines.get(machineId);
@@ -632,6 +641,7 @@ export class TwinEngine {
       attributions: latest?.attributions ?? null,
       parts: d.cfg.parts,
       connected: this.connected,
+      unusualHeld: d.unusualHeld,
     };
   }
 
@@ -799,6 +809,7 @@ function emptyData(cfg: LineMachine): MachineData {
     alerts: new Map(),
     predictions: new Map(),
     rootCause: null,
+    unusualHeld: false,
   };
 }
 

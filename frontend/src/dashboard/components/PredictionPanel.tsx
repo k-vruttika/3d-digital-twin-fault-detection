@@ -8,7 +8,7 @@
 import type { Prediction } from "../../api/types.ts";
 import { useModel } from "../context.ts";
 import { formatTime } from "../format.ts";
-import { classTone, gateView, predictionAt, setText, topClass, ttfText } from "../state/predictions.ts";
+import { classTone, confidenceText, gateView, predictionAt, topClass, ttfText } from "../state/predictions.ts";
 import { useStore } from "../state/store.ts";
 import { StateBadge } from "./StateBadge.tsx";
 
@@ -79,9 +79,11 @@ export function AboutPredictions() {
           data. Neither is guaranteed when reliability is DEGRADED (noisy or missing data, drift).
         </li>
         <li>
-          Each state has its own threshold for the set (Mondrian), so a set can leave out the most likely state or
-          include an unlikely one: a healthy machine at NORMAL 0.996 (shown as 1.00) can get the set “FAULT”. The set
-          is a coverage statement, not a second prediction.
+          The sets are class-conditional (Mondrian): each state has its own threshold, so the set guarantees coverage
+          for each state separately. A rare state such as FAULT can therefore appear in the set although its
+          probability is low, and a healthy machine at NORMAL 0.996 (shown as 1.00) can get the set “FAULT”. The text
+          reads “Most likely …” (the top probability) and “cannot rule out …” (the rest of the set). The set is a
+          coverage statement, not a second prediction.
         </li>
         <li>
           An alarm is raised by the evaluated rule (the +30 s prediction is WARNING or FAULT for 3 s in a row), not by
@@ -89,11 +91,13 @@ export function AboutPredictions() {
         </li>
         <li>
           “Unusual behaviour” comes from an autoencoder: the inputs look unlike normal operation. It names no cause and
-          no part, and it raises false alarms now and then.
+          no part, and it raises false alarms now and then. When it switches on and off several times in a short period it is
+          shown as “intermittent”, and the indicator stays for a short time after it clears.
         </li>
         <li>
-          Highlighted parts come from the supervised model’s explanation of its own alarm, shown only while it predicts
-          WARNING or FAULT.
+          Highlighted parts come from the supervised model’s explanation of its own alarm. If a newer explanation is
+          late, the last one stays while the alarm stays on, labelled with the time of the window it explains, and it
+          clears when the alarm clears.
         </li>
         <li>No prediction is made while a machine is stopped, waiting, or within its first 30 s of running.</li>
       </ul>
@@ -109,6 +113,35 @@ export function AboutPredictions() {
         </div>
       )}
     </details>
+  );
+}
+
+/** The unusual-behaviour indicator: intermittent label, held briefly after the alarm clears. */
+export function UnusualIndicator({ id }: { id: string }) {
+  const model = useModel();
+  const v = useStore(model.unusual)[id];
+  if (v === undefined || !v.visible) return null;
+  return (
+    <p className="small" data-testid="unusual-indicator">
+      <span className="badge kind-unusual">{v.label}</span>{" "}
+      <span className="muted">{v.active ? "cause unknown" : "cause unknown · cleared a moment ago (held)"}</span>
+    </p>
+  );
+}
+
+function HighlightLine({ id }: { id: string }) {
+  const model = useModel();
+  const h = useStore(model.highlights)[id];
+  if (h === undefined) return null;
+  return (
+    <p className="small" data-testid="prediction-highlight">
+      Highlighted: {h.parts.map((x) => x.part).join(", ")}
+      <span className="muted">
+        {" "}
+        · explains the window ending {formatTime(h.windowTs)}
+        {h.held ? " (kept while the alarm stays on; a newer explanation is late)" : ""}
+      </span>
+    </p>
   );
 }
 
@@ -130,6 +163,7 @@ function SelectedDetails({ id }: { id: string }) {
         <p className="small muted" data-testid="prediction-details-gate">
           {gate.text}
         </p>
+        <UnusualIndicator id={id} />
       </div>
     );
   }
@@ -165,6 +199,8 @@ function SelectedDetails({ id }: { id: string }) {
           <span className="muted">normal</span>
         )}
       </p>
+      <HighlightLine id={id} />
+      <UnusualIndicator id={id} />
       {info?.anomaly && <p className="small muted">Detector: {info.anomaly.label}</p>}
     </div>
   );
@@ -195,7 +231,7 @@ export function PredictionPanel() {
                 +{h} s
               </th>
             ))}
-            <th scope="col">Set (+{primary} s)</th>
+            <th scope="col">Most likely · cannot rule out (+{primary} s)</th>
             <th scope="col">Time to fault</th>
             <th scope="col">Reliability</th>
           </tr>
@@ -225,7 +261,7 @@ export function PredictionPanel() {
                     {HORIZONS.map((h) => (
                       <ClassCell key={h} p={predictionAt(byH, h)} testId={`prediction-cell-${m.id}-${String(h)}`} />
                     ))}
-                    <td data-testid={`prediction-set-${m.id}`}>{setText(pPrimary.conformalSet)}</td>
+                    <td data-testid={`prediction-set-${m.id}`}>{confidenceText(pPrimary)}</td>
                     <td data-testid={`prediction-ttf-${m.id}`}>{ttfText(pPrimary, cap)}</td>
                     <td data-testid={`prediction-reliability-${m.id}`}>
                       <span className={`badge ${pPrimary.reliability === "OK" ? "tone-ok" : "tone-warning"}`}>
@@ -269,11 +305,11 @@ export function PredictionSummary({ id }: { id: string }) {
       </p>
     );
   }
-  const { cls, prob } = topClass(p);
+  const { cls } = topClass(p);
   return (
     <p className="small" data-testid="details-prediction">
-      +{String(primary)} s: <span className={`badge tone-${classTone(cls)}`}>{cls}</span> {prob.toFixed(2)} · set{" "}
-      {setText(p.conformalSet)} · {p.reliability}
+      <span className={`badge tone-${classTone(cls)}`}>{cls}</span>{" "}
+      +{String(primary)} s: {confidenceText(p)} · {p.reliability}
       {p.alarm === true && <span className="badge tone-warning">alarm</span>}
       {p.anomalyFlag === true && <span className="badge kind-unusual">unusual</span>}
     </p>

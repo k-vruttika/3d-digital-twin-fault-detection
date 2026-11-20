@@ -33,7 +33,14 @@ import { DASHBOARD_CONFIG, type DashboardConfig } from "../config.ts";
 import { applyAlertEvent, mergeAlertEvents } from "./alerts.ts";
 import { INITIAL_AUTH, type AuthState } from "./auth.ts";
 import { connectionView, type ConnectionView } from "./connection.ts";
-import { highlightKey, highlightsFor, predictionAt } from "./predictions.ts";
+import {
+  highlightKey,
+  predictionAt,
+  resolveHighlight,
+  unusualView,
+  type HighlightState,
+  type UnusualView,
+} from "./predictions.ts";
 import { createStore, type Store } from "./store.ts";
 
 export interface MachineInfo {
@@ -57,6 +64,7 @@ export interface EngineLike {
   applyLine(view: LineViewModel): void;
   setPrediction(prediction: Prediction): void;
   highlightParts(machineId: string, parts: readonly { part: string; intensity: number }[]): unknown;
+  holdUnusual(machineId: string, held: boolean): void;
   setConnected(connected: boolean): void;
   setMode(mode: "live" | "replay"): void;
   select(machineId: string | null): void;
@@ -93,6 +101,11 @@ export class DashboardModel implements EngineSink {
   >({});
   /** GET /predict, polled in live mode (inference state, bundles, per-machine gate). */
   readonly inference: Store<PredictResponse | null> = createStore<PredictResponse | null>(null);
+
+  /** The part highlight on screen per machine, with the window it explains (ADR 0030, Part C). */
+  readonly highlights: Store<Record<string, HighlightState>> = createStore<Record<string, HighlightState>>({});
+  /** Display view of each machine's unusual-behaviour alarm (intermittent label, hold). */
+  readonly unusual: Store<Record<string, UnusualView>> = createStore<Record<string, UnusualView>>({});
 
   private engine: EngineLike | null = null;
   private readonly readingListeners = new Set<ReadingListener>();
@@ -131,6 +144,7 @@ export class DashboardModel implements EngineSink {
     if ("asOf" in snapshot && typeof snapshot.asOf === "string") this.asOf.set(snapshot.asOf);
     this.engine?.applySnapshot(snapshot);
     this.refreshHighlights();
+    this.refreshUnusual();
   }
 
   applyReading(reading: Reading): void {
@@ -149,6 +163,7 @@ export class DashboardModel implements EngineSink {
     if (asOf === null || Date.parse(reading.ts) > Date.parse(asOf)) this.asOf.set(reading.ts);
     this.engine?.applyReading(reading);
     this.refreshHighlights(); // the time on screen moved: highlights may have gone stale
+    this.refreshUnusual(); // ... and the unusual-behaviour hold may have run out
     for (const l of [...this.readingListeners]) l(reading);
   }
 
@@ -170,6 +185,7 @@ export class DashboardModel implements EngineSink {
     this.alerts.set(applyAlertEvent(this.alerts.get(), alert));
     this.addAlertEvents([alert]);
     this.engine?.applyAlert(alert);
+    this.refreshUnusual();
   }
 
   applyLine(view: LineViewModel): void {
@@ -198,14 +214,47 @@ export class DashboardModel implements EngineSink {
     return this.inference.get()?.inference.primaryHorizonS ?? this.cfg.primaryHorizonS;
   }
 
-  /** Highlight the parts named by the machine's supervised attributions (never autoencoder). */
+  /**
+   * Highlight the parts named by the machine's supervised attributions (never autoencoder).
+   * The last highlight is kept while the predicted alarm stays on and an explanation is late.
+   */
   refreshHighlight(machineId: string): void {
     const p = predictionAt(this.predictions.get()[machineId], this.primaryHorizonS());
-    const h = highlightsFor(p, this.asOf.get(), this.predictionStaleMs(), this.cfg.highlightTopParts);
-    const key = highlightKey(h);
+    const all = this.highlights.get();
+    const next = resolveHighlight(p, all[machineId] ?? null, this.asOf.get(), this.predictionStaleMs(), this.cfg.highlightTopParts);
+    const key = next === null ? "" : `${highlightKey(next.parts)}@${next.windowTs}${next.held ? "!" : ""}`;
     if (this.highlightKeys.get(machineId) === key) return;
     this.highlightKeys.set(machineId, key);
-    this.engine?.highlightParts(machineId, h);
+    const rest = Object.fromEntries(Object.entries(all).filter(([id]) => id !== machineId));
+    this.highlights.set(next === null ? rest : { ...rest, [machineId]: next });
+    this.engine?.highlightParts(machineId, next?.parts ?? []);
+  }
+
+  /** Unusual-behaviour display state (intermittent label, hold); stored alerts are unchanged. */
+  refreshUnusual(): void {
+    const events: Alert[] = [];
+    for (const list of this.alertEvents.get().values()) {
+      for (const e of list) if (e.kind === "unusual_behaviour") events.push(e);
+    }
+    const cfg = {
+      flapWindowS: this.cfg.unusualFlapWindowS,
+      flapMinSwitches: this.cfg.unusualFlapMinSwitches,
+      holdS: this.cfg.unusualHoldS,
+    };
+    const asOf = this.asOf.get();
+    const prev = this.unusual.get();
+    const next: Record<string, UnusualView> = {};
+    let changed = false;
+    for (const id of Object.keys(this.machines.get())) {
+      const v = unusualView(events, id, asOf, cfg);
+      next[id] = v;
+      const o = prev[id];
+      if (o === undefined || o.visible !== v.visible || o.active !== v.active || o.intermittent !== v.intermittent) {
+        changed = true;
+        this.engine?.holdUnusual(id, v.visible && !v.active);
+      }
+    }
+    if (changed) this.unusual.set(next);
   }
 
   refreshHighlights(): void {
@@ -243,7 +292,11 @@ export class DashboardModel implements EngineSink {
     this.applyState(snapshot);
     this.asOf.set(t);
     this.engine?.applySnapshot(snapshot);
+    // a replay jump starts a new episode: nothing is held across it
+    this.highlights.set({});
+    this.highlightKeys.clear();
     this.refreshHighlights();
+    this.refreshUnusual();
   }
 
   // ------------------------------------------------------------------ engine

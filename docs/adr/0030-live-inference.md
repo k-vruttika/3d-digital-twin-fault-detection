@@ -109,6 +109,15 @@ One test run replayed through the real worker processes, four machines, one read
 
 Worker start (bundle download + import + model load) takes 3.5 s.
 
+### Display rules added in Phase 11 Part C (display only)
+
+The alarm rule, the stored events and every evaluated number are unchanged. These rules only change what the dashboard shows. Both came from the live check in Part B (explanations late under CPU load; the autoencoder alarm flapping).
+
+- **Part highlight is kept while the alarm stays on.** A fresh supervised explanation replaces the highlight. When none is attached (late, or dropped after `prediction_stale_s`), the last highlight stays as long as the newest fresh prediction still has `alarm: true`. The panel labels it with the end of the window it explains (`attributionsTs`) and says that it is kept. It clears when the alarm clears, when the prediction is stale (machine stopped), when time moves backwards, and at every replay jump. A held highlight is the last real explanation, not a new one, so it can describe a window older than the alarm's current state.
+- **Intermittent unusual behaviour.** From the stored lifecycle events of `unusual_behaviour` per machine, the dashboard counts on/off switches. At least `unusualFlapMinSwitches` (4) within `unusualFlapWindowS` (300 s of event time) shows "unusual behaviour (intermittent)"; the indicator, and the 3D outline, stay for `unusualHoldS` (30 s) after the alert clears. The alert manager applies no hysteresis, as before, and the Alerts panel still lists each raise and clear.
+- **Confidence wording.** "Most likely NORMAL (1.00) · cannot rule out FAULT": the top class first, the rest of the class-conditional set as what cannot be ruled out. The Mondrian sets guarantee coverage per class, so a rare class can be in the set at low probability. The sets themselves are unchanged.
+- **Config:** the three unusual-behaviour settings and the highlight count live in `frontend/src/dashboard/config.ts` (dashboard display settings, like `highlightTopParts`).
+
 ## Consequences
 
 - The twin warns with exactly the evaluated rule and shows calibrated, conformal confidence next to it. The UI can tell "stopped", "waiting" and "warming up" apart from "no risk".

@@ -10,7 +10,7 @@
  * - No prediction is shown for a stopped or waiting machine, nor one older than the stale time
  *   relative to the time on screen (live: newest data; replay: the replay time).
  */
-import type { MachineState, Prediction, PredictResponse } from "../../api/types.ts";
+import type { Alert, MachineState, Prediction, PredictResponse } from "../../api/types.ts";
 
 export type HealthClass = "NORMAL" | "WARNING" | "FAULT";
 export const HEALTH_CLASSES: readonly HealthClass[] = ["NORMAL", "WARNING", "FAULT"];
@@ -85,6 +85,20 @@ export function setText(set: readonly string[]): string {
   return `${set.slice(0, -1).join(", ")} or ${set[set.length - 1] ?? ""}`;
 }
 
+/**
+ * The most likely state first, then what the conformal set cannot rule out:
+ * "Most likely NORMAL (1.00) · cannot rule out FAULT". The set is a coverage statement (per
+ * class), so it can name a state that is not the most likely one.
+ */
+export function confidenceText(p: Prediction): string {
+  const { cls, prob } = topClass(p);
+  const others = p.conformalSet.filter((c) => c !== cls);
+  const head = `Most likely ${cls} (${prob.toFixed(2)})`;
+  if (p.conformalSet.length === 0) return `${head} · empty set`;
+  if (others.length === 0) return `${head} · no other state in the set`;
+  return `${head} · cannot rule out ${others.join(", ")}`;
+}
+
 /** Time to fault with its interval; the model's cap means "no fault expected within it". */
 export function ttfText(p: Prediction, capS: number | null): string {
   if (p.ttfS === null || p.ttfS === undefined) return "–";
@@ -118,9 +132,105 @@ export function highlightsFor(
   return ranked.map(([part, w]) => ({ part, intensity: w / max }));
 }
 
+/** The highlight on screen for one machine, with the window it explains. */
+export interface HighlightState {
+  parts: { part: string; intensity: number }[];
+  /** End of the window the explanation describes (`attributionsTs`, else the prediction time). */
+  windowTs: string;
+  /** true while the last explanation is kept because a newer one is late. */
+  held: boolean;
+}
+
+/**
+ * Display rule (ADR 0030, Part C): a fresh supervised explanation replaces the highlight. While
+ * the predicted alarm stays on and no fresh explanation is attached (explanations arrive
+ * beside the prediction path and can be late), the last highlight is kept, labelled with the
+ * time of the window it explains. It clears when the alarm clears, when the prediction is
+ * stale (the machine stopped), or when time moved backwards. The alarm rule is not touched.
+ */
+export function resolveHighlight(
+  p: Prediction | null,
+  prev: HighlightState | null,
+  asOf: string | null,
+  staleMs: number,
+  topN: number,
+): HighlightState | null {
+  const fresh = highlightsFor(p, asOf, staleMs, topN);
+  if (p !== null && fresh.length > 0) {
+    return { parts: fresh, windowTs: p.attributionsTs ?? p.ts, held: false };
+  }
+  if (p === null || prev === null || p.alarm !== true || !isFresh(p, asOf, staleMs)) return null;
+  if (Date.parse(prev.windowTs) > Date.parse(p.ts)) return null; // time moved backwards (replay)
+  return { ...prev, held: true };
+}
+
 /** A stable key of a highlight list (to skip redundant engine calls). */
 export function highlightKey(h: readonly { part: string; intensity: number }[]): string {
   return h.map((x) => `${x.part}:${x.intensity.toFixed(2)}`).join("|");
+}
+
+export interface UnusualConfig {
+  /** Look back this long (event time) for on/off switches. */
+  flapWindowS: number;
+  /** "Intermittent" from this many switches within the window. */
+  flapMinSwitches: number;
+  /** Keep the indicator this long after the alert clears. */
+  holdS: number;
+}
+
+export interface UnusualView {
+  /** Show the indicator: the alert is active, or it cleared less than holdS ago. */
+  visible: boolean;
+  /** An active alert (not only held). */
+  active: boolean;
+  intermittent: boolean;
+  label: string;
+}
+
+/** On / off transitions of one machine's unusual-behaviour alerts, from the stored lifecycle events. */
+export function unusualSwitches(events: readonly Alert[], machineId: string): { ts: number; on: boolean }[] {
+  const byId = new Map<string, Alert[]>();
+  for (const e of events) {
+    if (e.machineId !== machineId || e.kind !== "unusual_behaviour") continue;
+    byId.set(e.alertId, [...(byId.get(e.alertId) ?? []), e]);
+  }
+  const out: { ts: number; on: boolean }[] = [];
+  for (const list of byId.values()) {
+    list.sort((a, b) => a.rev - b.rev);
+    let prev = false;
+    for (const e of list) {
+      if (e.active !== prev) out.push({ ts: Date.parse(e.ts), on: e.active });
+      prev = e.active;
+    }
+  }
+  return out.sort((a, b) => a.ts - b.ts);
+}
+
+/**
+ * Display only (the alert lifecycle and the stored events stay as they are): an unusual-behaviour
+ * alarm that switched on and off several times within the period shows as "intermittent", and
+ * the indicator stays visible for a short hold after it clears.
+ */
+export function unusualView(
+  events: readonly Alert[],
+  machineId: string,
+  asOf: string | null,
+  cfg: UnusualConfig,
+): UnusualView {
+  const sw = unusualSwitches(events, machineId);
+  const now = asOf === null ? (sw[sw.length - 1]?.ts ?? 0) : Date.parse(asOf);
+  const seen = sw.filter((x) => x.ts <= now);
+  const recent = seen.filter((x) => now - x.ts <= cfg.flapWindowS * 1000);
+  const intermittent = recent.length >= cfg.flapMinSwitches;
+  const last = seen[seen.length - 1];
+  const active = last?.on === true;
+  const held = last !== undefined && !last.on && now - last.ts <= cfg.holdS * 1000;
+  return {
+    visible: active || held,
+    active,
+    intermittent,
+    label: intermittent ? "unusual behaviour (intermittent)" : "unusual behaviour",
+  };
 }
 
 /** How an alert kind is shown: label, icon, CSS class and a note. */

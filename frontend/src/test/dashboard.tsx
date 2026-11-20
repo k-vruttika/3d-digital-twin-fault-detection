@@ -127,6 +127,11 @@ export class FakeEngine implements EngineHandle {
     this.calls.push("setPrediction");
   }
   /** machine id -> the last highlight list (an empty list clears). */
+  unusualHeld = new Map<string, boolean>();
+  holdUnusual(machineId: string, held: boolean): void {
+    this.calls.push(`holdUnusual:${machineId}`);
+    this.unusualHeld.set(machineId, held);
+  }
   highlights = new Map<string, { part: string; intensity: number }[]>();
   highlightParts(machineId: string, parts: readonly { part: string; intensity: number }[]): string[] {
     this.calls.push(`highlightParts:${machineId}`);
