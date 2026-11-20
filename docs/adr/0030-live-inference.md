@@ -68,7 +68,7 @@ The twin has to publish a `Prediction` (CLAUDE.md §6) for every running machine
   - `predicted_fault` (CRITICAL): the alarm, with argmax FAULT sustained;
   - `predicted_warning` (WARNING): the alarm otherwise. The union of the two is exactly the evaluated alarm.
   - `unusual_behaviour` (WARNING): the autoencoder flag (score above its per-kind p99.9 threshold) sustained the same way, while the supervised alarm is off. This is the Phase 9 combined policy. The message says "cause unknown" and names no part.
-  - `model_drift`: reserved for Part C.
+  - `model_drift` (WARNING): the monitor worker reports that the operating-condition inputs differ from the training data ([ADR 0031](0031-whatif-drift-demo.md)).
 - **Lifecycle.** The service sends only changed conditions to `TwinEngine.update_conditions`. That runs them through the engine's ISA-18.2 manager (ADR 0011): raise, deduplicate, clear, ack, re-raise, restore.
   - `AlertKindConfig.source` makes these alerts `source: inference`, and `AlertManager.load` restores them.
   - Messages carry the predicted class, the horizon, the time to fault with its interval, the calibrated probability, and the top signal when an explanation exists.
@@ -82,7 +82,7 @@ The twin has to publish a `Prediction` (CLAUDE.md §6) for every running machine
   - `ttfS` / `ttfInterval` come from the conformal time-to-fault interval;
   - `anomalyScore` / `anomalyFlag` / `anomalyThreshold` come from the autoencoder;
   - `alarm` is the evaluated supervised alarm, on the primary horizon;
-  - `reliability` is DEGRADED while the machine's data quality is DEGRADED (drift is added in Part C);
+  - `reliability` is DEGRADED while the machine's data quality is DEGRADED or the machine drifts (ADR 0031);
   - `modelVersion` is the bundle labels.
 - **New optional contract fields** (stored predictions without them stay valid): `alarm`, `anomalyFlag`, `anomalyThreshold`, `attributionsTs`.
 - **WS snapshot.** `WsSnapshotData.predictions` was added, so a client connecting mid-run gets the newest predictions.

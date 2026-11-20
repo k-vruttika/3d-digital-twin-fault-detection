@@ -73,6 +73,7 @@ class WorkerPool:
                 "waiting": [s.value for s in self.cfg.gate.waiting],
                 "maxGapRows": self.cfg.gate.max_gap_rows,
             },
+            "drift": self.cfg.drift.message() if self.cfg.drift.enabled else None,
             "explainAsync": self.cfg.explain_async,
             "capacity": self.cfg.buffer_capacity_rows,
         }
@@ -150,6 +151,8 @@ class WorkerPool:
                         )
                     if "out" in e:
                         mine["out"] = {**mine.get("out", {}), **e["out"]}
+                    if "drift" in e:  # only the monitor worker reports drift
+                        mine["drift"] = e["drift"]
         windows = max((r["windows"] for r in replies), default=0)
         explanations = [e for r in replies for e in r.get("explanations", [])]
         return {

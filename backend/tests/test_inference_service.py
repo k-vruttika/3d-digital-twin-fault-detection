@@ -90,7 +90,20 @@ async def svc() -> Any:
     return s
 
 
-async def feed(s: Any, *entries: tuple[str, dict[str, Any] | None]) -> list[Alert]:
+def drift_report(drifted: bool, load_psi: float = 9.2) -> dict[str, Any]:
+    return {
+        "drifted": drifted,
+        "ready": True,
+        "psi": {"speed": 0.02, "load": load_psi},
+        "alert": {"speed": 0.2, "load": 2.0},
+        "adwinTs": {"speed": None, "load": (T0 + timedelta(seconds=5)).timestamp()},
+        "since": (T0 + timedelta(seconds=5)).timestamp() if drifted else None,
+    }
+
+
+async def feed(
+    s: Any, *entries: tuple[str, dict[str, Any] | None], drift: dict[str, Any] | None = None
+) -> list[Alert]:
     rows = []
     for status, o in entries:
         s.seq += 1
@@ -98,6 +111,8 @@ async def feed(s: Any, *entries: tuple[str, dict[str, Any] | None]) -> list[Aler
         e: dict[str, Any] = {"seq": s.seq, "ts": 0.0, "status": status, "runLen": 30}
         if o is not None:
             e["out"] = o
+        if drift is not None:
+            e["drift"] = drift
         rows.append(e)
     await s._apply({M: rows})
     await s.engine.flush()
@@ -258,3 +273,43 @@ def test_backend_inference_modules_import_no_ml() -> None:
         [sys.executable, "-c", code], capture_output=True, text=True, check=True, cwd=ROOT
     )
     assert out.stdout.strip() == "[]"
+
+
+# ---------------------------------------------------------------------------- drift (ADR 0031)
+async def test_drift_marks_predictions_degraded_and_raises_the_alert(svc: Any) -> None:
+    await feed(svc, ("predict", out(NORMAL)), drift=drift_report(False))
+    assert {p.reliability for p in drain_predictions(svc)} == {Reliability.OK}
+    alerts = await feed(svc, ("predict", out(NORMAL)), drift=drift_report(True))
+    drift = [a for a in alerts if a.kind == AlertKind.MODEL_DRIFT.value]
+    assert [(a.active, a.source) for a in drift] == [(True, "inference")]
+    assert "load PSI 9.20 vs alert level 2.00" in drift[0].message
+    assert "DEGRADED" in drift[0].message
+    assert "since 00:00:05 UTC" in drift[0].message
+    assert {p.reliability for p in drain_predictions(svc)} == {Reliability.DEGRADED}
+    # an unchanged report raises nothing again
+    assert await feed(svc, ("predict", out(NORMAL)), drift=drift_report(True)) == []
+    # the alarm rule is untouched by drift: still the evaluated rule on the same probabilities
+    drain_predictions(svc)
+    await feed(svc, *[("predict", out(WARN))] * 3, drift=drift_report(True))
+    assert svc.gates[M].alarms.alarm is True
+    drain_predictions(svc)
+    cleared = await feed(svc, ("predict", out(NORMAL)), drift=drift_report(False))
+    assert [(a.kind, a.active) for a in cleared if a.kind == "model_drift"] == [
+        ("model_drift", False)
+    ]
+    assert {p.reliability for p in drain_predictions(svc)} == {Reliability.OK}
+
+
+async def test_drift_survives_a_closed_gate_but_not_a_lost_link(svc: Any) -> None:
+    await feed(svc, ("predict", out(NORMAL)), drift=drift_report(True))
+    assert svc.gates[M].drifted
+    await feed(svc, ("stopped", None))  # a stop does not end drift: the conditions come back
+    assert svc.gates[M].drifted
+    await svc._close_all_gates()  # workers lost: nothing is known any more
+    assert not svc.gates[M].drifted
+
+
+async def test_a_worker_without_a_drift_reference_changes_nothing(svc: Any) -> None:
+    alerts = await feed(svc, ("predict", out(NORMAL)))
+    assert [a for a in alerts if a.kind == "model_drift"] == []
+    assert {p.reliability for p in drain_predictions(svc)} == {Reliability.OK}

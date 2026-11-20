@@ -312,6 +312,17 @@
             "title": "Datasetkey",
             "type": "string"
           },
+          "drift": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DriftInfoModel"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "monitor bundle only"
+          },
           "horizons": {
             "anyOf": [
               {
@@ -711,6 +722,85 @@
           "machineId"
         ],
         "title": "DataQualityReport",
+        "type": "object"
+      },
+      "DriftInfoModel": {
+        "additionalProperties": false,
+        "description": "The drift reference of a monitor bundle (ADR 0031); ``available`` false: none built in.",
+        "properties": {
+          "alertQuantile": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "alert level = this quantile of clean validation windows",
+            "title": "Alertquantile"
+          },
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "bins": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bins"
+          },
+          "channels": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channels"
+          },
+          "kinds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "machine kinds with a reference",
+            "title": "Kinds"
+          },
+          "windowS": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "operating rows compared (PSI)",
+            "title": "Windows"
+          }
+        },
+        "required": [
+          "available"
+        ],
+        "title": "DriftInfoModel",
         "type": "object"
       },
       "FaultOptionModel": {

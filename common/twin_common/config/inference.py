@@ -43,6 +43,29 @@ class WorkerSettings(ConfigModel):
     cache_dir: Path = Field(description="downloaded bundles (one folder per worker)")
 
 
+class DriftConfig(ConfigModel):
+    """Live drift detection on the operating-condition inputs (ADR 0031).
+
+    The window, the bins and the PSI alert levels come from the monitor bundle (calibrated on
+    clean validation windows); these are the live decision settings."""
+
+    enabled: bool = Field(description="needs a monitor bundle with a drift reference")
+    threshold_margin: float = Field(gt=0, description="multiplies the bundle's PSI alert level")
+    clear_ratio: float = Field(gt=0, lt=1, description="clears below this x the alert level")
+    sustain_s: float = Field(gt=0, description="PSI over the alert level this long raises drift")
+    clear_s: float = Field(gt=0, description="PSI under the clear level this long clears it")
+    adwin_delta: float = Field(gt=0, lt=1, description="ADWIN confidence (dates the change)")
+
+    def message(self) -> dict[str, object]:
+        return {
+            "margin": self.threshold_margin,
+            "clearRatio": self.clear_ratio,
+            "sustainS": self.sustain_s,
+            "clearS": self.clear_s,
+            "adwinDelta": self.adwin_delta,
+        }
+
+
 class InferenceConfig(ConfigModel):
     enabled: bool = Field(description="off by default; `serve --inference` turns it on")
     model: str = Field(min_length=1, description="key of `models`")
@@ -60,6 +83,7 @@ class InferenceConfig(ConfigModel):
     prediction_stale_s: float = Field(gt=0, description="older predictions are not shown")
     reading_queue_size: int = Field(ge=1)
     gate: GateSettings
+    drift: DriftConfig
 
     worker: WorkerSettings
 

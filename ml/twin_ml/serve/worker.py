@@ -14,7 +14,7 @@ Requests (one JSON object per line, answered in order, each answer echoes ``id``
 * ``{"op": "hello"}`` -> bundle info, loaded libraries;
 * ``{"op": "configure", "machines": {id: {"kind", "sensorParts"}}, "gate": {...},
   "explainAsync": bool, "explain": bool (default true; false = no attributions, used by
-  what-if), "capacity": rows}``;
+  what-if), "drift": {...settings} or null, "capacity": rows}``;
 * ``{"op": "step", "rows": {machine: [[seq, tsEpochS, state, speed, temp, vib, load,
   current], ...]}}`` -> for every new reading its gate status, and the model outputs of every
   predicted window, plus finished explanations and per-stage timings;
@@ -27,6 +27,10 @@ prediction on one CPU thread (measured in ``live_inference.md``), so by default 
 thread explains while predictions continue: it keeps only the newest request per machine and
 the finished attributions come back with a later ``step`` reply, tagged with the window they
 explain (``seq`` / ``ts``). ``explainAsync: false`` explains synchronously (tests).
+
+**Drift** (monitor role, ADR 0031): with a ``drift`` setting and a bundle that carries a training
+reference, every operating row of a machine updates its PSI / ADWIN monitor and the entry of
+that row gets a ``drift`` report (``drifted``, per-channel ``psi``, ``adwinTs``, ``since``).
 
 stdout carries only protocol lines; logging goes to stderr.
 """
@@ -46,6 +50,7 @@ import numpy as np
 
 from twin_common.enums import MachineKind
 from twin_ml.serve.buffers import PREDICT, GateConfig, MachineBuffer, NewRow
+from twin_ml.serve.drift import DriftSettings, MachineDrift, drift_public
 from twin_ml.serve.live import AnomalyLive, SupervisedLive, Timer
 
 ROLES = ("supervised", "monitor")
@@ -165,6 +170,9 @@ class Worker:
         self.explain = True
         self.explain_async = True
         self.explainer: Explainer | None = None
+        self.drift: dict[str, MachineDrift] = {}
+        self.drift_states: frozenset[str] = frozenset()
+        self.drift_channels: dict[str, int] = {}  # channel -> column in a raw row
 
     # ------------------------------------------------------------------ ops
     def hello(self) -> dict[str, Any]:
@@ -193,10 +201,22 @@ class Worker:
             self.explainer = Explainer(self.supervised)
         self.buffers = {}
         self.parts = {}
+        self.drift = {}
+        ref = self.anomaly.drift_reference if self.anomaly is not None else None
+        settings = msg.get("drift")
+        if ref is not None and settings is not None:
+            ds = DriftSettings.of(settings, ref["window_s"])
+            self.drift_states = frozenset(str(s) for s in ref["states"])
+            sensors = list(self.anomaly.normalizer.schema.sensors) if self.anomaly else []
+            self.drift_channels = {str(c): sensors.index(str(c)) for c in ref["channels"]}
         for mid, m in msg["machines"].items():
             self.buffers[mid] = MachineBuffer(mid, MachineKind(m["kind"]), cfg, capacity)
             self.parts[mid] = dict(m.get("sensorParts", {}))
-        return {"machines": sorted(self.buffers)}
+            if ref is not None and settings is not None:
+                md = MachineDrift(str(m["kind"]), ref["kinds"], ds)
+                if md.available:
+                    self.drift[mid] = md
+        return {"machines": sorted(self.buffers), "drift": sorted(self.drift)}
 
     def step(self, rows: dict[str, list[list[Any]]]) -> dict[str, Any]:
         started = time.perf_counter()
@@ -217,6 +237,7 @@ class Worker:
                     "runLen": n.run_len,
                 }
                 entries.append(entry)
+                self._drift(mid, buf, n, entry)
                 if n.status == PREDICT and buf.has_window(n.row):
                     todo.append((mid, n, entry))
             report[mid] = entries
@@ -251,6 +272,18 @@ class Worker:
             "timings_ms": {k: v * 1000.0 for k, v in timer.seconds.items()}
             | {"total": total * 1000.0},
         }
+
+    def _drift(self, mid: str, buf: MachineBuffer, n: NewRow, entry: dict[str, Any]) -> None:
+        """Operating-condition drift: only operating rows of machines with a reference count."""
+        md = self.drift.get(mid)
+        if md is None or n.state not in self.drift_states:
+            return
+        i = buf.index(n.row)
+        if i is None:
+            return
+        raw = buf.raw[i]
+        values = {c: float(raw[j]) for c, j in self.drift_channels.items()}
+        entry["drift"] = md.update(values, n.ts)
 
     def _explain(
         self,
@@ -390,7 +423,11 @@ def _public(rb: Any) -> dict[str, Any]:
         }
     else:
         a = m["anomaly"]
-        out |= {"percentile": a["primary_percentile"], "thresholds": a["thresholds"]}
+        out |= {
+            "percentile": a["primary_percentile"],
+            "thresholds": a["thresholds"],
+            "drift": drift_public(m.get("drift")),
+        }
     return out
 
 

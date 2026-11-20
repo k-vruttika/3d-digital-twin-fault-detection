@@ -240,6 +240,10 @@ cmd = "python -m twin_ml.serve deploy"
 help = "Phase 11: measure live-inference latency through the worker processes + the gate effect -> experiments/results/live_inference.md / .json"
 cmd = "python -m twin_ml.serve latency"
 
+[tool.poe.tasks.drift-report]
+help = "Phase 11: drift detection report (false drift on clean runs, synthetic shifts) -> experiments/results/drift.md / .json"
+cmd = "python -m twin_ml.serve drift"
+
 [tool.poe.tasks.mlflow-ui]
 help = "MLflow UI on the local store (full mlflow in an isolated uv tool environment)"
 cmd = "uv tool run --from mlflow==3.17.2 mlflow ui --backend-store-uri mlruns --port 5000"

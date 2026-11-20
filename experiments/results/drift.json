@@ -1,0 +1,330 @@
+{
+  "generated_at": "2026-11-20T13:39:00+00:00",
+  "dataset_key": "944580196604b618",
+  "settings": {
+    "channels": [
+      "speed",
+      "load"
+    ],
+    "bins": 10,
+    "support_quantile": 0.001,
+    "window_s": 120,
+    "alert_quantile": 0.999,
+    "clear_ratio": 0.6,
+    "sustain_s": 30.0,
+    "clear_s": 60.0,
+    "adwin_delta": 0.002,
+    "live_margin": 1.0
+  },
+  "reference": {
+    "CONVEYOR": {
+      "speed": {
+        "training_rows": 823173,
+        "support": [
+          1399.29964453125,
+          1449.1190239257814
+        ],
+        "psi_alert_level": 4.666656650279846,
+        "calibration_windows": 16822
+      },
+      "load": {
+        "training_rows": 823173,
+        "support": [
+          9.642367561340333,
+          95.85105215454102
+        ],
+        "psi_alert_level": 5.109963410230042,
+        "calibration_windows": 16822
+      }
+    },
+    "CNC": {
+      "speed": {
+        "training_rows": 411175,
+        "support": [
+          7429.696283203125,
+          9940.079695312501
+        ],
+        "psi_alert_level": 6.302309310726922,
+        "calibration_windows": 8386
+      },
+      "load": {
+        "training_rows": 411175,
+        "support": [
+          10.00425985145569,
+          95.85891581726075
+        ],
+        "psi_alert_level": 4.802971990105335,
+        "calibration_windows": 8386
+      }
+    },
+    "INSPECTION": {
+      "speed": {
+        "training_rows": 409959,
+        "support": [
+          584.5595190429688,
+          601.2208610839845
+        ],
+        "psi_alert_level": 4.015774577768045,
+        "calibration_windows": 8352
+      },
+      "load": {
+        "training_rows": 409959,
+        "support": [
+          9.51212406539917,
+          95.85875111389163
+        ],
+        "psi_alert_level": 5.1891366386499636,
+        "calibration_windows": 8352
+      }
+    }
+  },
+  "false_drift": [
+    {
+      "margin": 1.0,
+      "validation": {
+        "runs": 120,
+        "operating_hours": 93.03888888888889,
+        "episodes": 6,
+        "episodes_per_hour": 0.06448916223801278,
+        "runs_with_drift": 6,
+        "drifted_row_fraction": 0.018504806831074222
+      },
+      "test": {
+        "runs": 120,
+        "operating_hours": 92.90861111111111,
+        "episodes": 2,
+        "episodes_per_hour": 0.02152652995326949,
+        "runs_with_drift": 2,
+        "drifted_row_fraction": 0.003808999883397963
+      }
+    },
+    {
+      "margin": 1.1,
+      "validation": {
+        "runs": 120,
+        "operating_hours": 93.03888888888889,
+        "episodes": 0,
+        "episodes_per_hour": 0.0,
+        "runs_with_drift": 0,
+        "drifted_row_fraction": 0.0
+      },
+      "test": {
+        "runs": 120,
+        "operating_hours": 92.90861111111111,
+        "episodes": 1,
+        "episodes_per_hour": 0.010763264976634745,
+        "runs_with_drift": 1,
+        "drifted_row_fraction": 0.0015218060758630794
+      }
+    },
+    {
+      "margin": 1.25,
+      "validation": {
+        "runs": 120,
+        "operating_hours": 93.03888888888889,
+        "episodes": 0,
+        "episodes_per_hour": 0.0,
+        "runs_with_drift": 0,
+        "drifted_row_fraction": 0.0
+      },
+      "test": {
+        "runs": 120,
+        "operating_hours": 92.90861111111111,
+        "episodes": 0,
+        "episodes_per_hour": 0.0,
+        "runs_with_drift": 0,
+        "drifted_row_fraction": 0.0
+      }
+    },
+    {
+      "margin": 1.5,
+      "validation": {
+        "runs": 120,
+        "operating_hours": 93.03888888888889,
+        "episodes": 0,
+        "episodes_per_hour": 0.0,
+        "runs_with_drift": 0,
+        "drifted_row_fraction": 0.0
+      },
+      "test": {
+        "runs": 120,
+        "operating_hours": 92.90861111111111,
+        "episodes": 0,
+        "episodes_per_hour": 0.0,
+        "runs_with_drift": 0,
+        "drifted_row_fraction": 0.0
+      }
+    },
+    {
+      "margin": 2.0,
+      "validation": {
+        "runs": 120,
+        "operating_hours": 93.03888888888889,
+        "episodes": 0,
+        "episodes_per_hour": 0.0,
+        "runs_with_drift": 0,
+        "drifted_row_fraction": 0.0
+      },
+      "test": {
+        "runs": 120,
+        "operating_hours": 92.90861111111111,
+        "episodes": 0,
+        "episodes_per_hour": 0.0,
+        "runs_with_drift": 0,
+        "drifted_row_fraction": 0.0
+      }
+    },
+    {
+      "margin": 3.0,
+      "validation": {
+        "runs": 120,
+        "operating_hours": 93.03888888888889,
+        "episodes": 0,
+        "episodes_per_hour": 0.0,
+        "runs_with_drift": 0,
+        "drifted_row_fraction": 0.0
+      },
+      "test": {
+        "runs": 120,
+        "operating_hours": 92.90861111111111,
+        "episodes": 0,
+        "episodes_per_hour": 0.0,
+        "runs_with_drift": 0,
+        "drifted_row_fraction": 0.0
+      }
+    }
+  ],
+  "rule": {
+    "max_false_episodes_per_hour": 0.1,
+    "chosen_margin": 1.0
+  },
+  "shifts": [
+    {
+      "channel": "load",
+      "shift": 5.0,
+      "unit": "pp",
+      "series": 120,
+      "detected": 18,
+      "detection_rate": 0.15,
+      "outside_support": 4,
+      "detected_outside_support": 4,
+      "detection_rate_outside_support": 1.0,
+      "delay_median_s": 224.0,
+      "delay_p90_s": 590.9000000000002
+    },
+    {
+      "channel": "load",
+      "shift": 10.0,
+      "unit": "pp",
+      "series": 120,
+      "detected": 23,
+      "detection_rate": 0.19166666666666668,
+      "outside_support": 16,
+      "detected_outside_support": 16,
+      "detection_rate_outside_support": 1.0,
+      "delay_median_s": 104.0,
+      "delay_p90_s": 552.0
+    },
+    {
+      "channel": "load",
+      "shift": 20.0,
+      "unit": "pp",
+      "series": 120,
+      "detected": 29,
+      "detection_rate": 0.24166666666666667,
+      "outside_support": 28,
+      "detected_outside_support": 28,
+      "detection_rate_outside_support": 1.0,
+      "delay_median_s": 53.0,
+      "delay_p90_s": 87.6
+    },
+    {
+      "channel": "load",
+      "shift": 30.0,
+      "unit": "pp",
+      "series": 120,
+      "detected": 57,
+      "detection_rate": 0.475,
+      "outside_support": 47,
+      "detected_outside_support": 47,
+      "detection_rate_outside_support": 1.0,
+      "delay_median_s": 61.0,
+      "delay_p90_s": 286.1999999999999
+    },
+    {
+      "channel": "load",
+      "shift": 45.0,
+      "unit": "pp",
+      "series": 120,
+      "detected": 75,
+      "detection_rate": 0.625,
+      "outside_support": 70,
+      "detected_outside_support": 70,
+      "detection_rate_outside_support": 1.0,
+      "delay_median_s": 54.0,
+      "delay_p90_s": 138.80000000000007
+    },
+    {
+      "channel": "speed",
+      "shift": 0.05,
+      "unit": "x mean",
+      "series": 120,
+      "detected": 104,
+      "detection_rate": 0.8666666666666667,
+      "outside_support": 91,
+      "detected_outside_support": 91,
+      "detection_rate_outside_support": 1.0,
+      "delay_median_s": 91.0,
+      "delay_p90_s": 99.0
+    },
+    {
+      "channel": "speed",
+      "shift": 0.1,
+      "unit": "x mean",
+      "series": 120,
+      "detected": 110,
+      "detection_rate": 0.9166666666666666,
+      "outside_support": 103,
+      "detected_outside_support": 103,
+      "detection_rate_outside_support": 1.0,
+      "delay_median_s": 91.0,
+      "delay_p90_s": 465.80000000000007
+    },
+    {
+      "channel": "speed",
+      "shift": 0.2,
+      "unit": "x mean",
+      "series": 120,
+      "detected": 118,
+      "detection_rate": 0.9833333333333333,
+      "outside_support": 115,
+      "detected_outside_support": 115,
+      "detection_rate_outside_support": 1.0,
+      "delay_median_s": 91.0,
+      "delay_p90_s": 99.3
+    },
+    {
+      "channel": "speed",
+      "shift": 0.4,
+      "unit": "x mean",
+      "series": 120,
+      "detected": 120,
+      "detection_rate": 1.0,
+      "outside_support": 120,
+      "detected_outside_support": 120,
+      "detection_rate_outside_support": 1.0,
+      "delay_median_s": 90.0,
+      "delay_p90_s": 96.0
+    }
+  ],
+  "dating": [
+    {
+      "channel": "load",
+      "shift": 45.0,
+      "series": 12,
+      "dated": 8,
+      "since_minus_shift_median_s": 20.0,
+      "since_minus_shift_p90_s": 23.0
+    }
+  ]
+}

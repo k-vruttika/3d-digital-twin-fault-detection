@@ -13,6 +13,7 @@ import { DEFAULT_CONFIG } from "../engine/config.ts";
 import { machineVisual } from "../engine/visuals.ts";
 import { OPERATOR, alert, pathOf, reading, renderDashboard, type Route } from "../test/dashboard.tsx";
 import {
+  activeDrift,
   alertKindView,
   confidenceText,
   resolveHighlight,
@@ -300,6 +301,53 @@ describe("Part C group 1: display fixes", () => {
     });
     expect(h.model.unusual.get()["CNC-01"]?.visible).toBe(false);
     expect(h.engine.unusualHeld.get("CNC-01")).toBe(false);
+  });
+});
+
+describe("Part C group 3: model drift", () => {
+  const drift = (id: string, over: Record<string, unknown> = {}) =>
+    alert({
+      alertId: `d-${id}`,
+      machineId: id,
+      kind: "model_drift",
+      severity: "WARNING",
+      source: "inference",
+      message: `${id}: operating conditions differ from the training data (load PSI 9.20 vs alert level 2.00)`,
+      ...over,
+    });
+
+  it("lists machines with an active drift alert, newest first", () => {
+    const list = activeDrift([
+      drift("CNC-01", { ts: "2026-01-01T00:00:10Z" }),
+      drift("CNV-01", { ts: "2026-01-01T00:00:20Z" }),
+      drift("INSP-01", { active: false }),
+      alert({ alertId: "x", machineId: "CNV-02", kind: "machine_fault" }),
+    ]);
+    expect(list.map((n) => n.machineId)).toEqual(["CNV-01", "CNC-01"]);
+    expect(activeDrift([])).toEqual([]);
+    expect(alertKindView("model_drift").note).toContain("DEGRADED");
+  });
+
+  it("shows a banner with the backend's message, and DEGRADED reliability, while drift lasts", async () => {
+    const h = renderDashboard({ auth: OPERATOR, routes: [predictRoute({ "CNC-01": { status: "predict", runLen: 30 } })] });
+    expect(screen.queryByTestId("drift-banner")).toBeNull();
+    act(() => {
+      h.model.setPrediction(pred({ reliability: "DEGRADED" }));
+      h.model.applyAlert(drift("CNC-01"));
+    });
+    const banner = screen.getByTestId("drift-banner");
+    expect(banner.textContent).toContain("Model drift on CNC-01");
+    expect(banner.textContent).toContain("DEGRADED");
+    expect(screen.getByTestId("drift-note-CNC-01").textContent).toContain("load PSI 9.20 vs alert level 2.00");
+    fireEvent.click(screen.getByTestId("tab-prediction"));
+    await waitFor(() => {
+      expect(screen.getByTestId("prediction-reliability-CNC-01").textContent).toContain("DEGRADED");
+    });
+    expect(screen.getByTestId("prediction-about").textContent).toContain("Drift.");
+    act(() => {
+      h.model.applyAlert(drift("CNC-01", { active: false, rev: 1 }));
+    });
+    expect(screen.queryByTestId("drift-banner")).toBeNull();
   });
 });
 

@@ -14,6 +14,7 @@ from fastapi import APIRouter, Query
 from twin_backend.api.deps import Ctx, Store, Viewer, check_machines
 from twin_backend.api.models import (
     BundleInfoModel,
+    DriftInfoModel,
     InferenceInfoModel,
     MachineGateModel,
     MachinePredictionModel,
@@ -45,6 +46,7 @@ def bundle_model(info: dict[str, Any] | None) -> BundleInfoModel | None:
         sustain_s=info.get("sustainS"),
         alpha=info.get("alpha"),
         percentile=info.get("percentile"),
+        drift=DriftInfoModel(**info["drift"]) if info.get("drift") else None,
     )
 
 

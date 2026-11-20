@@ -391,6 +391,16 @@ select {
   background: var(--banner-warn-bg);
 }
 
+.banner-drift {
+  background: var(--banner-warn-bg);
+  border-left: 4px solid var(--predicted);
+}
+
+.banner-drift .drift-notes {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
 .banner-linkLost,
 .banner-unauthorized {
   background: var(--banner-err-bg);

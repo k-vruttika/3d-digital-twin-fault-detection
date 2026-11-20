@@ -22,6 +22,7 @@ dependencies = [
     # pyarrow<26, which conflicts with the simulator (ADR 0020). UI: `uv run poe mlflow-ui`.
     "mlflow-skinny==3.17.2",
     "matplotlib>=3.11.2",
+    "river>=0.27.0",
 ]
 
 [tool.uv.sources]

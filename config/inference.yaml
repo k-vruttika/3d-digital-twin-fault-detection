@@ -40,6 +40,20 @@ gate:
   waiting: [STARVED, BLOCKED]         # "no prediction (machine waiting)"
   max_gap_rows: 5                     # missing readings filled (masked); a longer gap: warm up again
 
+# Drift detection (ADR 0031): are the operating-condition inputs (speed, load) within what the
+# models were trained on? PSI of the last operating rows against the training distribution
+# decides (the window, the bins and the alert level per machine kind and channel are in the
+# autoencoder bundle, calibrated on clean validation windows: config/models/deploy.yaml drift);
+# ADWIN only dates the change. Drift marks predictions reliability DEGRADED and raises the
+# model_drift alert.
+drift:
+  enabled: true                       # off automatically when the monitor bundle has no reference
+  threshold_margin: 1.0               # live alert level = the bundle's level x this
+  clear_ratio: 0.6                    # clears below 0.6 x the alert level ...
+  sustain_s: 30                       # ... raised after this long above it
+  clear_s: 60                         # ... cleared after this long below the clear level
+  adwin_delta: 0.002
+
 worker:
   start_timeout_s: 180                # bundle download + torch / XGBoost import + model load
   request_timeout_s: 30

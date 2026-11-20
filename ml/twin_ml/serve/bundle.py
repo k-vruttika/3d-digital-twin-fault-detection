@@ -298,6 +298,7 @@ def build_anomaly(
             thr_check = {"status": "reproduced", "reference_run": ref.info.run_id}
             thr_check |= check_thresholds(live_thr, logged)
     det.save(out / "model" / "ae.pt")
+    drift_ref = drift_reference(cfg, train, val)
     bundle = {
         "format": BUNDLE_FORMAT,
         "kind": "anomaly",
@@ -326,11 +327,47 @@ def build_anomaly(
             "primary_percentile": e5.anomaly.primary_percentile,
             "n_cal": described["n_cal"],
         },
+        "drift": {
+            "channels": list(cfg.drift.channels),
+            "bins": cfg.drift.bins,
+            "support_quantile": cfg.drift.support_quantile,
+            "states": [s.value for s in cfg.drift.states],
+            "window_s": cfg.drift.window_s,
+            "alert_quantile": cfg.drift.alert_quantile,
+            "kinds": drift_ref,
+        },
         "checks": {"thresholds": thr_check},
         "card": card(cfg),
     }
     (out / BUNDLE_FILE).write_text(json.dumps(bundle, indent=2), encoding="utf-8")
     return bundle
+
+
+def drift_reference(cfg: DeployConfig, train: Any, val: Any) -> dict[str, Any]:
+    """Drift reference: bins of the training split's operating rows, and per kind and channel
+    the PSI alert level, a quantile of the PSI of clean validation windows."""
+    from twin_ml.data.labels import STATES
+    from twin_ml.serve.drift import build_reference, calibrate_thresholds, operating_series
+
+    d = cfg.drift
+    codes = [STATES.index(s) for s in d.states]
+    a = train.arrays
+    ref = build_reference(
+        np.asarray(a["raw"], dtype=np.float64),
+        np.asarray(a["kind"], dtype=np.int64),
+        np.isin(a["state"], codes),
+        train.schema.sensors,
+        train.schema.kinds,
+        d.channels,
+        d.bins,
+        d.support_quantile,
+    )
+    if not ref:
+        raise BundleCheckError("the training split has no operating rows for the drift reference")
+    series = operating_series(val, d.states)
+    return calibrate_thresholds(
+        ref, series, val.schema.sensors, d.window_s, d.calibration_stride_s, d.alert_quantile
+    )
 
 
 def build_and_register(

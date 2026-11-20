@@ -177,6 +177,8 @@ class AnomalyLive:
         self.window = int(meta["dataset"]["window"])
         self.normalizer = Normalizer.from_dict(meta["dataset"]["normalizer"])
         self.kinds = [str(k) for k in a["kinds"]]
+        # training reference of the drift monitor (None for bundles built before Phase 11 Part C)
+        self.drift_reference: dict[str, Any] | None = meta.get("drift")
         self.per_kind = bool(a["per_kind"])
         p = float(a["primary_percentile"])
         self.percentile = p

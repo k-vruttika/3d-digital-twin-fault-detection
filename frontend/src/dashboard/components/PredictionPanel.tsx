@@ -90,6 +90,12 @@ export function AboutPredictions() {
           the confidence.
         </li>
         <li>
+          <strong>Drift.</strong> When a machine’s speed or load differs from what the models were trained on (a load above
+          the trained range, say), the reliability turns DEGRADED, a “model drift” alert is raised and a banner appears. The
+          predictions are still shown, but their calibration and sets were not validated for those conditions. Drift is
+          measured on speed and load only, never on vibration or temperature, which a developing fault changes.
+        </li>
+        <li>
           “Unusual behaviour” comes from an autoencoder: the inputs look unlike normal operation. It names no cause and
           no part, and it raises false alarms now and then. When it switches on and off several times in a short period it is
           shown as “intermittent”, and the indicator stays for a short time after it clears.

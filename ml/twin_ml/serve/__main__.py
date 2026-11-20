@@ -6,6 +6,7 @@
 * ``worker --roles supervised,monitor ...``: the inference worker started by the backend.
 * ``latency`` / ``report``: the live-inference latency measurement and report (poe task
   ``live-latency``; see :mod:`twin_ml.serve.latency`).
+* ``drift``: the drift detection report (poe task ``drift-report``, ``serve.drift_report``).
 """
 
 from __future__ import annotations
@@ -47,9 +48,11 @@ def _parser() -> argparse.ArgumentParser:
     w.add_argument("--cache-dir", type=Path, required=True)
     w.add_argument("--ig-steps", type=int, required=True)
 
+    from twin_ml.serve import drift_report
     from twin_ml.serve.latency import add_args
 
     add_args(sub)
+    drift_report.add_args(sub)
     return p
 
 
@@ -143,6 +146,10 @@ def main(argv: list[str] | None = None) -> int:
         return run_build(args)
     if args.command == "worker":
         return run_worker(args)
+    if args.command == "drift":
+        from twin_ml.serve import drift_report
+
+        return drift_report.run(args)
     from twin_ml.serve.latency import run
 
     return run(args)

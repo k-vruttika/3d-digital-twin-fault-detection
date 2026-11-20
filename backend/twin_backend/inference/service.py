@@ -18,8 +18,9 @@ predictions as they were) and the WebSocket hub sends them.
   workers beside the prediction path: the newest explanation of a machine is attached to its
   primary-horizon predictions while the uncalibrated argmax stays WARNING / FAULT, with the
   window it explains (``attributionsTs``); it is dropped when the argmax is NORMAL.
-* **Reliability** is DEGRADED while the machine's data quality is DEGRADED or the workers
-  are restarting (drift detection adds to this in Part C).
+* **Reliability** is DEGRADED while the machine's data quality is DEGRADED, or while the
+  monitor worker reports drift of its operating-condition inputs (PSI against the training
+  distribution, ADWIN dating the change; ADR 0031). Drift also raises ``model_drift``.
 
 The service never imports an ML library; minimal mode does not build it at all.
 """
@@ -56,7 +57,12 @@ STOPPED = "stopped"
 UNAVAILABLE = "unavailable"
 LINK_DOWN = (MachineState.STALE, MachineState.OFFLINE)
 CLASSES = (HealthClass.NORMAL, HealthClass.WARNING, HealthClass.FAULT)
-ALERT_KINDS = (AlertKind.PREDICTED_WARNING, AlertKind.PREDICTED_FAULT, AlertKind.UNUSUAL_BEHAVIOUR)
+ALERT_KINDS = (
+    AlertKind.PREDICTED_WARNING,
+    AlertKind.PREDICTED_FAULT,
+    AlertKind.UNUSUAL_BEHAVIOUR,
+    AlertKind.MODEL_DRIFT,
+)
 
 
 class InferenceMetrics:
@@ -102,6 +108,8 @@ class MachineGate:
     alarms: AlarmState = OFF
     sent: dict[AlertKind, bool] = field(default_factory=dict)  # last condition sent per kind
     explanation: tuple[datetime, list[Attribution]] | None = None  # newest, while alarmed
+    drifted: bool = False  # operating-condition drift (monitor worker; ADR 0031)
+    drift: dict[str, Any] | None = None  # the worker's last drift report
 
 
 @dataclass
@@ -309,6 +317,8 @@ class InferenceService:
                 if ts is None:
                     continue
                 gate.status, gate.run_len = str(e["status"]), int(e["runLen"])
+                if "drift" in e:
+                    conditions += self._drift(machine, gate, e["drift"], ts)
                 out = e.get("out")
                 if gate.status != PREDICT or not out:
                     gate.explanation = None
@@ -334,9 +344,23 @@ class InferenceService:
         if conditions:
             self.engine.update_conditions(conditions)
 
+    def _drift(
+        self, machine: str, gate: MachineGate, report: dict[str, Any], ts: datetime
+    ) -> list[AlertCondition]:
+        """Take the monitor's drift report of one operating row; the condition if it changed."""
+        gate.drift = report
+        drifted = bool(report["drifted"])
+        if drifted == gate.drifted:
+            return []
+        gate.drifted = drifted
+        return self._conditions(machine, gate.alarms, ts, None)
+
     def _reliability(self, machine: str) -> Reliability:
         dq = self.engine.data_quality(machine)
-        return Reliability.DEGRADED if dq.status is DataQuality.DEGRADED else Reliability.OK
+        drifted = self.gates[machine].drifted
+        return (
+            Reliability.DEGRADED if dq.status is DataQuality.DEGRADED or drifted else Reliability.OK
+        )
 
     def _predictions(
         self, machine: str, ts: datetime, out: dict[str, Any], state: AlarmState
@@ -388,6 +412,7 @@ class InferenceService:
             AlertKind.PREDICTED_WARNING: state.predicted_warning,
             AlertKind.PREDICTED_FAULT: state.predicted_fault,
             AlertKind.UNUSUAL_BEHAVIOUR: state.unusual,
+            AlertKind.MODEL_DRIFT: gate.drifted,
         }
         out = []
         for kind, active in wanted.items():
@@ -399,6 +424,8 @@ class InferenceService:
         return out
 
     def _message(self, machine: str, kind: AlertKind, preds: list[Prediction] | None) -> str:
+        if kind is AlertKind.MODEL_DRIFT:
+            return self._drift_message(machine)
         if kind is AlertKind.UNUSUAL_BEHAVIOUR:
             return (
                 f"{machine}: unusual behaviour, cause unknown (autoencoder score above its "
@@ -419,6 +446,26 @@ class InferenceService:
                 text += f"; top signal {top.sensor.value} ({top.part})"
         return text
 
+    def _drift_message(self, machine: str) -> str:
+        report = self.gates[machine].drift or {}
+        psis = report.get("psi", {})
+        alert = report.get("alert", {})
+        parts = ", ".join(
+            f"{ch} PSI {p:.2f} vs alert level {alert[ch]:.2f}"
+            for ch, p in psis.items()
+            if p is not None and ch in alert
+        )
+        since = report.get("since")
+        when = (
+            f" since {datetime.fromtimestamp(float(since), UTC):%H:%M:%S} UTC"
+            if since is not None
+            else ""
+        )
+        return (
+            f"{machine}: operating conditions differ from the training data ({parts}){when}; "
+            "predictions are marked DEGRADED and their confidence may not hold"
+        )
+
     async def _check_stopped(self) -> None:
         """Machines whose link is down or which sent nothing recently: gate closed."""
         now = time.monotonic()
@@ -432,6 +479,7 @@ class InferenceService:
             closed = st in LINK_DOWN or silent
             if closed and (gate.status != STOPPED or any(gate.sent.values())):
                 gate.status, gate.run_len = STOPPED, 0
+                gate.drifted, gate.drift = False, None
                 if m in self.alarms:
                     self.alarms[m].reset()
                 gate.alarms = OFF
@@ -445,6 +493,7 @@ class InferenceService:
         conditions: list[AlertCondition] = []
         for m, gate in self.gates.items():
             gate.status, gate.run_len, gate.alarms = UNAVAILABLE, 0, OFF
+            gate.drifted, gate.drift = False, None
             ts = self.engine.machine_watermark(m)
             if ts is not None:
                 conditions += self._conditions(m, OFF, ts, None)

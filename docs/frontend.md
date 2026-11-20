@@ -348,6 +348,7 @@ Live predictions from the backend's inference service (ADR 0030; `uv run poe dev
 - **Model line:** the inference state (`ready`, `starting`, ...) and the model version, e.g. `linetwin-gru v1 (gru seed 0) + linetwin-autoencoder v1 (autoencoder seed 0)`.
 - **"About these predictions"** (collapsed): the models were trained, validated and calibrated on simulator data only; Phase 10 did not demonstrate early warning on real machines; the coverage of the sets; what the alarm, unusual behaviour and highlights mean; plus the bundle's model card.
 - **Details panel:** one line with the +30 s prediction (`PredictionSummary`) or the gate text.
+- **Drift banner (`DriftBanner.tsx`):** while any machine has an active `model_drift` alert, a banner names the machines and shows the backend's message (channel, PSI against its alert level, since when). The machine's predictions show reliability DEGRADED. "About these predictions" explains that drift is measured on speed and load only.
 - **Alerts panel:** inference kinds have badges (`AlertKindBadge`): `predicted WARNING`, `predicted FAULT`, `model drift`, and `unusual behaviour · cause unknown` in purple with a tinted row.
 - **3D view:** part highlights and the unusual-behaviour outline, see [State → visual mapping](#state--visual-mapping).
 

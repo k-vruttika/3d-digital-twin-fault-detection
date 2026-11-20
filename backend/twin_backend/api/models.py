@@ -254,6 +254,19 @@ class ModelCardModel(StateModel):
     limitations: list[str]
 
 
+class DriftInfoModel(StateModel):
+    """The drift reference of a monitor bundle (ADR 0031); ``available`` false: none built in."""
+
+    available: bool
+    channels: list[str] | None = None
+    bins: int | None = None
+    window_s: int | None = Field(default=None, description="operating rows compared (PSI)")
+    alert_quantile: float | None = Field(
+        default=None, description="alert level = this quantile of clean validation windows"
+    )
+    kinds: list[str] | None = Field(default=None, description="machine kinds with a reference")
+
+
 class BundleInfoModel(StateModel):
     """A loaded deploy bundle (one registered MLflow model version, ADR 0029)."""
 
@@ -272,6 +285,7 @@ class BundleInfoModel(StateModel):
     sustain_s: float | None = None
     alpha: float | None = Field(default=None, description="conformal miscoverage level")
     percentile: float | None = Field(default=None, description="autoencoder threshold")
+    drift: DriftInfoModel | None = Field(default=None, description="monitor bundle only")
 
 
 class InferenceInfoModel(StateModel):

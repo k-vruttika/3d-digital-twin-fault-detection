@@ -603,6 +603,7 @@ A loaded deploy bundle (one registered MLflow model version, ADR 0029).
 | `sustainS` | number \| null | no |  |
 | `alpha` | number \| null | no | conformal miscoverage level |
 | `percentile` | number \| null | no | autoencoder threshold |
+| `drift` | [DriftInfoModel](#driftinfomodel) \| null | no | monitor bundle only |
 
 ##### Capability
 
@@ -693,6 +694,19 @@ What the API and WS stream show per machine.
 | `partialPct` | number | no |  |
 | `linkDown` | boolean | no |  |
 | `reasons` | array of string | no |  |
+
+##### DriftInfoModel
+
+The drift reference of a monitor bundle (ADR 0031); ``available`` false: none built in.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `available` | boolean | yes |  |
+| `channels` | array of string \| null | no |  |
+| `bins` | integer \| null | no |  |
+| `windowS` | integer \| null | no | operating rows compared (PSI) |
+| `alertQuantile` | number \| null | no | alert level = this quantile of clean validation windows |
+| `kinds` | array of string \| null | no | machine kinds with a reference |
 
 ##### FaultOptionModel
 

@@ -398,6 +398,23 @@ def deploy_setup(
             "seed": 0,
             "reference": ref,
         },
+        "drift": {
+            "channels": ["speed", "load"],
+            "bins": 10,
+            "support_quantile": 0.001,
+            "states": ["RUNNING", "WARNING"],
+            "window_s": 60,
+            "alert_quantile": 0.99,
+            "calibration_stride_s": 5,
+            "report": {
+                "margins": [1.0, 2.0],
+                "max_false_episodes_per_hour": 5.0,
+                "load_shifts": [30.0],
+                "speed_shifts": [0.3],
+                "shift_at_fraction": 0.5,
+                "dating_series": 2,
+            },
+        },
         "card": {
             "training_data": "quick test data",
             "real_data": "not checked",

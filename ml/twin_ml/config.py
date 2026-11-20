@@ -684,6 +684,33 @@ class ModelCardConfig(ConfigModel):
     limitations: list[str] = Field(min_length=1)
 
 
+class DriftReportConfig(ConfigModel):
+    """The offline drift report (``python -m twin_ml.serve drift``): margin grid and the rule
+    that picks the live margin on *validation* windows, and the synthetic input shifts."""
+
+    margins: list[float] = Field(min_length=1)  # candidate `threshold_margin` values
+    max_false_episodes_per_hour: float = Field(gt=0)  # picks the smallest margin below this (val)
+    load_shifts: list[float] = Field(min_length=1)  # added to the load (percentage points)
+    speed_shifts: list[float] = Field(min_length=1)  # fraction of the kind's training mean speed
+    shift_at_fraction: float = Field(gt=0, lt=1)  # where in each operating series it starts
+    dating_series: int = Field(ge=1)  # series replayed through the full monitor (ADWIN dating)
+
+
+class DeployDriftConfig(ConfigModel):
+    """The training reference of the drift monitor, built into the autoencoder bundle."""
+
+    channels: list[str] = Field(min_length=1)  # operating-condition inputs, never health signals
+    bins: int = Field(ge=3)
+    states: list[MachineState] = Field(min_length=1)  # rows that count as operating
+    support_quantile: float = Field(
+        gt=0, lt=0.5
+    )  # the support is [q, 1 - q]; outside: overflow bins
+    window_s: int = Field(gt=0)  # live PSI window (operating rows)
+    alert_quantile: float = Field(gt=0, lt=1)  # of the PSI of clean validation windows
+    calibration_stride_s: int = Field(gt=0)  # spacing of the validation windows
+    report: DriftReportConfig
+
+
 class DeployConfig(ConfigModel):
     experiment: str = Field(min_length=1)  # MLflow experiment of the bundle runs
     phase_tag: str = Field(min_length=1)
@@ -694,6 +721,7 @@ class DeployConfig(ConfigModel):
     seed_selection: SeedSelectionConfig
     models: dict[str, DeployModelConfig] = Field(min_length=1)
     anomaly: DeployAnomalyConfig
+    drift: DeployDriftConfig
     card: ModelCardConfig
 
 

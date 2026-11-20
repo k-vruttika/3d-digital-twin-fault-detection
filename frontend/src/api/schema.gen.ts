@@ -577,6 +577,8 @@ export interface components {
             };
             /** Datasetkey */
             datasetKey: string;
+            /** @description monitor bundle only */
+            drift?: components["schemas"]["DriftInfoModel"] | null;
             /** Horizons */
             horizons?: number[] | null;
             /**
@@ -750,6 +752,33 @@ export interface components {
             samples: number;
             /** @default OK */
             status: components["schemas"]["DataQuality"];
+        };
+        /**
+         * DriftInfoModel
+         * @description The drift reference of a monitor bundle (ADR 0031); ``available`` false: none built in.
+         */
+        DriftInfoModel: {
+            /**
+             * Alertquantile
+             * @description alert level = this quantile of clean validation windows
+             */
+            alertQuantile?: number | null;
+            /** Available */
+            available: boolean;
+            /** Bins */
+            bins?: number | null;
+            /** Channels */
+            channels?: string[] | null;
+            /**
+             * Kinds
+             * @description machine kinds with a reference
+             */
+            kinds?: string[] | null;
+            /**
+             * Windows
+             * @description operating rows compared (PSI)
+             */
+            windowS?: number | null;
         };
         /** FaultOptionModel */
         FaultOptionModel: {

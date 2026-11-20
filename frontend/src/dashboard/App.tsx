@@ -11,6 +11,7 @@ import { ReplayBar, ReplayButton } from "./components/ReplayBar.tsx";
 import { ScenarioPanel } from "./components/ScenarioPanel.tsx";
 import { SourcesPanel } from "./components/SourcesPanel.tsx";
 import { ConnectionBanner } from "./components/ConnectionBanner.tsx";
+import { DriftBanner } from "./components/DriftBanner.tsx";
 import { DetailsPanel } from "./components/DetailsPanel.tsx";
 import { Header } from "./components/Header.tsx";
 import { MachineList } from "./components/MachineList.tsx";
@@ -69,6 +70,7 @@ export function App() {
         <ReplayButton replay={replay} />
       </Header>
       <ConnectionBanner />
+      <DriftBanner />
       <ReplayBar replay={replay} />
       <div className="layout">
         <aside className="left">

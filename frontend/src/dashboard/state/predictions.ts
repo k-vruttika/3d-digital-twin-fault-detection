@@ -233,6 +233,26 @@ export function unusualView(
   };
 }
 
+export interface DriftNotice {
+  machineId: string;
+  /** The backend's message: channels, PSI against the alert level, since when. */
+  message: string;
+  raisedAt: string;
+}
+
+/**
+ * Machines with an active model-drift alert, newest first. Drift is the operating conditions
+ * (speed, load) differing from the training data: predictions are then marked DEGRADED and
+ * their confidence may not hold. It comes from the alert, so replay shows it as it was.
+ */
+export function activeDrift(alerts: Iterable<Alert>): DriftNotice[] {
+  const out: DriftNotice[] = [];
+  for (const a of alerts) {
+    if (a.kind === "model_drift" && a.active) out.push({ machineId: a.machineId, message: a.message, raisedAt: a.ts });
+  }
+  return out.sort((x, y) => Date.parse(y.raisedAt) - Date.parse(x.raisedAt));
+}
+
 /** How an alert kind is shown: label, icon, CSS class and a note. */
 export interface AlertKindView {
   label: string;
@@ -255,7 +275,12 @@ export function alertKindView(kind: string): AlertKindView {
     case "predicted_fault":
       return { label: "predicted FAULT", icon: "◕", className: "kind-predicted", note: "model prediction, +30 s" };
     case "model_drift":
-      return { label: "model drift", icon: "≈", className: "kind-drift", note: "inputs differ from the training data" };
+      return {
+        label: "model drift",
+        icon: "≈",
+        className: "kind-drift",
+        note: "operating conditions differ from the training data; predictions are DEGRADED",
+      };
     default:
       return { label: kind, icon: "", className: "", note: null };
   }
