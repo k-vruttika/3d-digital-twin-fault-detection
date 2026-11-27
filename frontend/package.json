@@ -13,7 +13,8 @@
     "typecheck": "tsc -b --noEmit",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
-    "test": "vitest run --passWithNoTests",
+    "test": "node scripts/check-contrast.mjs && vitest run --passWithNoTests",
+    "check:contrast": "node scripts/check-contrast.mjs",
     "gen:api": "openapi-typescript src/api/openapi.json -o src/api/schema.gen.ts",
     "screenshots": "node scripts/screenshots.mjs"
   },

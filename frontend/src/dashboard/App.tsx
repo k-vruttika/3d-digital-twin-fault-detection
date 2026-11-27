@@ -1,5 +1,8 @@
-/** The dashboard layout: header, banners, machine list | 3D view + tabs | details + commands. */
-import { useEffect } from "react";
+/**
+ * The dashboard layout (DESIGN.md §5): top bar, system bands, then the stage (3D view with the
+ * HUD layer) over the console (tabs) on the left, and the inspector (details + commands) right.
+ */
+import { useEffect, useState } from "react";
 
 import { HistoryPanel } from "./charts/HistoryPanel.tsx";
 import { LiveCharts } from "./charts/LiveCharts.tsx";
@@ -39,6 +42,7 @@ export function App() {
   const { model, replay } = useServices();
   const theme = useTheme();
   const sources = useStore(model.sources);
+  const [consoleCollapsed, setConsoleCollapsed] = useState(false);
   useSourcesPolling();
   usePredictPolling();
   useAlertBackfill();
@@ -73,16 +77,36 @@ export function App() {
       <DriftBanner />
       <ReplayBar replay={replay} />
       <div className="layout">
-        <aside className="left">
-          <MachineList />
-        </aside>
-        <main id="main" className="center" tabIndex={-1}>
-          <TwinView />
-          <section className="bottom panel" aria-label="Charts, history and alerts">
+        <main id="main" className="stage-col" tabIndex={-1}>
+          <div className="stage">
+            <TwinView />
+            <div className="hud hud-machines">
+              <MachineList />
+            </div>
+          </div>
+          <section
+            className="console"
+            id="console"
+            aria-label="Charts, history and alerts"
+            data-collapsed={consoleCollapsed}
+            data-testid="console"
+          >
+            <button
+              type="button"
+              className="console-toggle"
+              aria-expanded={!consoleCollapsed}
+              aria-controls="console"
+              onClick={() => {
+                setConsoleCollapsed((c) => !c);
+              }}
+              data-testid="console-toggle"
+            >
+              {consoleCollapsed ? "Expand panels ▸" : "Collapse panels"}
+            </button>
             <Tabs label="Panels" tabs={tabs} />
           </section>
         </main>
-        <aside className="right">
+        <aside className="inspector" aria-label="Selected machine">
           <DetailsPanel />
           <CommandPanel />
         </aside>
