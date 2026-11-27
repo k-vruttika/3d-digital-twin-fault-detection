@@ -158,3 +158,56 @@ describe("fog", () => {
     engine.dispose();
   });
 });
+
+describe("view insets", () => {
+  /** Container pixel of a machine's base (fake container: 800 x 600). */
+  function screenOf(engine: ReturnType<typeof createTestEngine>["engine"], id: string, w = 800, h = 600) {
+    const root = engine.machineModel(id)?.root;
+    if (root === undefined) throw new Error(`no model for ${id}`);
+    engine.camera.updateMatrixWorld(true);
+    const p = root.getWorldPosition(new Vector3()).project(engine.camera);
+    return { x: ((p.x + 1) / 2) * w, y: ((1 - p.y) / 2) * h };
+  }
+
+  it("frames the whole line inside the rectangle the HUD leaves free", () => {
+    const { engine } = createTestEngine();
+    engine.loadLayout(LINE);
+    const insets = { top: 120, right: 0, bottom: 150, left: 0 };
+    engine.setViewInsets(insets);
+    for (const m of LINE.machines) {
+      const s = screenOf(engine, m.id);
+      expect(s.y).toBeGreaterThan(insets.top);
+      expect(s.y).toBeLessThan(600 - insets.bottom);
+      expect(s.x).toBeGreaterThan(0);
+      expect(s.x).toBeLessThan(800);
+    }
+    expect(engine.camera.view?.enabled).toBe(true);
+    expect(engine.camera.view?.offsetY).toBe((150 - 120) / 2);
+    engine.dispose();
+  });
+
+  it("keeps the offset through a resize and clears it with all-zero insets", () => {
+    const { engine } = createTestEngine();
+    engine.loadLayout(LINE);
+    const before = engine.camera.position.clone();
+    engine.setViewInsets({ top: 100, right: 40, bottom: 100, left: 0 });
+    engine.resize(1000, 500);
+    expect(engine.camera.view?.fullWidth).toBe(1000);
+    expect(engine.camera.view?.offsetX).toBe(20);
+    engine.resize(800, 600);
+    engine.setViewInsets({ top: 0, right: 0, bottom: 0, left: 0 });
+    expect(engine.camera.view?.enabled ?? false).toBe(false);
+    expect(engine.camera.position.distanceTo(before)).toBeLessThan(1e-9);
+    engine.dispose();
+  });
+
+  it("still picks the machine under the pointer", () => {
+    const { engine } = createTestEngine();
+    engine.loadLayout(LINE);
+    engine.setViewInsets({ top: 140, right: 0, bottom: 160, left: 0 });
+    const s = screenOf(engine, "CNC-01");
+    const hit = engine.pickAt(s.x, s.y - 20); // a little above the base: the machine body
+    expect(hit?.kind === "machine" ? hit.id : null).toBe("CNC-01");
+    engine.dispose();
+  });
+});

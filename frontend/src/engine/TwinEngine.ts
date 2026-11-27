@@ -75,6 +75,14 @@ export interface EngineTheme {
   grid: number;
 }
 
+/** Pixels of the canvas covered by host UI (a HUD), per edge. */
+export interface ViewInsets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
 export interface SelectEvent {
   machineId: string | null;
 }
@@ -201,6 +209,8 @@ export class TwinEngine {
   private modeValue: EngineMode = "live";
   private labelModeValue: LabelMode = "auto";
   private theme: EngineTheme;
+  /** Canvas edges covered by host UI; null = none (the original full-canvas framing). */
+  private insets: ViewInsets | null = null;
   /** Camera distance of the last framing (frame()); scales the optional fog. */
   private framingDistance = 20;
   private connected = true;
@@ -530,7 +540,35 @@ export class TwinEngine {
     const h = Math.max(1, Math.floor(height ?? this.container.clientHeight));
     this.renderer.setSize(w, h, true);
     this.camera.aspect = w / h;
+    this.applyViewOffset(w, h);
     this.camera.updateProjectionMatrix();
+  }
+
+  /**
+   * Keep the line clear of host UI drawn over the canvas: the framing fits the line into the
+   * rectangle the insets leave free and centres it there (a view offset, so picking and labels
+   * stay exact). All zeros restores the full-canvas framing.
+   */
+  setViewInsets(insets: ViewInsets): void {
+    const clean = { top: Math.max(0, insets.top), right: Math.max(0, insets.right), bottom: Math.max(0, insets.bottom), left: Math.max(0, insets.left) };
+    const none = clean.top === 0 && clean.right === 0 && clean.bottom === 0 && clean.left === 0;
+    this.insets = none ? null : clean;
+    this.resize();
+    if (this.layout !== null) this.frame(this.layout);
+  }
+
+  private containerSize(): { w: number; h: number } {
+    return { w: Math.max(1, Math.floor(this.container.clientWidth)), h: Math.max(1, Math.floor(this.container.clientHeight)) };
+  }
+
+  private applyViewOffset(w: number, h: number): void {
+    const i = this.insets;
+    if (i === null) {
+      if (this.camera.view?.enabled === true) this.camera.clearViewOffset();
+      return;
+    }
+    // shift the full-size view so the frustum centre lands on the centre of the free rectangle
+    this.camera.setViewOffset(w, h, (i.right - i.left) / 2, (i.bottom - i.top) / 2, w, h);
   }
 
   start(): void {
@@ -756,8 +794,16 @@ export class TwinEngine {
     const cz = (minZ + maxZ) / 2;
     const extent = Math.max(maxX - minX, maxZ - minZ, 4);
     // Distance that fits the footprint into both the vertical and the horizontal field of view.
-    const tanV = Math.tan((this.camera.fov * Math.PI) / 360);
-    const tanH = tanV * Math.max(this.camera.aspect, 0.1);
+    let tanV = Math.tan((this.camera.fov * Math.PI) / 360);
+    let tanH = tanV * Math.max(this.camera.aspect, 0.1);
+    if (this.insets !== null) {
+      // only the free rectangle counts: shrink both half-angles to its share of the canvas
+      const { w, h } = this.containerSize();
+      const fw = Math.max(0.1, (w - this.insets.left - this.insets.right) / w);
+      const fh = Math.max(0.1, (h - this.insets.top - this.insets.bottom) / h);
+      tanV *= fh;
+      tanH *= fw;
+    }
     const fit = Math.max((maxX - minX) / 2 / tanH, (maxZ - minZ) / 2 / tanV, 4);
     const d = fit * 1.15 + 2;
     this.framingDistance = Math.hypot(d * 0.05, d * 0.5, d * 0.9);
