@@ -1,29 +1,22 @@
 /**
- * Chart.js configuration for the sensor charts (pure; unit tested).
+ * Chart.js configuration for the sensor charts (pure; unit tested). Styling: DESIGN.md §8.
  *
  * - x is a linear axis in epoch ms with UTC clock ticks (no date adapter dependency);
  * - y has the sensor name and unit as its title;
  * - `spanGaps: false` on every dataset: a null point is a gap, never interpolated or zero;
  * - an optional min-max band (bucketed history) is drawn as a filled area behind the mean;
+ * - the trend is neutral (charts show measurements, not status); horizontal hairlines only;
+ *   a small dot marks the newest value;
  * - no threshold lines: the backend provides no alarm limits (see docs/frontend.md).
  */
-import type { TooltipItem } from "chart.js";
+import type { ScriptableContext, TooltipItem } from "chart.js";
 
 import { formatTime } from "../format.ts";
 import type { LineConfig } from "./chartFactory.ts";
+import type { ChartTheme } from "./chartTheme.ts";
 import type { ChartPoint } from "./series.ts";
 
-export interface ChartColors {
-  line: string;
-  band: string;
-  grid: string;
-  text: string;
-}
-
-export const CHART_COLORS: Record<"light" | "dark", ChartColors> = {
-  light: { line: "#1f6fd1", band: "rgba(31, 111, 209, 0.16)", grid: "rgba(0, 0, 0, 0.08)", text: "#4a5563" },
-  dark: { line: "#6aa8f0", band: "rgba(106, 168, 240, 0.2)", grid: "rgba(255, 255, 255, 0.09)", text: "#aeb7c2" },
-};
+export type { ChartTheme } from "./chartTheme.ts";
 
 export interface SensorChartData {
   label: string;
@@ -34,8 +27,35 @@ export interface SensorChartData {
   xMax?: number | null;
 }
 
-export function lineChartConfig(d: SensorChartData, colors: ChartColors): LineConfig {
+/** Index of the newest non-null point (the "now" dot), or -1. */
+export function lastValueIndex(points: readonly ChartPoint[]): number {
+  for (let i = points.length - 1; i >= 0; i--) if (points[i]?.y !== null && points[i]?.y !== undefined) return i;
+  return -1;
+}
+
+/** Axis, tick and tooltip styling shared by every dashboard chart. */
+export function axisStyle(t: ChartTheme) {
+  return {
+    tick: { color: t.tick, font: { family: t.fontMono, size: 11 } },
+    title: { color: t.title, font: { family: t.fontDisplay, size: 11, weight: 800 } },
+    tooltip: {
+      backgroundColor: t.tooltipBg,
+      borderColor: t.tooltipBorder,
+      borderWidth: 1,
+      cornerRadius: 4,
+      padding: 8,
+      displayColors: false,
+      titleColor: t.tooltipText,
+      bodyColor: t.tooltipText,
+      titleFont: { family: t.fontMono, size: 11, weight: 400 },
+      bodyFont: { family: t.fontMono, size: 12, weight: 500 },
+    },
+  } as const;
+}
+
+export function lineChartConfig(d: SensorChartData, t: ChartTheme): LineConfig {
   const datasets: LineConfig["data"]["datasets"] = [];
+  const s = axisStyle(t);
   if (d.band) {
     datasets.push(
       {
@@ -54,18 +74,19 @@ export function lineChartConfig(d: SensorChartData, colors: ChartColors): LineCo
         pointRadius: 0,
         spanGaps: false,
         fill: "-1", // fill down to the min dataset: the min-max band
-        backgroundColor: colors.band,
+        backgroundColor: t.band,
         borderColor: "transparent",
       },
     );
   }
+  const last = lastValueIndex(d.points);
   datasets.push({
     label: d.label,
     data: d.points,
-    borderColor: colors.line,
-    backgroundColor: colors.line,
-    borderWidth: 1.6,
-    pointRadius: 0,
+    borderColor: t.line,
+    backgroundColor: t.line,
+    borderWidth: 1.25,
+    pointRadius: (ctx: ScriptableContext<"line">) => (ctx.dataIndex === last ? 2.5 : 0),
     pointHitRadius: 6,
     spanGaps: false,
     tension: 0,
@@ -84,9 +105,10 @@ export function lineChartConfig(d: SensorChartData, colors: ChartColors): LineCo
       plugins: {
         legend: { display: false },
         tooltip: {
+          ...s.tooltip,
           filter: (item: TooltipItem<"line">) => item.datasetIndex === datasets.length - 1,
           callbacks: {
-            title: (items: TooltipItem<"line">[]) => formatTime(items[0]?.parsed.x ?? null),
+            title: (items: TooltipItem<"line">[]) => `${formatTime(items[0]?.parsed.x ?? null)} UTC`,
           },
         },
       },
@@ -95,20 +117,22 @@ export function lineChartConfig(d: SensorChartData, colors: ChartColors): LineCo
           type: "linear",
           ...(d.xMin === null || d.xMin === undefined ? {} : { min: d.xMin }),
           ...(d.xMax === null || d.xMax === undefined ? {} : { max: d.xMax }),
-          grid: { color: colors.grid },
+          grid: { display: false },
+          border: { display: false },
           ticks: {
-            color: colors.text,
+            ...s.tick,
             maxTicksLimit: 6,
             maxRotation: 0,
             callback: (v: number | string) => formatTime(Number(v)),
           },
-          title: { display: true, text: "time (UTC)", color: colors.text },
+          title: { display: true, text: "TIME · UTC", ...s.title },
         },
         y: {
           type: "linear",
-          grid: { color: colors.grid },
-          ticks: { color: colors.text, maxTicksLimit: 5 },
-          title: { display: true, text: d.yTitle, color: colors.text },
+          grid: { color: t.grid, drawTicks: false },
+          border: { display: false },
+          ticks: { ...s.tick, maxTicksLimit: 4, padding: 8 },
+          title: { display: true, text: d.yTitle, ...s.title },
         },
       },
     },

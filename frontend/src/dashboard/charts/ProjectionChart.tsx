@@ -4,7 +4,8 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { useServices } from "../context.ts";
 import { useTheme } from "../theme.ts";
 import type { ChartLike } from "./chartFactory.ts";
-import { PROJECTION_COLORS, projectionChartConfig, type ProjectionChartData } from "./projectionConfig.ts";
+import { chartTheme } from "./chartTheme.ts";
+import { projectionChartConfig, type ProjectionChartData } from "./projectionConfig.ts";
 
 interface Props {
   data: ProjectionChartData;
@@ -27,7 +28,7 @@ export function ProjectionChart({ data, height = 220, testId }: Props) {
     if (canvas === null) return;
     const ctl = new AbortController();
     let chart: ChartLike | null = null;
-    void chartFactory(canvas, projectionChartConfig(dataRef.current, PROJECTION_COLORS[theme]), ctl.signal).then((c) => {
+    void chartFactory(canvas, projectionChartConfig(dataRef.current, chartTheme()), ctl.signal).then((c) => {
       if (c === null) return;
       if (ctl.signal.aborted) {
         c.destroy();
@@ -35,7 +36,7 @@ export function ProjectionChart({ data, height = 220, testId }: Props) {
       }
       chart = c;
       chartRef.current = c;
-      const next = projectionChartConfig(dataRef.current, PROJECTION_COLORS[theme]);
+      const next = projectionChartConfig(dataRef.current, chartTheme());
       c.data.datasets = next.data.datasets;
       c.options.scales = next.options?.scales ?? {};
       c.update("none");
@@ -50,7 +51,7 @@ export function ProjectionChart({ data, height = 220, testId }: Props) {
   useEffect(() => {
     const chart = chartRef.current;
     if (chart === null) return;
-    const next = projectionChartConfig(data, PROJECTION_COLORS[theme]);
+    const next = projectionChartConfig(data, chartTheme());
     chart.data.datasets = next.data.datasets;
     chart.options.scales = next.options?.scales ?? {};
     chart.update("none");

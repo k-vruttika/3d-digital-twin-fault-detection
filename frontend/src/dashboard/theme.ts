@@ -25,9 +25,23 @@ function savedTheme(): Theme | null {
   }
 }
 
+/**
+ * `data-theme` on <html> is set before subscribers hear of a change, so anything that reads the
+ * CSS tokens on a theme switch (the charts, charts/chartTheme.ts) already sees the new values.
+ */
+function applyThemeAttribute(theme: Theme): void {
+  try {
+    if (typeof document !== "undefined") document.documentElement.dataset.theme = theme;
+  } catch {
+    // no document (e.g. a worker): nothing to style
+  }
+}
+
 export const themeStore = createStore<Theme>(savedTheme() ?? systemTheme());
+applyThemeAttribute(themeStore.get());
 
 export function setTheme(theme: Theme): void {
+  applyThemeAttribute(theme);
   themeStore.set(theme);
   try {
     localStorage.setItem(THEME_KEY, theme);

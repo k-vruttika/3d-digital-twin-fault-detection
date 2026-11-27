@@ -4,7 +4,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as Reac
 import { useServices } from "../context.ts";
 import { useTheme } from "../theme.ts";
 import type { ChartLike } from "./chartFactory.ts";
-import { CHART_COLORS, lineChartConfig, type SensorChartData } from "./lineChart.ts";
+import { chartTheme } from "./chartTheme.ts";
+import { lineChartConfig, type SensorChartData } from "./lineChart.ts";
 
 interface Props {
   data: SensorChartData;
@@ -35,7 +36,7 @@ export function SensorChart({ data, onZoom, height = 140, testId }: Props) {
     if (canvas === null) return;
     const ctl = new AbortController();
     let chart: ChartLike | null = null;
-    void chartFactory(canvas, lineChartConfig(dataRef.current, CHART_COLORS[theme]), ctl.signal).then((c) => {
+    void chartFactory(canvas, lineChartConfig(dataRef.current, chartTheme()), ctl.signal).then((c) => {
       if (c === null) return;
       if (ctl.signal.aborted) {
         c.destroy();
@@ -44,7 +45,7 @@ export function SensorChart({ data, onZoom, height = 140, testId }: Props) {
       chart = c;
       chartRef.current = c;
       // data may have changed while Chart.js was loading
-      const next = lineChartConfig(dataRef.current, CHART_COLORS[theme]);
+      const next = lineChartConfig(dataRef.current, chartTheme());
       c.data.datasets = next.data.datasets;
       c.options.scales = next.options?.scales ?? {};
       c.update("none");
@@ -59,7 +60,7 @@ export function SensorChart({ data, onZoom, height = 140, testId }: Props) {
   useEffect(() => {
     const chart = chartRef.current;
     if (chart === null) return;
-    const next = lineChartConfig(data, CHART_COLORS[theme]);
+    const next = lineChartConfig(data, chartTheme());
     chart.data.datasets = next.data.datasets;
     chart.options.scales = next.options?.scales ?? {};
     chart.update("none");

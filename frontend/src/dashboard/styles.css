@@ -1168,12 +1168,6 @@ input::placeholder {
 }
 
 /* ---------------------------------------------------------------- details */
-.state-line {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  font-weight: 600;
-}
 
 table.kv {
   border-collapse: collapse;
@@ -1373,4 +1367,246 @@ dialog::backdrop,
 .modal-actions {
   justify-content: flex-end;
   margin-top: var(--s-3);
+}
+
+/* ================================================================== stage 3: inspector, predictions, alerts */
+/* predicted values: the dashed grammar (DESIGN.md §3.4), for every class including NORMAL */
+.badge.pred {
+  padding-left: 6px;
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--c);
+  color: var(--ci);
+}
+
+.badge.kind-predicted_fault {
+  --c: var(--st-fault);
+  --ci: var(--st-fault-ink);
+}
+
+.badge.kind-predicted_warning {
+  --c: var(--st-warning);
+  --ci: var(--st-warning-ink);
+}
+
+.prob {
+  font-family: var(--font-mono);
+  color: var(--text-2);
+}
+
+/* ---------------------------------------------------------------- inspector: identity and state */
+.identity {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+.identity h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--type-title);
+  letter-spacing: 0.06em;
+}
+
+.details-empty h2 {
+  margin-bottom: var(--s-2);
+}
+
+.state-block {
+  --c: var(--st-inactive);
+  --ci: var(--text-1);
+  margin-top: var(--s-2);
+}
+
+.state-block[data-tone="ok"] {
+  --c: var(--st-running);
+}
+
+.state-block[data-tone="warning"] {
+  --c: var(--st-warning);
+  --ci: var(--st-warning-ink);
+}
+
+.state-block[data-tone="fault"] {
+  --c: var(--st-fault);
+  --ci: var(--st-fault-ink);
+}
+
+.state-block[data-tone="maintenance"] {
+  --c: var(--st-maintenance);
+  --ci: var(--st-maintenance-ink);
+}
+
+.state-block[data-tone="waiting"],
+.state-block[data-tone="stale"],
+.state-block[data-tone="unknown"] {
+  --ci: var(--text-2);
+}
+
+/* 40 px, weight 200: the only place the display weight 200 is used in the inspector */
+.state-word {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-display);
+  font-weight: 200;
+  font-size: var(--type-display);
+  line-height: var(--lh-display);
+  text-transform: uppercase;
+  color: var(--ci);
+  animation: state-change var(--dur-2) var(--ease);
+}
+
+.state-word::before {
+  content: "";
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--c);
+}
+
+.state-block[data-tone="waiting"] .state-word::before,
+.state-block[data-tone="stale"] .state-word::before,
+.state-block[data-tone="unknown"] .state-word::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--c);
+}
+
+/* a state change tints the word once, briefly (DESIGN.md §7) */
+@keyframes state-change {
+  from {
+    background: color-mix(in srgb, var(--c) 24%, transparent);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+.state-meta {
+  color: var(--text-2);
+}
+
+/* ---------------------------------------------------------------- inspector: readings stat grid */
+/* a semantic table (sensor = row header) laid out as a two-column stat grid */
+table.readings,
+table.readings tbody {
+  display: block;
+  width: 100%;
+}
+
+table.readings tbody {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--hairline);
+}
+
+table.readings tr {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 0 12px var(--s-3);
+  border-bottom: 1px solid var(--hairline);
+}
+
+table.readings tr:nth-child(odd) {
+  padding-left: 0;
+  border-right: 1px solid var(--hairline);
+}
+
+table.readings th {
+  text-align: left;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--type-micro);
+  line-height: var(--lh-micro);
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+table.readings td {
+  padding: 0;
+  white-space: nowrap;
+}
+
+table.readings .value {
+  font-family: var(--font-mono);
+  font-weight: 200;
+  font-size: var(--type-display);
+  line-height: var(--lh-display);
+  letter-spacing: -0.02em;
+}
+
+table.readings td.missing .value {
+  color: var(--text-3);
+}
+
+table.readings .unit {
+  font-family: var(--font-mono);
+  font-size: var(--type-body);
+}
+
+table.reading-meta {
+  margin-top: var(--s-2);
+}
+
+table.reading-meta th,
+table.reading-meta td {
+  border-bottom: none;
+}
+
+/* ---------------------------------------------------------------- inspector: alerts */
+.alert-mini {
+  list-style: none;
+  padding: 0;
+}
+
+.alert-mini li {
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.alert-mini li:first-child {
+  padding-top: 0;
+}
+
+.alert-mini-times {
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+}
+
+/* ---------------------------------------------------------------- alerts table */
+table.alerts td:first-child {
+  width: 88px;
+}
+
+.group-activeUnacked tr:has(.sev-CRITICAL) td:first-child {
+  box-shadow: inset 2px 0 0 var(--st-fault);
+}
+
+.group-activeUnacked tr:has(.sev-WARNING) td:first-child {
+  box-shadow: inset 2px 0 0 var(--st-warning);
+}
+
+tr.kind-unusual td:first-child {
+  box-shadow: inset 2px 0 0 var(--st-unusual);
+}
+
+table.alerts td:nth-child(5) {
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+}
+
+/* ---------------------------------------------------------------- predictions table */
+table.predictions td:nth-child(n + 3):nth-child(-n + 4) {
+  white-space: nowrap;
+}
+
+.prediction-details h3 .muted {
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: var(--font-mono);
+  font-weight: 400;
 }
