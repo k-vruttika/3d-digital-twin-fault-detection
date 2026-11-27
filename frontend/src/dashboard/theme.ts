@@ -46,6 +46,7 @@ export function useTheme(): Theme {
  * REPLAY banner and an amber frame with a soft vignette around the 3D view (styles.css).
  */
 export const ENGINE_THEME: Record<Theme, { background: number; replayBackground: number; floor: number; grid: number }> = {
-  dark: { background: 0x1d2229, replayBackground: 0x2a2620, floor: 0x2b3038, grid: 0x3a414c },
-  light: { background: 0xdfe4ea, replayBackground: 0xdfe4ea, floor: 0xc9d0d8, grid: 0xb3bcc7 },
+  // DESIGN.md §10: a stage slightly lighter than the UI's --surface-0 so the docked panels separate.
+  dark: { background: 0x111418, replayBackground: 0x1a1712, floor: 0x171b20, grid: 0x222830 },
+  light: { background: 0xe6e4de, replayBackground: 0xe6e4de, floor: 0xd8d5cd, grid: 0xc4bfb3 },
 };

@@ -15,6 +15,10 @@ export interface EngineHandle extends EngineLike {
 export type EngineFactory = (container: HTMLElement) => Promise<EngineHandle>;
 
 export const twinEngineFactory: EngineFactory = async (container) => {
-  const { TwinEngine } = await import("../engine/TwinEngine.ts");
-  return new TwinEngine(container);
+  const [{ TwinEngine }, { DEFAULT_CONFIG }, { sceneConfig }] = await Promise.all([
+    import("../engine/TwinEngine.ts"),
+    import("../engine/config.ts"),
+    import("./sceneConfig.ts"),
+  ]);
+  return new TwinEngine(container, { config: sceneConfig(DEFAULT_CONFIG) });
 };

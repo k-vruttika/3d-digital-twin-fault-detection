@@ -7,8 +7,22 @@ export interface TabSpec {
   content: ReactNode;
 }
 
-export function Tabs({ tabs, label, initial }: { tabs: TabSpec[]; label: string; initial?: string }) {
-  const [active, setActive] = useState(initial ?? tabs[0]?.id ?? "");
+interface TabsProps {
+  tabs: TabSpec[];
+  label: string;
+  initial?: string;
+  /** Controlled mode: the active tab id, changed through onChange (e.g. the annunciator opens Alerts). */
+  value?: string;
+  onChange?: (id: string) => void;
+}
+
+export function Tabs({ tabs, label, initial, value, onChange }: TabsProps) {
+  const [own, setOwn] = useState(initial ?? tabs[0]?.id ?? "");
+  const active = value ?? own;
+  const setActive = (id: string): void => {
+    setOwn(id);
+    onChange?.(id);
+  };
   const base = useId();
   const refs = useRef(new Map<string, HTMLButtonElement>());
   const current = tabs.some((t) => t.id === active) ? active : (tabs[0]?.id ?? "");

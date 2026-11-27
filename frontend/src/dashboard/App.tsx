@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { HistoryPanel } from "./charts/HistoryPanel.tsx";
 import { LiveCharts } from "./charts/LiveCharts.tsx";
 import { AlertsPanel } from "./components/AlertsPanel.tsx";
+import { Annunciator } from "./components/Annunciator.tsx";
 import { CommandPanel } from "./components/CommandPanel.tsx";
 import { WhatIfPanel } from "./components/WhatIfPanel.tsx";
 import { PredictionPanel } from "./components/PredictionPanel.tsx";
@@ -43,6 +44,7 @@ export function App() {
   const theme = useTheme();
   const sources = useStore(model.sources);
   const [consoleCollapsed, setConsoleCollapsed] = useState(false);
+  const [tab, setTab] = useState("live");
   useSourcesPolling();
   usePredictPolling();
   useAlertBackfill();
@@ -80,7 +82,13 @@ export function App() {
         <main id="main" className="stage-col" tabIndex={-1}>
           <div className="stage">
             <TwinView />
-            <div className="hud hud-machines">
+            <Annunciator
+              onOpen={() => {
+                setTab("alerts");
+                setConsoleCollapsed(false);
+              }}
+            />
+            <div className="hud hud-strip">
               <MachineList />
             </div>
           </div>
@@ -103,7 +111,7 @@ export function App() {
             >
               {consoleCollapsed ? "Expand panels ▸" : "Collapse panels"}
             </button>
-            <Tabs label="Panels" tabs={tabs} />
+            <Tabs label="Panels" tabs={tabs} value={tab} onChange={setTab} />
           </section>
         </main>
         <aside className="inspector" aria-label="Selected machine">
