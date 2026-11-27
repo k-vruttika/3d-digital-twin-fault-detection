@@ -1,9 +1,18 @@
 name: CI
 
+# Manual runs only (Actions tab → CI → Run workflow). The main checks are local:
+# `uv run poe lint` and `uv run poe test`. Ubuntu always runs; Windows and macOS are opt-in.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
+    inputs:
+      windows:
+        description: Also run on Windows
+        type: boolean
+        default: false
+      macos:
+        description: Also run on macOS
+        type: boolean
+        default: false
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -18,7 +27,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # ubuntu-latest always; windows-latest / macos-latest only when chosen in the run form.
+        os: ${{ fromJSON(format('["ubuntu-latest"{0}{1}]', inputs.windows && ',"windows-latest"' || '', inputs.macos && ',"macos-latest"' || '')) }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6

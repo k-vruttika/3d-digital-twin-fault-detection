@@ -26,6 +26,10 @@ uv run poe                  # list every task
 uv run pre-commit install   # optional: run hooks on every commit
 ```
 
+`uv run poe lint` and `uv run poe test` are the main checks: run both before every commit.
+
+**CI is manual.** The GitHub Actions workflow (`.github/workflows/ci.yml`) does not run on push or pull request. Start it from the Actions tab (CI → Run workflow), or with `gh workflow run ci.yml`. A run uses Ubuntu only (with the Docker Compose services and the e2e tests); tick **Also run on Windows** / **Also run on macOS** in the run form (or pass `-f windows=true -f macos=true` to `gh`) to add those jobs. Every job runs the same poe tasks as locally.
+
 Developer tasks are [poethepoet](https://poethepoet.natn.io/) tasks in the root `pyproject.toml` ([ADR 0004](adr/0004-poe-task-runner.md)). They run without a shell, so no execution-policy changes and no `make` are needed.
 
 ## 2. Services via Docker Compose (main path)
@@ -71,7 +75,7 @@ Connection details:
 
 ### Tests and services
 
-Tests that need a service (marked `services`, e.g. `tests/test_compose_services.py`) run when the services are reachable. Otherwise they are skipped with "start services with: uv run poe up". Setting `LINETWIN_REQUIRE_SERVICES=1` makes them fail instead of skip; CI does this on Ubuntu, the only CI job that starts the services.
+Tests that need a service (marked `services`, e.g. `tests/test_compose_services.py`) run when the services are reachable. Otherwise they are skipped with "start services with: uv run poe up". Setting `LINETWIN_REQUIRE_SERVICES=1` makes them fail instead of skip; CI (manual runs, see section 1) does this on Ubuntu, the only CI job that starts the services.
 
 Event-store tests run on SQLite and, when TimescaleDB is reachable, on TimescaleDB too. They never touch your configured database:
 - each test session creates its own database `linetwin_test_<random hex>` on the same server, runs the migrations, and drops it at the end (`DROP DATABASE ... WITH (FORCE)`);
