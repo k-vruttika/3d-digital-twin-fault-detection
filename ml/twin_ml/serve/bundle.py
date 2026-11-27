@@ -13,6 +13,7 @@ torch and XGBoost never meet (ADR 0020):
 
 A bundle directory holds ``bundle.json`` plus the model files. It is logged as an MLflow run
 (experiment ``P11_deploy``) and registered as ``<prefix><name>`` (a new version per build).
+Registered bundles move to another machine as one zip (``serve.portable``, ``import-bundles``).
 ``strict=False`` (tests on quick data) records missing reference runs instead of failing.
 """
 
@@ -379,11 +380,7 @@ def build_and_register(
 ) -> BuildResult:
     """Build bundle ``name`` (a model of ``cfg.models`` or ``autoencoder``), log it to MLflow
     and register a new version. Runs in the calling process: call it from a fresh process."""
-    import mlflow
-    from mlflow.tracking import MlflowClient
-
     from twin_ml.config import load_eval_config
-    from twin_ml.train import tracking
 
     started = time.perf_counter()
     tdir = tracking_dir or root / load_eval_config(root / cfg.eval_config).tracking_dir
@@ -396,37 +393,63 @@ def build_and_register(
             bundle = build_supervised(name, cfg, root, tdir, out, strict)
         else:
             raise KeyError(f"unknown bundle {name!r}: {[*cfg.models, ANOMALY_NAME]}")
-        tracking.configure(tdir, cfg.experiment)
-        registered = cfg.registry_prefix + name
-        with mlflow.start_run(run_name=f"bundle-{name}") as run:
-            mlflow.set_tags(
-                {
-                    "phase": cfg.phase_tag,
-                    "bundle": name,
-                    "model": bundle["model"]["type"],
-                    "seed": str(bundle["model"]["seed"]),
-                    "dataset_key": bundle["dataset"]["key"],
-                    "strict": str(strict),
-                }
-            )
-            mlflow.log_artifacts(str(out), "bundle")
-            run_id = run.info.run_id
-            artifact_uri = run.info.artifact_uri
-        client = MlflowClient(tracking_uri=tracking.tracking_uri(tdir))
-        if not _registered(client, registered):
-            client.create_registered_model(registered)
-        mv = client.create_model_version(
-            registered,
-            f"{artifact_uri}/bundle",
-            run_id=run_id,
-            tags={"seed": str(bundle["model"]["seed"]), "strict": str(strict)},
+        run_id, version = register_bundle_dir(
+            out,
+            cfg.registry_prefix + name,
+            tdir,
+            cfg.experiment,
+            {"phase": cfg.phase_tag, "strict": str(strict)},
+            {"strict": str(strict)},
         )
     summary = {
         "seed": bundle["model"]["seed"],
         "checks": bundle["checks"],
         "seed_selection": bundle.get("seed_selection"),
     }
-    return BuildResult(name, run_id, str(mv.version), time.perf_counter() - started, summary)
+    return BuildResult(name, run_id, version, time.perf_counter() - started, summary)
+
+
+def register_bundle_dir(
+    bundle_dir: Path,
+    registered: str,
+    tracking_dir: Path,
+    experiment: str,
+    run_tags: dict[str, str],
+    version_tags: dict[str, str],
+) -> tuple[str, str]:
+    """Log a bundle directory (``bundle.json`` + ``model/``) as an MLflow run of
+    ``experiment`` and register it as a new version of ``registered``; returns
+    ``(run_id, version)``. Used by the builder and by ``import-bundles`` (serve.portable)."""
+    import mlflow
+    from mlflow.tracking import MlflowClient
+
+    from twin_ml.train import tracking
+
+    bundle = json.loads((bundle_dir / BUNDLE_FILE).read_text(encoding="utf-8"))
+    tracking.configure(tracking_dir, experiment)
+    with mlflow.start_run(run_name=f"bundle-{bundle['name']}") as run:
+        mlflow.set_tags(
+            {
+                "bundle": bundle["name"],
+                "model": bundle["model"]["type"],
+                "seed": str(bundle["model"]["seed"]),
+                "dataset_key": bundle["dataset"]["key"],
+                **run_tags,
+            }
+        )
+        mlflow.log_artifacts(str(bundle_dir), "bundle")
+        run_id = run.info.run_id
+        artifact_uri = run.info.artifact_uri
+    client = MlflowClient(tracking_uri=tracking.tracking_uri(tracking_dir))
+    if not _registered(client, registered):
+        client.create_registered_model(registered)
+    mv = client.create_model_version(
+        registered,
+        f"{artifact_uri}/bundle",
+        run_id=run_id,
+        tags={"seed": str(bundle["model"]["seed"]), **version_tags},
+    )
+    return str(run_id), str(mv.version)
 
 
 # ---------------------------------------------------------------------------- load

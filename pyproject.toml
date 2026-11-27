@@ -88,7 +88,7 @@ help = "Simulator publisher for the active source + backend with TimescaleDB (ru
 cmd = "python -m twin_backend.devstack"
 
 [tool.poe.tasks.demo]
-help = "Full demo in one terminal: services, mock simulator + backend with live inference, dashboard on http://127.0.0.1:5173 (run `deploy-models` once first; Ctrl+C stops it)"
+help = "Full demo in one terminal: services, mock simulator + backend with live inference, dashboard on http://127.0.0.1:5173 (run `import-bundles <zip>` or `deploy-models` once first; Ctrl+C stops it)"
 sequence = [{ ref = "up" }, { ref = "_demo-run" }]
 
 [tool.poe.tasks._demo-run]
@@ -250,6 +250,14 @@ cmd = "python -m twin_ml.experiments.report_real"
 [tool.poe.tasks.deploy-models]
 help = "Phase 11: build + register the live-inference bundles (gru, xgb, autoencoder; config/models/deploy.yaml), one process each; `--models gru_e4` for the E4 alternative"
 cmd = "python -m twin_ml.serve deploy"
+
+[tool.poe.tasks.export-bundles]
+help = "Write the deployed bundles (gru, xgb, autoencoder + drift reference) to one zip for a GitHub Release -> dist/linetwin-bundles-v1.zip; extra args pass through, e.g. --out"
+cmd = "python -m twin_ml.serve export"
+
+[tool.poe.tasks.import-bundles]
+help = "Verify a bundle zip (checksums, reference predictions) and register its bundles in mlruns/, so `dev --inference` and `demo` work without retraining: uv run poe import-bundles <zip>"
+cmd = "python -m twin_ml.serve import"
 
 [tool.poe.tasks.live-latency]
 help = "Phase 11: measure live-inference latency through the worker processes + the gate effect -> experiments/results/live_inference.md / .json"

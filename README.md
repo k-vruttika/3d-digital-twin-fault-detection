@@ -75,12 +75,15 @@ In `.env`, set the operator line to a name and the generated key, then save:
 LINETWIN_API_KEYS_OPERATOR=demo:<the generated key>
 ```
 
-**3. Build the model bundles** (once per checkout, see [Rebuilding the model bundles](#rebuilding-the-model-bundles-on-a-fresh-checkout)). With trained runs already in `mlruns/`, this is:
+**3. Get the model bundles** (once per checkout). The trained models are not in git. On a fresh clone, download `linetwin-bundles-v1.zip` (about 2.5 MB) from the repository's **GitHub Releases** page and import it:
 
 ```powershell
-uv run poe up               # TimescaleDB + Mosquitto
-uv run poe deploy-models    # GRU, XGBoost and autoencoder bundles, about 13 min on a laptop CPU
+uv run poe import-bundles $HOME\Downloads\linetwin-bundles-v1.zip
 ```
+
+This checks every file's SHA-256 checksum, registers the GRU, XGBoost and autoencoder bundles (the autoencoder carries the drift reference) in a local `mlruns/`, and starts each bundle in the inference worker to check that it reproduces the reference predictions recorded when the zip was made. It takes about 15 s and is safe to run again. It needs no dataset, no Docker and no retraining.
+
+If you already have trained runs in `mlruns/`, you can instead build the bundles yourself with `uv run poe up` and then `uv run poe deploy-models` (about 13 min on a laptop CPU). Without trained runs, see [Rebuilding the model bundles](#rebuilding-the-model-bundles-on-a-fresh-checkout), which takes hours.
 
 **4. Start the demo** with one command:
 
@@ -105,6 +108,8 @@ The simulator runs in real time, so a fault takes several minutes to develop. St
 
 ### Rebuilding the model bundles on a fresh checkout
 
+This is the fallback when the release zip is not available (step 3 above). It is also the way to reproduce the models from scratch.
+
 `mlruns/` (the MLflow store holding the trained models and the reference runs) and `data/` are not committed. `deploy-models` reuses trained runs and checks every bundle against its logged reference run (Phase 8 calibration, Phase 9 autoencoder thresholds), so a fresh clone has to regenerate those first. Everything is seeded, so the same commands give the same models:
 
 ```powershell
@@ -119,6 +124,16 @@ uv run poe deploy-models
 ```
 
 Expect a few hours on a laptop CPU. On the reference laptop the full studies took: all E1 training (`train-all`, 5 models × 3 seeds) 74 min, the full `e1models` robustness study 73 min, `e5_anomaly` 4 min, `deploy-models` about 13 min. The `--models` subsets above only cut that time. **This sequence has not been re-run on a clean clone.** If a step reports a missing run, use the full commands instead: `uv run poe train-all`, `uv run poe robustness --study e1models --skip-existing` and `uv run poe e5 --study e5_anomaly --skip-existing`. The full reproduction of every experiment is in [docs/experiments.md](docs/experiments.md).
+
+### Publishing the bundle zip (maintainers)
+
+On a machine whose `mlruns/` holds the deployed bundles:
+
+```powershell
+uv run poe export-bundles      # -> dist\linetwin-bundles-v1.zip (dist/ is gitignored)
+```
+
+This writes the latest registered `linetwin-gru`, `linetwin-xgb` and `linetwin-autoencoder` versions: the bundle files with their `bundle.json` (model card, metadata, calibration, drift reference), a manifest with SHA-256 checksums, and the inference worker's outputs on a few seeded synthetic readings, which `import-bundles` checks. The zip holds no MLflow history and no absolute paths, and the same bundles always give the same bytes. To export a specific version, pass `--version linetwin-gru=1`. Attach the zip to a GitHub Release under the name `linetwin-bundles-v1.zip`.
 
 ## Results and limitations
 
