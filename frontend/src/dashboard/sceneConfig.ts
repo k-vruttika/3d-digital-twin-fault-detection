@@ -5,7 +5,7 @@
  * purple only for "unusual behaviour, cause unknown"; data quality uses the degraded colour;
  * STARVED / BLOCKED / OFFLINE use the inactive grey; the selection uses the bone accent.
  */
-import type { VisualConfig } from "../engine/config.ts";
+import type { SceneConfig, VisualConfig } from "../engine/config.ts";
 
 export const SCENE_COLORS = {
   frame: 0x59616a,
@@ -30,12 +30,29 @@ export const SCENE_COLORS = {
   label: { text: 0xeceef0, background: 0x0d0f12 },
 } as const satisfies Partial<VisualConfig["colors"]>;
 
-/** The engine defaults with the dashboard's palette, a calmer fault blink and a flatter lens. */
+/**
+ * Scene realism (engine config.scene, all opt-in): warm key / cool fill / rim light, soft and
+ * tight shadows, neutral studio reflections for metal and glass, fog that fades the floor out.
+ */
+export const SCENE_REALISM: SceneConfig = {
+  lighting: {
+    hemi: { sky: 0xdde4ee, ground: 0x15181c, intensity: 0.7 },
+    key: { color: 0xffe2c4, intensity: 2.4, direction: [-0.5, 1, 0.6] },
+    fill: { color: 0xbcd2ff, intensity: 0.6, direction: [0.9, 0.5, 0.3] },
+    rim: { color: 0xffffff, intensity: 1.0, direction: [0.2, 0.7, -1] },
+  },
+  softShadows: { radius: 4, mapSize: 2048, intensity: 0.7 },
+  environment: { intensity: 0.35 },
+  fog: { near: 1.3, far: 3.2 },
+};
+
+/** The engine defaults with the dashboard's palette, a calmer fault blink, a flatter lens and the realism above. */
 export function sceneConfig(base: VisualConfig): VisualConfig {
   return {
     ...base,
     colors: { ...base.colors, ...SCENE_COLORS, alert: { ...SCENE_COLORS.alert }, label: { ...SCENE_COLORS.label } },
     flashHz: 1.25,
     render: { ...base.render, fov: 38 },
+    scene: SCENE_REALISM,
   };
 }

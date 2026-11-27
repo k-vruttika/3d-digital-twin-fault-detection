@@ -27,4 +27,12 @@ describe("sceneConfig (DESIGN.md §10)", () => {
     expect(cfg.flashHz).toBe(1.25);
     expect(DEFAULT_CONFIG.colors.unusual).not.toBe(SCENE_COLORS.unusual);
   });
+
+  it("opts in to the scene realism; the engine default stays without it", () => {
+    expect(cfg.scene?.lighting).toBeDefined();
+    expect(cfg.scene?.softShadows).toBeDefined();
+    expect(cfg.scene?.environment).toBeDefined();
+    expect(cfg.scene?.fog).toBeDefined();
+    expect(DEFAULT_CONFIG.scene).toBeUndefined();
+  });
 });

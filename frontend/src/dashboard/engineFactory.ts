@@ -1,5 +1,5 @@
 /** The 3D engine as the dashboard sees it, and the default factory (engine in its own chunk). */
-import type { SelectEvent } from "../engine/TwinEngine.ts";
+import type { SelectEvent, ViewInsets } from "../engine/TwinEngine.ts";
 import type { LabelMode } from "../engine/labelPolicy.ts";
 import type { EngineLike } from "./state/model.ts";
 
@@ -8,6 +8,8 @@ export interface EngineHandle extends EngineLike {
   on(event: "select", cb: (e: SelectEvent) => void): () => void;
   setTheme(theme: { background: number; replayBackground: number; floor: number; grid: number }): void;
   resize(): void;
+  /** Keep the line clear of the HUD (optional: test engines may not implement it). */
+  setViewInsets?(insets: ViewInsets): void;
   dispose(): void;
   readonly labelMode: LabelMode;
 }
