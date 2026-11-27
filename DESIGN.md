@@ -281,19 +281,17 @@ Data comes only from the existing model and services (`useModel`, `useServices`,
 | Edge treatment | CSS radial vignette on the stage (`::after`, `pointer-events: none`) and the replay frame | CSS on `.twin` |
 | Camera | `focus(machineId)` on double-click in the strip | `engine.focus` |
 
-### Stage 7: TwinEngine changes (approved list; additive and opt-in through `config`; separate commits; diff summary before starting)
+### Stage 7: TwinEngine changes (built; additive and opt-in through `config.scene`)
 
-1. **Light rig.** Today: a hemisphere light plus one white sun. New: warm key, cool fill and rim lights from `config.lighting`.
-2. **Soft shadows.** `PCFSoftShadowMap`, and a shadow camera fitted tightly to the line.
-3. **Environment reflections.** `RoomEnvironment` + `PMREMGenerator` (both ship with three.js; no new dependency).
-4. **Fog,** so the floor fades out instead of ending in a hard-edged grid.
-5. **View insets.** `setViewInsets({ top, right, bottom, left })`, so the auto-fit frames the line inside the part of the stage the HUD leaves free.
+Without `config.scene` the engine builds exactly the original scene: `DEFAULT_CONFIG` has none, and `engine/scene.test.ts` checks that. The dashboard turns everything on in `sceneConfig.ts` (`SCENE_REALISM`).
 
-**Additional proposals, not approved yet:**
+1. **Light rig** (`scene.lighting`): hemisphere in the given colours, a warm key light that casts the shadows, a cool fill and a rim light, each placed on its direction from the line centre.
+2. **Soft shadows** (`scene.softShadows`): three r18x removed `PCFSoftShadowMap` (it warns and falls back), so softness comes from `PCFShadowMap` with a blur radius, a larger map and a lighter shadow intensity. The key light's shadow camera is fitted to the line's box as the light sees it.
+3. **Environment reflections** (`scene.environment`): three's `RoomEnvironment`, prefiltered once with `PMREMGenerator` (no file, no dependency), built only on a real WebGL renderer. `TwinEngineOptions.createEnvironment` replaces the builder in tests.
+4. **Fog** (`scene.fog`): in the current background colour (it follows the theme and replay backgrounds), with distances scaled to the framing.
+5. **View insets** (`setViewInsets`): the line is framed and centred in the area the HUD leaves free. `TwinView` measures the annunciator and the line strip (`hudInsets.ts`). Picking and labels stay exact.
 
-6. A ground ring or glow under the selected and faulted machine (both references).
-7. Label and tooltip fonts from config. `labels.ts` and `tooltipView.ts` hard-code `system-ui`, which §2 forbids.
-8. Tone-mapping exposure in config.
+**Not built (declined):** a ground ring under the selected or faulted machine; label and tooltip fonts from config (`labels.ts` and `tooltipView.ts` still hard-code `system-ui`, a known exception to §2); tone-mapping exposure in config.
 
 ## 11. Mandatory elements: restyle, never remove
 
