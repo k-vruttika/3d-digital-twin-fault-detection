@@ -106,6 +106,34 @@ export interface VisualConfig {
     shadowMaxMachines: number;
     fov: number;
   };
+  /**
+   * Optional scene realism (DESIGN.md §10). Every part is opt-in: without `scene` (the default)
+   * the engine builds exactly the original scene (one hemisphere light and one sun).
+   */
+  scene?: SceneConfig;
+}
+
+/** A directional light; `direction` points from the line centre to the light (any length). */
+export interface LightSpec {
+  color: number;
+  intensity: number;
+  direction: [number, number, number];
+}
+
+export interface SceneConfig {
+  /** Warm key (casts the shadows), cool fill and rim instead of the hemisphere + white sun. */
+  lighting?: {
+    hemi: { sky: number; ground: number; intensity: number };
+    key: LightSpec;
+    fill: LightSpec;
+    rim: LightSpec;
+  };
+  /** Softer, tighter shadows: PCF blur radius, shadow map size, shadow darkness (0..1). */
+  softShadows?: { radius: number; mapSize: number; intensity: number };
+  /** Image-based reflections from three's RoomEnvironment (needs a real WebGL renderer). */
+  environment?: { intensity: number };
+  /** Distance fog in the background colour; near / far are multiples of the framing distance. */
+  fog?: { near: number; far: number };
 }
 
 export const DEFAULT_CONFIG: VisualConfig = {

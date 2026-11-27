@@ -174,7 +174,8 @@ export class TwinEngine {
   };
   private readonly cache: GeometryCache;
   private readonly beltTexture;
-  private readonly lights: { hemi: HemisphereLight; sun: DirectionalLight };
+  /** sun = the shadow-casting key light; extra = fill and rim of the optional rig (config.scene.lighting) */
+  private readonly lights: { hemi: HemisphereLight; sun: DirectionalLight; extra: DirectionalLight[] };
   private readonly raycaster = new Raycaster();
   private readonly tooltipView: TooltipView | null;
   private readonly fpsMeter: FpsMeter | null;
@@ -223,14 +224,22 @@ export class TwinEngine {
     const c = this.cfg.colors;
     this.theme = { background: c.background, replayBackground: c.replayBackground, floor: c.floor, grid: c.grid };
     this.scene.background = new Color(this.theme.background);
-    const hemi = new HemisphereLight(0xffffff, 0x404850, 1.6);
-    const sun = new DirectionalLight(0xffffff, 2.2);
+    const rig = this.cfg.scene?.lighting;
+    const hemi = rig === undefined ? new HemisphereLight(0xffffff, 0x404850, 1.6) : new HemisphereLight(rig.hemi.sky, rig.hemi.ground, rig.hemi.intensity);
+    const sun = rig === undefined ? new DirectionalLight(0xffffff, 2.2) : new DirectionalLight(rig.key.color, rig.key.intensity);
     sun.position.set(-8, 14, 10);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     this.scene.add(hemi, sun, sun.target);
     this.shared.track(sun);
-    this.lights = { hemi, sun };
+    const extra: DirectionalLight[] = [];
+    for (const spec of rig === undefined ? [] : [rig.fill, rig.rim]) {
+      const light = new DirectionalLight(spec.color, spec.intensity);
+      this.scene.add(light, light.target);
+      this.shared.track(light);
+      extra.push(light);
+    }
+    this.lights = { hemi, sun, extra };
     this.scene.add(this.world);
 
     this.cache = new GeometryCache(this.shared);
@@ -711,8 +720,23 @@ export class TwinEngine {
     this.camera.updateProjectionMatrix();
     this.camera.lookAt(this.controls.target);
     const sun = this.lights.sun;
-    sun.position.set(cx - extent * 0.4, extent * 0.9 + 8, cz + extent * 0.6);
-    sun.target.position.set(cx, 0, cz);
+    const rig = this.cfg.scene?.lighting;
+    if (rig === undefined) {
+      sun.position.set(cx - extent * 0.4, extent * 0.9 + 8, cz + extent * 0.6);
+      sun.target.position.set(cx, 0, cz);
+    } else {
+      // every rig light sits on its direction from the line centre, as far away as the original sun
+      const reach = Math.hypot(extent * 0.4, extent * 0.9 + 8, extent * 0.6);
+      const place = (light: DirectionalLight, dir: readonly [number, number, number]): void => {
+        const n = new Vector3(...dir).normalize().multiplyScalar(reach);
+        light.position.set(cx + n.x, n.y, cz + n.z);
+        light.target.position.set(cx, 0, cz);
+      };
+      place(sun, rig.key.direction);
+      const [fill, rim] = this.lights.extra;
+      if (fill !== undefined) place(fill, rig.fill.direction);
+      if (rim !== undefined) place(rim, rig.rim.direction);
+    }
     const half = extent / 2 + 3;
     const cam = sun.shadow.camera;
     cam.left = -half;
