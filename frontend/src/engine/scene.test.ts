@@ -1,5 +1,5 @@
 /** Optional scene realism (config.scene, DESIGN.md §10): every part opt-in, the default unchanged. */
-import { DirectionalLight, HemisphereLight, Vector3, type Object3D } from "three";
+import { DataTexture, DirectionalLight, HemisphereLight, RGBAFormat, Vector3, type Object3D } from "three";
 import { describe, expect, it } from "vitest";
 
 import { createTestEngine, LINE } from "../test/fakes.ts";
@@ -113,5 +113,27 @@ describe("soft shadows", () => {
     }
     base.engine.dispose();
     soft.engine.dispose();
+  });
+});
+
+describe("environment reflections", () => {
+  it("uses the reflection map with the configured intensity and releases it on dispose", () => {
+    const texture = new DataTexture(new Uint8Array(4), 1, 1, RGBAFormat);
+    let disposed = false;
+    texture.addEventListener("dispose", () => {
+      disposed = true;
+    });
+    const { engine } = createTestEngine({ config: withScene({ environment: { intensity: 0.4 } }), createEnvironment: () => texture });
+    expect(engine.scene.environment).toBe(texture);
+    expect(engine.scene.environmentIntensity).toBe(0.4);
+    engine.dispose();
+    expect(disposed).toBe(true);
+    expect(engine.scene.environment).toBeNull();
+  });
+
+  it("skips reflections when the renderer is not WebGL (the default needs a real GPU context)", () => {
+    const { engine } = createTestEngine({ config: withScene({ environment: { intensity: 0.4 } }) });
+    expect(engine.scene.environment).toBeNull();
+    engine.dispose();
   });
 });

@@ -19,6 +19,7 @@ import {
   MeshStandardMaterial,
   PCFShadowMap,
   PerspectiveCamera,
+  PMREMGenerator,
   Raycaster,
   Scene,
   Vector2,
@@ -27,8 +28,10 @@ import {
   WebGLRenderer,
   type Camera,
   type Object3D,
+  type Texture,
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 
 import type {
   Alert,
@@ -122,6 +125,11 @@ export interface TwinEngineOptions {
   wallClock?: () => number;
   requestFrame?: (cb: (t: number) => void) => number;
   cancelFrame?: (id: number) => void;
+  /**
+   * Builds the reflection map for config.scene.environment (default: three's RoomEnvironment
+   * through PMREMGenerator, only on a real WebGLRenderer; null = no reflections).
+   */
+  createEnvironment?: (renderer: RendererLike) => Texture | null;
   /** Start the frame loop immediately (default true). */
   autoStart?: boolean;
   devicePixelRatio?: number;
@@ -249,6 +257,15 @@ export class TwinEngine {
       extra.push(light);
     }
     this.lights = { hemi, sun, extra };
+    const env = this.cfg.scene?.environment;
+    if (env !== undefined) {
+      const texture = (opts.createEnvironment ?? roomEnvironment)(this.renderer);
+      if (texture !== null) {
+        this.shared.track(texture);
+        this.scene.environment = texture;
+        this.scene.environmentIntensity = env.intensity;
+      }
+    }
     this.scene.add(this.world);
 
     this.cache = new GeometryCache(this.shared);
@@ -541,6 +558,7 @@ export class TwinEngine {
     this.controls.dispose();
     this.clearScene();
     this.shared.disposeAll();
+    this.scene.environment = null;
     this.renderer.dispose();
     this.renderer.forceContextLoss?.();
     this.renderer.domElement.remove();
@@ -882,6 +900,17 @@ function emptyData(cfg: LineMachine): MachineData {
     rootCause: null,
     unusualHeld: false,
   };
+}
+
+/** Reflections for metal and glass: three's neutral studio room, prefiltered once (no file, no dependency). */
+function roomEnvironment(renderer: RendererLike): Texture | null {
+  if (!(renderer instanceof WebGLRenderer)) return null;
+  const pmrem = new PMREMGenerator(renderer);
+  const room = new RoomEnvironment();
+  const texture = pmrem.fromScene(room, 0.04).texture;
+  room.dispose();
+  pmrem.dispose();
+  return texture;
 }
 
 function defaultRenderer(): RendererLike {
