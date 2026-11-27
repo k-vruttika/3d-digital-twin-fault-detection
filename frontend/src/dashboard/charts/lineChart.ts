@@ -12,6 +12,7 @@
 import type { ScriptableContext, TooltipItem } from "chart.js";
 
 import { formatTime } from "../format.ts";
+import type { ChartMarker } from "./annotations.ts";
 import type { LineConfig } from "./chartFactory.ts";
 import type { ChartTheme } from "./chartTheme.ts";
 import type { ChartPoint } from "./series.ts";
@@ -25,6 +26,8 @@ export interface SensorChartData {
   band?: { min: ChartPoint[]; max: ChartPoint[] } | null;
   xMin?: number | null;
   xMax?: number | null;
+  /** alert markers for the charted machine (drawn by the annotation plugin) */
+  markers?: readonly ChartMarker[];
 }
 
 /** Index of the newest non-null point (the "now" dot), or -1. */

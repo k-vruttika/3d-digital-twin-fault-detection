@@ -4,6 +4,8 @@
  * values are passed to Chart.js. Where no stylesheet is loaded (unit tests with jsdom) the
  * fallbacks are plain CSS colour names; such charts are never seen.
  */
+import type { AnnotationStyle, MarkerTone } from "./annotations.ts";
+
 export interface ChartTheme {
   /** measured trend line */
   line: string;
@@ -25,7 +27,11 @@ export interface ChartTheme {
   fontMono: string;
   fontBody: string;
   fontDisplay: string;
+  /** NO DATA bands and alert markers */
+  annotations: AnnotationStyle;
 }
+
+const TONES: MarkerTone[] = ["fault", "warning", "maintenance", "unusual", "degraded"];
 
 function token(style: CSSStyleDeclaration | null, name: string, fallback: string): string {
   const v = style?.getPropertyValue(name).trim() ?? "";
@@ -52,6 +58,7 @@ export function chartTheme(): ChartTheme {
     style = null;
   }
   const text1 = token(style, "--text-1", "gray");
+  const fontDisplay = token(style, "--font-display", '"Barlow Condensed"');
   return {
     line: withAlpha(text1, 0.85),
     band: withAlpha(text1, 0.1),
@@ -65,6 +72,13 @@ export function chartTheme(): ChartTheme {
     scenario: token(style, "--accent", "gray"),
     fontMono: token(style, "--font-mono", '"IBM Plex Mono"'),
     fontBody: token(style, "--font-body", '"IBM Plex Sans"'),
-    fontDisplay: token(style, "--font-display", '"Barlow Condensed"'),
+    fontDisplay,
+    annotations: {
+      hatch: token(style, "--hairline-strong", "gray"),
+      noDataText: token(style, "--text-2", "gray"),
+      font: fontDisplay,
+      tones: Object.fromEntries(TONES.map((k) => [k, token(style, `--st-${k}`, "gray")])) as Record<MarkerTone, string>,
+      inks: Object.fromEntries(TONES.map((k) => [k, token(style, `--st-${k}-ink`, "gray")])) as Record<MarkerTone, string>,
+    },
   };
 }

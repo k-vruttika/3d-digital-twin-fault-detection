@@ -3,8 +3,9 @@ import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as Reac
 
 import { useServices } from "../context.ts";
 import { useTheme } from "../theme.ts";
+import { annotationPlugin } from "./annotations.ts";
 import type { ChartLike } from "./chartFactory.ts";
-import { chartTheme } from "./chartTheme.ts";
+import { chartTheme, type ChartTheme } from "./chartTheme.ts";
 import { lineChartConfig, type SensorChartData } from "./lineChart.ts";
 
 interface Props {
@@ -25,6 +26,7 @@ export function SensorChart({ data, onZoom, height = 140, testId }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartRef = useRef<ChartLike | null>(null);
   const dataRef = useRef(data);
+  const themeRef = useRef<ChartTheme | null>(null);
   useLayoutEffect(() => {
     dataRef.current = data;
   });
@@ -36,7 +38,15 @@ export function SensorChart({ data, onZoom, height = 140, testId }: Props) {
     if (canvas === null) return;
     const ctl = new AbortController();
     let chart: ChartLike | null = null;
-    void chartFactory(canvas, lineChartConfig(dataRef.current, chartTheme()), ctl.signal).then((c) => {
+    const t = chartTheme();
+    themeRef.current = t;
+    // NO DATA bands and alert markers (DESIGN.md §8); read the latest props on every draw
+    const annotations = annotationPlugin(() => ({
+      markers: dataRef.current.markers ?? [],
+      style: (themeRef.current ?? t).annotations,
+    }));
+    const config = { ...lineChartConfig(dataRef.current, t), plugins: [annotations] };
+    void chartFactory(canvas, config, ctl.signal).then((c) => {
       if (c === null) return;
       if (ctl.signal.aborted) {
         c.destroy();
