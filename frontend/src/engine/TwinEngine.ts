@@ -11,6 +11,7 @@
 import {
   Color,
   DirectionalLight,
+  Fog,
   GridHelper,
   Group,
   HemisphereLight,
@@ -200,6 +201,8 @@ export class TwinEngine {
   private modeValue: EngineMode = "live";
   private labelModeValue: LabelMode = "auto";
   private theme: EngineTheme;
+  /** Camera distance of the last framing (frame()); scales the optional fog. */
+  private framingDistance = 20;
   private connected = true;
   private selectedId: string | null = null;
   private hovered: PickTarget | null = null;
@@ -477,6 +480,22 @@ export class TwinEngine {
   private applyBackground(): void {
     const bg = this.modeValue === "replay" ? this.theme.replayBackground : this.theme.background;
     (this.scene.background as Color).set(bg);
+    this.applyFog(bg);
+  }
+
+  /** config.scene.fog: fog in the background colour, so the floor fades out instead of ending. */
+  private applyFog(color: number): void {
+    const fog = this.cfg.scene?.fog;
+    if (fog === undefined) return;
+    const near = this.framingDistance * fog.near;
+    const far = this.framingDistance * fog.far;
+    if (this.scene.fog instanceof Fog) {
+      this.scene.fog.color.set(color);
+      this.scene.fog.near = near;
+      this.scene.fog.far = far;
+    } else {
+      this.scene.fog = new Fog(color, near, far);
+    }
   }
 
   /** The stream is up (true) or down (false: every machine shows "link lost"). */
@@ -741,6 +760,7 @@ export class TwinEngine {
     const tanH = tanV * Math.max(this.camera.aspect, 0.1);
     const fit = Math.max((maxX - minX) / 2 / tanH, (maxZ - minZ) / 2 / tanV, 4);
     const d = fit * 1.15 + 2;
+    this.framingDistance = Math.hypot(d * 0.05, d * 0.5, d * 0.9);
     this.controls.target.set(cx, 0.8, cz);
     this.camera.position.set(cx - d * 0.05, d * 0.5, cz + d * 0.9);
     this.camera.far = Math.max(500, d * 10);
@@ -776,6 +796,7 @@ export class TwinEngine {
       this.fitShadowCamera(layout);
     }
     cam.updateProjectionMatrix();
+    this.applyBackground();
     this.controls.update();
   }
 

@@ -1,5 +1,5 @@
 /** Optional scene realism (config.scene, DESIGN.md §10): every part opt-in, the default unchanged. */
-import { DataTexture, DirectionalLight, HemisphereLight, RGBAFormat, Vector3, type Object3D } from "three";
+import { DataTexture, DirectionalLight, Fog, HemisphereLight, RGBAFormat, Vector3, type Object3D } from "three";
 import { describe, expect, it } from "vitest";
 
 import { createTestEngine, LINE } from "../test/fakes.ts";
@@ -134,6 +134,27 @@ describe("environment reflections", () => {
   it("skips reflections when the renderer is not WebGL (the default needs a real GPU context)", () => {
     const { engine } = createTestEngine({ config: withScene({ environment: { intensity: 0.4 } }) });
     expect(engine.scene.environment).toBeNull();
+    engine.dispose();
+  });
+});
+
+describe("fog", () => {
+  it("fades in the background colour, scaled to the framing distance, following theme and replay", () => {
+    const { engine } = createTestEngine({ config: withScene({ fog: { near: 1.2, far: 3 } }) });
+    engine.loadLayout(LINE);
+    const fog = engine.scene.fog;
+    if (!(fog instanceof Fog)) throw new Error("no fog");
+    // near / far are the configured multiples of one framing distance, which is camera-scale
+    const framing = fog.far / 3;
+    expect(fog.near).toBeCloseTo(framing * 1.2, 5);
+    const camDist = engine.camera.position.length();
+    expect(framing).toBeGreaterThan(camDist * 0.5);
+    expect(framing).toBeLessThan(camDist * 2);
+    expect(fog.color.getHex()).toBe(DEFAULT_CONFIG.colors.background);
+    engine.setTheme({ background: 0x123456, replayBackground: 0x654321 });
+    expect((engine.scene.fog as Fog).color.getHex()).toBe(0x123456);
+    engine.setMode("replay");
+    expect((engine.scene.fog as Fog).color.getHex()).toBe(0x654321);
     engine.dispose();
   });
 });
