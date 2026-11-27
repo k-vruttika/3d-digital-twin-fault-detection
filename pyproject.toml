@@ -87,6 +87,16 @@ env = { LINETWIN_DEMO_RESULTS_DIR = "experiments/results/demo_scenarios" }
 help = "Simulator publisher for the active source + backend with TimescaleDB (run `up` first); extra args pass through"
 cmd = "python -m twin_backend.devstack"
 
+[tool.poe.tasks.demo]
+help = "Full demo in one terminal: services, mock simulator + backend with live inference, dashboard on http://127.0.0.1:5173 (run `deploy-models` once first; Ctrl+C stops it)"
+sequence = [{ ref = "up" }, { ref = "_demo-run" }]
+
+[tool.poe.tasks._demo-run]
+parallel = [
+    { cmd = "python -m twin_backend.devstack --source mock --inference" },
+    { cmd = "npm --prefix frontend run dev" },
+]
+
 [tool.poe.tasks.api-docs]
 help = "Regenerate docs/api.md, frontend/src/api/openapi.json + schema.gen.ts and the line fixtures from the API"
 sequence = [

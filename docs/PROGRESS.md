@@ -2239,3 +2239,89 @@ The remaining +30 s spread is probably genuine seed variance (initialisation, ba
 **Verification:** `uv run poe lint` clean; `uv run poe test` 705 passed, 50 skipped (services not running); frontend 163 passed.
 
 Suggested commit message: `Phase 7 follow-ups: fixed 22-epoch budget with cosine schedule for sequence models, EMA checkpoint, learning curves, paired bootstrap comparisons, regenerated E1`
+
+## Final summary (hand-in)
+
+Hand-in additions (2026-11-27):
+- `README.md` at the repository root.
+- The poe task `demo`: `up`, then `devstack --source mock --inference` and the Vite dev server in parallel.
+- A 5–7 minute viva section in `demo_script.md`.
+
+`poe demo` was checked with a dry run (`uv run poe -d demo`) only; it was not started live here. Its parts are the existing `up`, `dev --source mock --inference` and `frontend` tasks.
+
+### What was built
+
+- **Simulator:**
+  - a four-machine line (conveyor → CNC → inspection → conveyor, with buffers);
+  - physics-based degradation for five fault types, one of them held out (`lubrication_loss`);
+  - snapshot, restore and fast-forward; seeded and reproducible;
+  - publishers for file export, a mock REST/WebSocket server, MQTT and OPC UA.
+- **Ingestion and storage:**
+  - interchangeable adapters (file, mock, MQTT, OPC UA) with hot switching and a chaos wrapper;
+  - normalising, validation with a quarantine, deduplication and reordering, staleness;
+  - an append-only event store on SQLite or TimescaleDB, with history at raw, 1 min and 10 min resolution, replay to any time, and export.
+- **Twin engine and API:**
+  - state machines with line propagation (STARVED / BLOCKED with a root cause) and ISA-18.2 alerts;
+  - REST and WebSocket APIs with API-key roles;
+  - bidirectional commands with safety rules, idempotency and an audit trail;
+  - scenario injection and what-if projections (simulation only).
+- **Frontend:**
+  - a framework-agnostic Three.js TwinEngine;
+  - a React dashboard: machine list, details, live and history charts, alerts, commands, sources, replay, predictions, what-if and a drift banner;
+  - light and dark themes.
+- **ML:**
+  - a windowed dataset with leakage-safe splits;
+  - baselines, plus RF, XGBoost, LSTM, GRU and Transformer models;
+  - calibration and conformal prediction (LAC, APS, Mondrian);
+  - Isolation Forest and autoencoder anomaly detectors;
+  - TreeSHAP and Integrated Gradients explanations, aggregated to machine parts;
+  - pre-registered studies E1–E5 and real-data validation on MetroPT-3 and Azure PdM.
+- **Live intelligence:**
+  - deployed bundles (GRU, XGBoost, autoencoder) run in inference worker processes;
+  - live predictions carry the evaluated alarm rule, conformal sets, time to fault, part highlights and unusual-behaviour alerts;
+  - drift detection (PSI + ADWIN) marks predictions DEGRADED.
+- **Minimal mode:** the 3D twin runs from a plain CSV/JSON file or the mock server, with no database, broker or ML (tested).
+
+### Key results
+
+All numbers below come from the generated reports in `experiments/results/` and the phase sections above. Every one is from simulator data unless it says real.
+
+- **Clean data (E1):**
+  - Every learned model detects all 26 gradual-fault episodes of the test set.
+  - Every one raises its sustained alarm before the simulator's threshold WARNING, with almost no false alarms.
+  - Belt jams, which have no precursors, are not anticipated by any model.
+- **Noise, missing values, sensor faults (Phase 8, pre-registered):**
+  - At `noise_20`, `mcar_20` and `sf_all`, every learned model keeps a lead of 53–67 s over the threshold rule (the CI excludes zero in 3/3 seeds). The miss rate and false alarms are not different from the threshold rule.
+  - Calibrated ECE stays about 0.001–0.003, except the RF under noise (0.021).
+  - Only Mondrian LAC gives usable FAULT-class coverage, 0.81–0.93 against a 0.90 target. Marginal LAC gives 0 and APS about 0.50–0.62.
+  - Stuck sensors and unseen sensor drift cost lead and raise false alarms.
+- **Operating-condition shift (E4):**
+  - No model misses an episode, and every one still warns ahead of the threshold rule.
+  - Mondrian FAULT coverage drops to 0.78–0.89, below target.
+- **Unseen fault type (E5, `lubrication_loss`):**
+  - The supervised models miss 25–88 % of the episodes (XGBoost 0.250 to Transformer 0.883).
+  - The autoencoder detects every episode (lead 656 s), at 0.57 [0.31, 0.89] false alarms per hour on clean data, and names no cause.
+- **Real data (Phase 10):**
+  - **MetroPT-3 (real):** no method warned beyond chance on the 4 air-leak failures.
+  - **Azure PdM (a public, likely synthetic benchmark):** the validation-chosen LSTM detects 0.954 of 108 events, 41.2 h ahead, at 0.059 false alarms per day.
+  - The detector ranking found on the simulator does not transfer.
+- **Live (Phase 11):**
+  - Inference takes 1.2 / 1.9 ms per machine per tick (p50 / p95, GRU + autoencoder), within the 100 ms budget.
+  - On the clean drift-report runs, drift detection raised no false drift episode. Every shift outside the training support was detected after about 90–110 s.
+  - In one real-time demo run, the predicted WARNING came 57 s before the simulator's WARNING.
+
+**Answer to the research question, short:**
+- Under moderate noise and missing values the warnings stay reliable, and calibration mostly holds.
+- Under condition shift the warnings hold, but per-class coverage falls below target.
+- A fault type never seen in training is largely missed by the supervised models. Only the anomaly detector catches it, with false alarms and no cause.
+- The reported confidence is trustworthy only near the clean training conditions. The dashboard therefore shows reliability and drift explicitly.
+
+### Known limitations
+
+- **Simulator only:** every deployed model, calibration map, threshold and demo timing comes from simulated data, and no early warning was shown on real machines.
+- **Single runs:** the demo timings come from single runs on one laptop. Run (d) has not been run yet, and the 2026-11-20 demo result files still carry the old labels (TODO in `demo_script.md`).
+- **Unusual-behaviour alarm:** it has false alarms (about 0.6 per hour on clean data), flaps, and gives no cause or part.
+- **Drift:** it monitors only speed and load and needs about 1–2 minutes. A shift inside the trained range is not flagged.
+- **What-if:** one change at the fork point, on the mock source only.
+- **Fresh checkout:** `mlruns/` and `data/` are not committed, so a fresh checkout has to retrain and re-run the reference studies before `deploy-models` (README). That sequence was not re-run on a clean clone.
+- **CI:** CI is manual. The real-time demo tests are opt-in and are not part of `uv run poe test`.

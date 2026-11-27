@@ -1,6 +1,6 @@
 # Demo script: the digital twin with live predictions
 
-A guided tour of Phase 11 in about 40 minutes of real time. Everything here runs on **simulated data**: the models were trained, calibrated and validated on the LineTwin simulator, and Phase 10 did not show early warning on real machines (`experiments/results/real_data.md`). Say so at the start of any demo.
+This page has two parts. First, a **5–7 minute viva demo** in short steps. Then the **full scenarios** (a)–(e), about 40 minutes of real time, which explain each step and give the measured timings. Everything here runs on **simulated data**: the models were trained, calibrated and validated on the LineTwin simulator, and Phase 10 did not show early warning on real machines (`experiments/results/real_data.md`). Say so at the start of any demo.
 
 The scenarios (a)–(d) follow the Part C plan; (e) is an extra. All five are also end-to-end tests (`tests/test_phase11_demo.py`, real-time simulator, real inference workers, real database). They are **opt-in** (`uv run poe demo-tests`, see the end of this page) and are not part of `uv run poe test`. The times quoted are **measured by those tests** and stored in [`experiments/results/demo_scenarios/`](../experiments/results/demo_scenarios); they are event times of one run on one laptop, not guarantees.
 
@@ -10,12 +10,45 @@ The scenarios (a)–(d) follow the Part C plan; (e) is an extra. All five are al
 
 ```text
 uv run poe up                  # TimescaleDB + Mosquitto
-uv run poe deploy-models       # the three bundles: GRU, XGBoost, autoencoder (about 15 min)
-uv run poe dev --source mock --inference    # backend + simulator, live inference on
-uv run poe frontend            # dashboard on http://127.0.0.1:5173
+uv run poe deploy-models       # the three bundles: GRU, XGBoost, autoencoder (about 13 min; fresh checkout: README.md)
+uv run poe demo                # = up, then backend + simulator with live inference, and the dashboard (Ctrl+C stops)
 ```
 
-Enter an operator key in the header (`LINETWIN_API_KEYS_OPERATOR`, see `docs/setup.md`) to send commands and inject faults. The simulator runs in real time: a demo needs patience, which is the point.
+`uv run poe demo` is the same as running `uv run poe dev --source mock --inference` in one terminal and `uv run poe frontend` in another. The dashboard is on http://127.0.0.1:5173.
+
+Enter an operator key in the header (`LINETWIN_API_KEYS_OPERATOR` in `.env`, see `README.md`) to send commands and inject faults. The simulator runs in real time: a demo needs patience, which is the point.
+
+## Viva demo (5–7 minutes)
+
+The predicted warning comes several minutes after a fault is injected: 444 s in the measured run (a) below. Inject the fault **before** the viva starts, so it arrives while you talk. The timings are from one run on one laptop. If something takes longer, show the matching screenshot from `experiments/results/frontend_screenshots/dashboard/` instead.
+
+**Before (about 10 minutes ahead)**
+
+1. Start Docker Desktop, then run `uv run poe demo`. Open http://127.0.0.1:5173 and paste the operator key into the header.
+2. Wait until the Prediction tab shows a prediction for every machine (after 30 s of running data).
+3. **About 4 minutes before you start:** in the **Scenario (sim)** tab, inject `bearing_wear` on CNC-01, progression 720 s.
+
+**During the viva**
+
+1. **(0:00–0:45) What it is.** Say that this is simulated data only, and that the models showed no early warning on real data (Phase 10). Point at the 3D line, the machine list with state badges, and the connection pill.
+2. **(0:45–1:30) Data in.** Open the **Sources** tab: the active source (mock server), ingestion counters (late, quarantined, duplicates, latency) and per-machine data quality. Mention that the same twin runs from a plain CSV with no Docker (`uv run poe minimal`).
+3. **(1:30–2:30) Predictions you can check.** Open the **Prediction** tab. Healthy machines show NORMAL with a calibrated confidence. Show "cannot rule out …" (the conformal set), the reliability badge and the alarm column. Open **About these predictions**.
+4. **(2:30–4:00) The injected fault on CNC-01.** Point out three signals, in this order:
+   - the purple **unusual behaviour** outline (cause unknown) while the model still says NORMAL;
+   - the **predicted WARNING** alarm, with the spindle bearing highlighted in 3D;
+   - shortly after, the simulator's own **WARNING**.
+
+   The **Alerts** tab shows the matching badges. If an event has not happened yet, say what comes next and show `prediction_unusual.png` / `prediction_alarm.png`.
+5. **(4:00–5:15) What-if.** In the **What-if** tab select CNC-01, change **Set load** to 40 %, project 300 s, **Run what-if**. Compare "no change" with "with change" (ghost states, dashed lines, outcome text). Then **Apply as command…**, confirm, and show the command result.
+6. **(5:15–6:00) History.** Click **Replay** and scrub back to before the injection to watch CNC-01 change state in 3D. Then click **Return to live**.
+7. **(6:00–6:45) Limits.**
+   - Unusual behaviour gives about 0.57 false alarms per hour on clean data.
+   - A drift on speed and load marks predictions DEGRADED (show `prediction_drift.png`).
+   - A what-if is the simulator's future, not a forecast.
+
+**Afterwards:** Ctrl+C in the demo terminal, then `uv run poe down`.
+
+# Full scenarios (reference)
 
 Reset between scenarios by restarting `uv run poe dev ...` (an injected fault stays until the simulator restarts).
 
