@@ -76,3 +76,42 @@ describe("lighting rig", () => {
     expect(engine.resourceCounts().other).toBe(0);
   });
 });
+
+describe("soft shadows", () => {
+  const SOFT: NonNullable<SceneConfig["softShadows"]> = { radius: 4, mapSize: 4096, intensity: 0.75 };
+
+  function shadowCamOf(config?: VisualConfig) {
+    const { engine } = createTestEngine(config === undefined ? {} : { config });
+    engine.loadLayout(LINE);
+    const key = lightsOf(engine.scene).dir[0];
+    if (key === undefined) throw new Error("no key light");
+    return { engine, key, cam: key.shadow.camera };
+  }
+
+  it("blurs and lightens the key light's shadow", () => {
+    const { engine, key } = shadowCamOf(withScene({ softShadows: SOFT }));
+    expect(key.shadow.radius).toBe(4);
+    expect(key.shadow.mapSize.x).toBe(4096);
+    expect(key.shadow.intensity).toBe(0.75);
+    engine.dispose();
+  });
+
+  it("fits the shadow camera tighter than the original square, still around every machine", () => {
+    const base = shadowCamOf();
+    const soft = shadowCamOf(withScene({ softShadows: SOFT }));
+    const area = (c: typeof base.cam) => (c.right - c.left) * (c.top - c.bottom);
+    expect(area(soft.cam)).toBeLessThan(area(base.cam));
+    soft.cam.updateMatrixWorld(true);
+    for (const id of LINE.machines.map((m) => m.id)) {
+      const root = soft.engine.machineModel(id)?.root;
+      if (root === undefined) throw new Error(`no model for ${id}`);
+      const p = root.getWorldPosition(new Vector3()).applyMatrix4(soft.cam.matrixWorldInverse);
+      expect(p.x).toBeGreaterThan(soft.cam.left);
+      expect(p.x).toBeLessThan(soft.cam.right);
+      expect(p.y).toBeGreaterThan(soft.cam.bottom);
+      expect(p.y).toBeLessThan(soft.cam.top);
+    }
+    base.engine.dispose();
+    soft.engine.dispose();
+  });
+});

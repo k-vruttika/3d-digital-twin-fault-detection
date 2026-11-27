@@ -230,6 +230,15 @@ export class TwinEngine {
     sun.position.set(-8, 14, 10);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
+    const soft = this.cfg.scene?.softShadows;
+    if (soft !== undefined) {
+      // PCF with a blur radius (three removed PCFSoftShadowMap in r18x), lighter, without acne
+      sun.shadow.mapSize.set(soft.mapSize, soft.mapSize);
+      sun.shadow.radius = soft.radius;
+      sun.shadow.intensity = soft.intensity;
+      sun.shadow.bias = -0.0005;
+      sun.shadow.normalBias = 0.02;
+    }
     this.scene.add(hemi, sun, sun.target);
     this.shared.track(sun);
     const extra: DirectionalLight[] = [];
@@ -737,15 +746,53 @@ export class TwinEngine {
       if (fill !== undefined) place(fill, rig.fill.direction);
       if (rim !== undefined) place(rim, rig.rim.direction);
     }
-    const half = extent / 2 + 3;
     const cam = sun.shadow.camera;
-    cam.left = -half;
-    cam.right = half;
-    cam.top = half;
-    cam.bottom = -half;
-    cam.far = extent * 3 + 40;
+    if (this.cfg.scene?.softShadows === undefined) {
+      const half = extent / 2 + 3;
+      cam.left = -half;
+      cam.right = half;
+      cam.top = half;
+      cam.bottom = -half;
+      cam.far = extent * 3 + 40;
+    } else {
+      this.fitShadowCamera(layout);
+    }
     cam.updateProjectionMatrix();
     this.controls.update();
+  }
+
+  /**
+   * Fit the key light's shadow camera to the line's box as the light sees it (plus 1 m), so the
+   * shadow map's resolution is spent on the machines rather than on empty floor.
+   */
+  private fitShadowCamera(layout: LineLayout): void {
+    const { minX, maxX, minZ, maxZ } = layout.bounds;
+    const sun = this.lights.sun;
+    const cam = sun.shadow.camera;
+    cam.position.copy(sun.position);
+    cam.lookAt(sun.target.position);
+    cam.updateMatrixWorld(true);
+    const inv = cam.matrixWorldInverse;
+    const margin = 1;
+    const top = 3; // tallest machine part (m), with headroom
+    let [l, r, b, t, n, f] = [Infinity, -Infinity, Infinity, -Infinity, Infinity, -Infinity];
+    for (const x of [minX - margin, maxX + margin])
+      for (const y of [0, top])
+        for (const z of [minZ - margin, maxZ + margin]) {
+          const p = new Vector3(x, y, z).applyMatrix4(inv);
+          l = Math.min(l, p.x);
+          r = Math.max(r, p.x);
+          b = Math.min(b, p.y);
+          t = Math.max(t, p.y);
+          n = Math.min(n, -p.z);
+          f = Math.max(f, -p.z);
+        }
+    cam.left = l;
+    cam.right = r;
+    cam.bottom = b;
+    cam.top = t;
+    cam.near = Math.max(0.1, n - 1);
+    cam.far = f + 1;
   }
 
   private clearScene(): void {
