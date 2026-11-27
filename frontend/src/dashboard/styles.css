@@ -1292,7 +1292,7 @@ table.whatif-ghosts tr.selected {
 }
 
 table.whatif-ghosts td.differs {
-  box-shadow: inset 2px 0 0 var(--st-warning);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 tr.kind-unusual {
@@ -1447,16 +1447,30 @@ dialog::backdrop,
 
 /* 40 px, weight 200: the only place the display weight 200 is used in the inspector */
 .state-word {
-  display: flex;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
   align-items: center;
-  gap: 12px;
+  column-gap: 12px;
+  color: var(--ci);
+  animation: state-change var(--dur-2) var(--ease);
+}
+
+.state-main {
   font-family: var(--font-display);
   font-weight: 200;
   font-size: var(--type-display);
   line-height: var(--lh-display);
   text-transform: uppercase;
-  color: var(--ci);
-  animation: state-change var(--dur-2) var(--ease);
+}
+
+/* "by CNV-01": the cause keeps its case and never breaks inside the machine id */
+.state-cause {
+  grid-column: 2;
+  font-family: var(--font-mono);
+  font-size: var(--type-title);
+  line-height: var(--lh-title);
+  white-space: nowrap;
+  color: var(--text-1);
 }
 
 .state-word::before {
@@ -1609,4 +1623,216 @@ table.predictions td:nth-child(n + 3):nth-child(-n + 4) {
   letter-spacing: 0;
   font-family: var(--font-mono);
   font-weight: 400;
+}
+
+/* ================================================================== stage 4: commands, scenario, what-if, drift, replay, sources */
+/* inspector section heads are micro labels; the machine id is already the inspector title */
+.panel h2.section-head {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--type-micro);
+  line-height: var(--lh-micro);
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 12px;
+}
+
+.panel h2.section-head .muted {
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ---------------------------------------------------------------- commands */
+.command-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-2);
+}
+
+/* STOP spans the row: the one red, always-allowed action */
+.command-row .danger {
+  grid-column: 1 / -1;
+  justify-content: center;
+  min-height: 40px;
+  font-size: var(--type-body);
+  letter-spacing: 0.16em;
+}
+
+.command-row button:not(.danger) {
+  justify-content: center;
+}
+
+.commands .form-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 64px;
+  color: var(--text-2);
+}
+
+.commands .form-row [id$="-range"] {
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  color: var(--text-2);
+}
+
+[data-testid="command-result"] strong {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+[data-testid="command-result"] .small.muted {
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  margin-top: 2px;
+}
+
+.recent {
+  list-style: none;
+  padding-left: 0;
+}
+
+.recent li {
+  padding: var(--s-1) 0;
+  border-bottom: 1px solid var(--hairline);
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  line-height: var(--lh-micro);
+}
+
+.recent li strong {
+  font-weight: 500;
+}
+
+[data-testid="rule-hints"] {
+  margin-top: var(--s-2);
+  color: var(--text-2);
+}
+
+/* ---------------------------------------------------------------- scenario: SIMULATION ONLY */
+/* not the real machine: the dashed grammar of anything not observed (DESIGN.md §3.4) */
+.sim-only {
+  display: block;
+  margin-bottom: var(--s-3);
+  padding: var(--s-2) 12px;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: var(--radius-control);
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 8px,
+    color-mix(in srgb, var(--text-1) 4%, transparent) 8px 16px
+  );
+  font-size: var(--type-micro);
+  line-height: var(--lh-micro);
+}
+
+[data-testid="scenario-panel"] .form-row label,
+[data-testid="whatif-form"] label,
+[data-testid="alerts-panel"] .toolbar label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text-2);
+}
+
+[data-testid="scenario-result"] strong {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+/* ---------------------------------------------------------------- what-if */
+[data-testid="whatif-panel"] > p:first-child {
+  max-width: 88ch;
+  margin-bottom: var(--s-2);
+}
+
+[data-testid="whatif-result"] h3 .muted {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+table.whatif-ghosts thead th .small.muted {
+  font-family: var(--font-body);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-2);
+}
+
+table.whatif-ghosts td [aria-hidden="true"] {
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  padding: 0 var(--s-1);
+}
+
+[data-testid="whatif-outcome"] {
+  margin: var(--s-2) 0;
+  padding-left: var(--s-3);
+}
+
+/* signal picker: a segmented control */
+[data-testid="whatif-result"] .toolbar {
+  gap: 0;
+  margin-top: var(--s-3);
+}
+
+[data-testid="whatif-result"] .toolbar button.tab {
+  border-radius: 0;
+  margin-left: -1px;
+}
+
+[data-testid="whatif-result"] .toolbar button.tab:first-child {
+  border-radius: var(--radius-control) 0 0 var(--radius-control);
+  margin-left: 0;
+}
+
+[data-testid="whatif-result"] .toolbar button.tab:nth-last-child(2) {
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+}
+
+[data-testid="whatif-result"] .toolbar .muted {
+  margin-left: var(--s-2);
+  font-family: var(--font-mono);
+}
+
+/* ---------------------------------------------------------------- drift banner */
+.banner-drift strong {
+  color: var(--st-degraded-ink);
+}
+
+.banner-drift .drift-notes {
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  line-height: var(--lh-micro);
+}
+
+/* ---------------------------------------------------------------- sources */
+[data-testid="source-active"] strong {
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.tabpanel table.kv {
+  max-width: 880px;
+}
+
+.tabpanel table.kv th {
+  width: 240px;
+}
+
+/* ---------------------------------------------------------------- dialogs */
+.modal h2 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--type-title);
+  letter-spacing: 0.04em;
+}
+
+.modal-body {
+  color: var(--text-2);
 }

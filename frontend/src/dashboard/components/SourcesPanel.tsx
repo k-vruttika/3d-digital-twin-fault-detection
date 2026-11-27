@@ -158,7 +158,7 @@ export function SourcesPanel() {
                     "–"
                   ) : (
                     <>
-                      <span className={`badge ${dq.status === "OK" ? "tone-ok" : "tone-warning"}`}>{dq.status}</span> late {formatPct(dq.latePct)} · quarantined{" "}
+                      <span className={`badge ${dq.status === "OK" ? "tone-ok" : "tone-degraded"}`}>{dq.status}</span> late {formatPct(dq.latePct)} · quarantined{" "}
                       {formatPct(dq.quarantinePct)} · partial {formatPct(dq.partialPct)}
                     </>
                   )}

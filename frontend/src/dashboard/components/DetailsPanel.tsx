@@ -14,6 +14,21 @@ import { AlertKindBadge } from "./AlertsPanel.tsx";
 import { AlertTimesText } from "./AlertTimesText.tsx";
 import { PredictionSummary } from "./PredictionPanel.tsx";
 
+/**
+ * "STARVED by CNV-01": the state word large, the cause on its own line in its own case so a
+ * machine id never breaks at its hyphen. The text content stays exactly the label.
+ */
+function StateLabelText({ label }: { label: string }) {
+  const at = label.indexOf(" by ");
+  if (at < 0) return <span className="state-main">{label}</span>;
+  return (
+    <>
+      <span className="state-main">{label.slice(0, at)}</span>
+      <span className="state-cause">{label.slice(at)}</span>
+    </>
+  );
+}
+
 export function DetailsPanel() {
   const model = useModel();
   const id = useStore(model.selection);
@@ -57,7 +72,7 @@ export function DetailsPanel() {
       </header>
       <div className="state-block" data-tone={stateTone(state)}>
         <span key={state ?? "none"} className="state-word" data-testid="details-state-label">
-          {label}
+          <StateLabelText label={label} />
         </span>
         <p className="state-meta">
           {m?.reason !== null && m?.reason !== undefined && m.reason !== label && <span>Reason: {m.reason} · </span>}
