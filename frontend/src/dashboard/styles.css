@@ -1836,3 +1836,176 @@ table.whatif-ghosts td [aria-hidden="true"] {
 .modal-body {
   color: var(--text-2);
 }
+
+/* ================================================================== stage 5: states, focus, responsive */
+/* ---------------------------------------------------------------- loading / error on the stage */
+.twin-overlay {
+  place-items: start;
+  padding: var(--s-3);
+  z-index: 2;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--type-micro);
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+}
+
+.twin-overlay.error {
+  place-items: start stretch;
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: var(--type-body);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--st-fault-ink);
+}
+
+.details-empty p {
+  max-width: 32ch;
+}
+
+/* ---------------------------------------------------------------- focus inside scroll containers */
+/* outlines would be clipped by overflow: draw them inside the element instead */
+.tabs [role="tab"]:focus-visible,
+.console-toggle:focus-visible,
+.line-strip ul:focus-visible,
+table.predictions tbody tr:focus-visible {
+  outline-offset: -2px;
+}
+
+.inspector-close {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- 1024–1279 px: the inspector becomes a drawer */
+@media (max-width: 1279px) and (min-width: 1024px) {
+  /* clip the parked drawer: a transform still counts toward the scrollable area */
+  .layout {
+    position: relative;
+    overflow: hidden;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .inspector {
+    position: absolute;
+    z-index: 20;
+    top: var(--s-2);
+    right: var(--s-2);
+    bottom: var(--s-2);
+    width: 380px;
+    border: 1px solid var(--hairline-strong);
+    transform: translateX(calc(100% + var(--s-3)));
+    visibility: hidden;
+    transition:
+      transform var(--dur-2) var(--ease),
+      visibility 0s linear var(--dur-2);
+  }
+
+  .layout[data-selected="true"] .inspector {
+    transform: none;
+    visibility: visible;
+    transition: transform var(--dur-2) var(--ease);
+  }
+
+  .inspector-close {
+    display: inline-flex;
+    align-self: flex-end;
+    margin-bottom: calc(-1 * var(--s-3));
+  }
+}
+
+/* ---------------------------------------------------------------- below 1024 px: one column, page scrolls */
+@media (max-width: 1023px) {
+  html,
+  body,
+  #root {
+    height: auto;
+    min-height: 100%;
+  }
+
+  .app {
+    min-width: 0;
+    height: auto;
+  }
+
+  .header {
+    padding: var(--s-2) var(--s-3);
+    row-gap: var(--s-2);
+  }
+
+  .layout {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .stage-col {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .stage {
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+    background: none;
+  }
+
+  .twin {
+    position: relative;
+    height: 50vh;
+    min-height: 280px;
+    border-radius: var(--radius-panel);
+    overflow: hidden;
+    background: var(--surface-0);
+  }
+
+  .stage::after {
+    display: none;
+  }
+
+  /* the strip leaves the scene and becomes a docked, scrollable row */
+  .hud-strip {
+    position: static;
+    margin-top: var(--s-2);
+    background: var(--surface-1);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .annunciator {
+    max-width: calc(100% - var(--s-3));
+  }
+
+  .console {
+    height: auto;
+    min-height: 360px;
+  }
+
+  .inspector {
+    overflow: visible;
+  }
+
+  .tabs [role="tablist"] {
+    padding-right: var(--s-3);
+    padding-top: 40px;
+  }
+}
+
+/* machine ids never break at their hyphen */
+.line-strip .mid,
+table.predictions tbody th,
+table.whatif-ghosts tbody th,
+.identity h2 {
+  white-space: nowrap;
+}
+
+/* keep the top bar on one row down to the drawer breakpoint */
+@media (max-width: 1439px) {
+  .keyfield input[type="password"] {
+    width: 140px;
+  }
+
+  .header {
+    gap: 12px;
+  }
+}

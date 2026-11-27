@@ -45,6 +45,7 @@ export function App() {
   const sources = useStore(model.sources);
   const [consoleCollapsed, setConsoleCollapsed] = useState(false);
   const [tab, setTab] = useState("live");
+  const selection = useStore(model.selection);
   useSourcesPolling();
   usePredictPolling();
   useAlertBackfill();
@@ -78,7 +79,7 @@ export function App() {
       <ConnectionBanner />
       <DriftBanner />
       <ReplayBar replay={replay} />
-      <div className="layout">
+      <div className="layout" data-testid="layout" data-selected={selection !== null}>
         <main id="main" className="stage-col" tabIndex={-1}>
           <div className="stage">
             <TwinView />
@@ -115,6 +116,16 @@ export function App() {
           </section>
         </main>
         <aside className="inspector" aria-label="Selected machine">
+          <button
+            type="button"
+            className="inspector-close"
+            onClick={() => {
+              model.select(null);
+            }}
+            data-testid="inspector-close"
+          >
+            × Close
+          </button>
           <DetailsPanel />
           <CommandPanel />
         </aside>
