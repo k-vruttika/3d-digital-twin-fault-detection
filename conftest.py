@@ -17,6 +17,31 @@ OPENMP_CLASH = ("torch", "xgboost")
 _clash_reported = False
 
 
+RUN_DEMO_OPTION = "--run-demo"
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        RUN_DEMO_OPTION,
+        action="store_true",
+        default=False,
+        help="also run the real-time demo scenarios (marker 'demo', about 40 min; "
+        "uv run poe demo-tests)",
+    )
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """The demo scenarios are opt-in: skipped unless ``--run-demo`` is given."""
+    if config.getoption(RUN_DEMO_OPTION):
+        return
+    skip = pytest.mark.skip(
+        reason=f"real-time demo scenario: opt in with {RUN_DEMO_OPTION} (uv run poe demo-tests)"
+    )
+    for item in items:
+        if item.get_closest_marker("demo") is not None:
+            item.add_marker(skip)
+
+
 def pytest_asyncio_loop_factories(config: pytest.Config, item: pytest.Item) -> Mapping[str, object]:
     """Async tests run on the same loop type as production (selector loop on Windows)."""
     return {"linetwin": new_event_loop}

@@ -78,6 +78,11 @@ sequence = [
     { cmd = "npm --prefix frontend test" },
 ]
 
+[tool.poe.tasks.demo-tests]
+help = "Phase 11 demo scenarios (a)-(e), real time, about 40 min (run `up` and `deploy-models` first); writes experiments/results/demo_scenarios/; extra args pass through, e.g. -k demo_d"
+cmd = "pytest tests/test_phase11_demo.py --run-demo -s"
+env = { LINETWIN_DEMO_RESULTS_DIR = "experiments/results/demo_scenarios" }
+
 [tool.poe.tasks.dev]
 help = "Simulator publisher for the active source + backend with TimescaleDB (run `up` first); extra args pass through"
 cmd = "python -m twin_backend.devstack"
@@ -342,6 +347,7 @@ addopts = ["--import-mode=importlib", "-ra", "--strict-markers"]
 markers = [
     "services: needs the Docker Compose services (uv run poe up); skipped when unreachable",
     "e2e: drives the dashboard in Playwright's Chromium (uv run poe browsers); skipped without it",
+    "demo: real-time Phase 11 demo scenario (about 40 min in all); opt-in: --run-demo (uv run poe demo-tests)",
 ]
 filterwarnings = [
     # Starlette's TestClient asks for the httpx2 package; httpx works and is what we depend on.

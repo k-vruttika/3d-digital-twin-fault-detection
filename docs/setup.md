@@ -26,7 +26,7 @@ uv run poe                  # list every task
 uv run pre-commit install   # optional: run hooks on every commit
 ```
 
-`uv run poe lint` and `uv run poe test` are the main checks: run both before every commit.
+`uv run poe lint` and `uv run poe test` are the main checks: run both before every commit. The real-time Phase 11 demo scenarios (about 40 min) are not part of `poe test`; run them on purpose with `uv run poe demo-tests` (needs `uv run poe up` and `uv run poe deploy-models`, see [demo_script.md](demo_script.md)).
 
 **CI is manual.** The GitHub Actions workflow (`.github/workflows/ci.yml`) does not run on push or pull request. Start it from the Actions tab (CI → Run workflow), or with `gh workflow run ci.yml`. A run uses Ubuntu only (with the Docker Compose services and the e2e tests); tick **Also run on Windows** / **Also run on macOS** in the run form (or pass `-f windows=true -f macos=true` to `gh`) to add those jobs. Every job runs the same poe tasks as locally.
 

@@ -55,24 +55,27 @@ The dashboard can show predictions (ADR 0030). Operators also want to ask "what 
 
 ### Demo scenarios as end-to-end tests
 
-Four scenarios (`docs/demo_script.md`, `tests/test_phase11_demo.py`), each against the real stack and in **real time**: the mock machine server (the simulator), the dev-mode backend on a throw-away TimescaleDB database with live inference on the deployed bundles, and the REST API. Nothing is replayed or faked; the assertions are on what the running system reports, compared on the **event-time axis** (alert `ts`, state `ts`).
+Five scenarios (`docs/demo_script.md`, `tests/test_phase11_demo.py`), each against the real stack and in **real time**: the mock machine server (the simulator), the dev-mode backend on a throw-away TimescaleDB database with live inference on the deployed bundles, and the REST API. Nothing is replayed or faked; the assertions are on what the running system reports, compared on the **event-time axis** (alert `ts`, the `ts` of stored readings). The labels (a)–(d) follow the Part C plan (C3); (e) is an extra.
 
-- **(a) Healthy line + what-if:** no alert of any kind for 120 s, predictions NORMAL with reliability OK; a what-if "stop CNC-01" shows CNC-01 IDLE and INSP-01 starved, scored by the model, and leaves the real line and the command audit untouched.
+- **(a) Known fault (`bearing_wear`):** injection < unusual behaviour <= predicted WARNING < the simulator's own WARNING (dated from the stored readings), and the strongest explained part at the alarm is the spindle bearing. This is the claim of the live check in Part B turned into a failing test, not a recorded observation.
 - **(b) Unseen fault (`lubrication_loss`):** the supervised model stays NORMAL and raises no alarm; the autoencoder's "unusual behaviour, cause unknown" is raised, names no part.
-- **(c) Known fault (`bearing_wear`), the ordering check:** injection < unusual behaviour <= predicted WARNING < the simulator's own WARNING, and the strongest explained part at the alarm is the spindle bearing. This is the claim of the live check in Part B turned into a failing test, not a recorded observation.
-- **(d) Operating-condition drift:** load 120 % raises `model_drift`, marks the predictions DEGRADED, raises no predicted alarm, and clears after the load is back at 55 %.
+- **(c) Operating-condition drift, the ordering check:** load 120 % raises `model_drift`, marks the predictions DEGRADED, raises no predicted alarm, and clears after the load is back at 55 %. The drift alert must come **before** any overload-related simulator WARNING or FAULT on the stored readings of the high-load period. The step is chosen from the simulator physics, not from model output: a fast simulator-only test (part of the default suite) holds the dev-stack simulator at 120 % for longer than the demo does and asserts that CNC-01 never reaches WARNING or FAULT.
+- **(d) What-if during (a):** with the bearing_wear alarm on, a what-if "set load 40 %" (300 s) is compared with the unchanged projection: the projected load is lower, and a lower load does not bring the simulator's WARNING or FAULT forward (wear grows with load^1.5). The change is then applied through the normal command path (EXECUTED, in the audit, live load drops). The live line is watched to the end of the projection and its WARNING / FAULT times are recorded beside the projected ones. Whether the fault is removed is recorded, not asserted.
+- **(e) Healthy line + stop what-if (beyond the plan):** no alert of any kind for 120 s, predictions NORMAL with reliability OK; a what-if "stop CNC-01" shows CNC-01 IDLE and INSP-01 starved, scored by the model, and leaves the real line and the command audit untouched.
+
+**Opt-in.** The scenarios carry the pytest marker `demo` and run only with `--run-demo` (`uv run poe demo-tests`, which also writes the results). `uv run poe test` skips them with a message, so the default suite no longer takes about 40 extra minutes when the bundles are registered.
 
 Why real time: with Chromium's software WebGL and the workers sharing the CPU, explanations took 1–5 s each in Part B, so a faster simulator drops every explanation and the part highlight disappears (ADR 0030). The scenarios cost 3–15 minutes each; they are skipped, with a message, when the deployed bundles are not registered.
 
-Measured by one run (written by the tests to `experiments/results/demo_scenarios/*.json`; event times, one laptop, not guarantees):
+Measured by one run on 2026-11-20, **before the relabelling** (written by the tests to `experiments/results/demo_scenarios/*.json` under the old labels; event times, one laptop, not guarantees). Rows use the new labels; (d) has not been run yet, and the run of (c) predates the ordering check:
 
 | Scenario | Result |
 |---|---|
 | (b) | unusual behaviour 49 s after the injection; supervised NORMAL (0.9998) with no alarm; the alert switched on and off twice in the following minutes |
-| (c) | unusual behaviour at +173 s, predicted WARNING at +444 s, simulator WARNING at +501 s (predicted 57 s before it); top part `spindle_bearing` (vibration, 0.74) |
-| (d) | drift raised 119 s after the load change, cleared 135 s after the load went back; no predicted alarm during it |
+| (a) | unusual behaviour at +173 s, predicted WARNING at +444 s, simulator WARNING at +501 s (predicted 57 s before it); top part `spindle_bearing` (vibration, 0.74) |
+| (c) | drift raised 119 s after the load change, cleared 135 s after the load went back; no predicted alarm during it |
 
-The first run of (d) failed, and that is how the drift clearing problem above was found (alert raised, never cleared); it passed after the margin rule was fixed.
+The first run of the drift scenario (then labelled (d), now (c)) failed, and that is how the drift clearing problem above was found (alert raised, never cleared); it passed after the margin rule was fixed.
 
 ## Consequences
 

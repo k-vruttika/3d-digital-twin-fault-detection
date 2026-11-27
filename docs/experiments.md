@@ -368,7 +368,7 @@ These complete definitions that ADR 0027 leaves open. They were written before a
 
 ## Phase 11: demo scenarios
 
-`tests/test_phase11_demo.py` runs four scenarios in real time against the real stack ([docs/demo_script.md](demo_script.md), [ADR 0031](adr/0031-whatif-drift-demo.md)) and, with `LINETWIN_DEMO_RESULTS_DIR=experiments/results/demo_scenarios`, writes what it measured as JSON there. These are single runs (event times), not evaluations.
+`uv run poe demo-tests` runs the five scenarios of `tests/test_phase11_demo.py` ((a)–(d) as in the Part C plan, plus (e)) in real time against the real stack ([docs/demo_script.md](demo_script.md), [ADR 0031](adr/0031-whatif-drift-demo.md)) and writes what it measured as JSON to `experiments/results/demo_scenarios/`. They are opt-in (marker `demo`, `--run-demo`) and not part of `uv run poe test`. The committed JSON files are from the 2026-11-20 run under the old labels (see `demo_script.md`); (d) has not been run yet. These are single runs (event times), not evaluations.
 
 ## Results
 
