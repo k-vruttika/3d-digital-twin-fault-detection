@@ -190,7 +190,7 @@ export function WhatIfPanel() {
             ))}
           </select>
         </label>
-        <button type="button" onClick={run} disabled={running || blocked !== null} title={blocked ?? undefined} data-testid="whatif-run">
+        <button type="button" className="primary" onClick={run} disabled={running || blocked !== null} title={blocked ?? undefined} data-testid="whatif-run">
           {running ? "Projecting…" : "Run what-if"}
         </button>
       </div>

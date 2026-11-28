@@ -1,0 +1,136 @@
+/*
+ * LineTwin design tokens (DESIGN.md §2–§4, §7). The only place hex values live in the dashboard CSS.
+ * Dark ("night shift") is the default; light ("day shift") via :root[data-theme="light"].
+ * frontend/scripts/check-contrast.mjs reads this file and asserts the WCAG ratios in DESIGN.md §3.5
+ * (it runs as part of `npm --prefix frontend test`). Keep every colour a literal #RRGGBB or
+ * rgb(r g b / a) so the script can parse it.
+ */
+:root {
+  /* surfaces: one graphite family */
+  --surface-0: #0D0F12;
+  --surface-1: #14171B;
+  --surface-2: #1B1F24;
+  --surface-3: #242930;
+  --hud: rgb(20 23 27 / 0.88);
+  --hairline: #2A3037;
+  --hairline-strong: #3A424B;
+  --text-1: #ECEEF0;
+  --text-2: #A7AFB8;
+  --text-3: #8E97A1;
+
+  /* brand accent: bone (interaction only, never status) */
+  --accent: #E8DFC8;
+  --on-accent: #0D0F12;
+
+  /* status: fills (dots, badge fills and borders, chart markers, 3D) */
+  --st-running: #6FC28E;
+  --st-inactive: #A0A8B1;
+  --st-warning: #F4A42C;
+  --st-fault: #FF5B4F;
+  --st-maintenance: #6E9BFF;
+  --st-unusual: #C58AFF;
+  --st-degraded: #E6DC5A;
+  --st-explained: #3FE0E8;
+  /* status as text on a surface or on its own tint */
+  --st-running-ink: #6FC28E;
+  --st-inactive-ink: #A0A8B1;
+  --st-warning-ink: #F4A42C;
+  --st-fault-ink: #FF6E63;
+  --st-maintenance-ink: #7DA6FF;
+  --st-unusual-ink: #C58AFF;
+  --st-degraded-ink: #E6DC5A;
+  --st-explained-ink: #3FE0E8;
+  /* text on a solid status fill */
+  --on-status: #0D0F12;
+  /* how much status colour a tinted badge / row carries (color-mix into --surface-1) */
+  --tint: 14%;
+
+  /* the light machine body the HUD glass is checked against (3D config `body`) */
+  --scene-body: #B8C0C8;
+
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --surface-0: #F2F1ED;
+  --surface-1: #FBFAF8;
+  --surface-2: #F2F0EB;
+  --surface-3: #EAE7E0;
+  --hud: rgb(251 250 248 / 0.9);
+  --hairline: #DAD6CC;
+  --hairline-strong: #C4BFB3;
+  --text-1: #15181C;
+  --text-2: #4A525B;
+  --text-3: #5C646D;
+
+  --accent: #2B2620;
+  --on-accent: #FBFAF8;
+
+  --st-running: #2F6E1F;
+  --st-inactive: #5C646D;
+  --st-warning: #AD620C;
+  --st-fault: #C6413C;
+  --st-maintenance: #3C6EC0;
+  --st-unusual: #794DA5;
+  --st-degraded: #786914;
+  --st-explained: #217F96;
+  --st-running-ink: #2F6E1F;
+  --st-inactive-ink: #5C646D;
+  --st-warning-ink: #8A4D08;
+  --st-fault-ink: #A3302C;
+  --st-maintenance-ink: #30599F;
+  --st-unusual-ink: #794DA5;
+  --st-degraded-ink: #6A5D10;
+  --st-explained-ink: #1A6676;
+  --on-status: #FFFFFF;
+  --tint: 12%;
+
+  --scene-body: #B8C0C8;
+
+  color-scheme: light;
+}
+
+:root {
+  /* type (DESIGN.md §2) */
+  --font-display: "Barlow Condensed", "Archivo Narrow", "Liberation Sans Narrow", sans-serif;
+  --font-body: "IBM Plex Sans", "Source Sans 3", "Noto Sans", sans-serif;
+  --font-mono: "IBM Plex Mono", "Source Code Pro", "Noto Sans Mono", monospace;
+  --type-micro: 11px;
+  --type-body: 13px;
+  --type-title: 16px;
+  --type-display: 40px;
+  --lh-micro: 16px;
+  --lh-body: 20px;
+  --lh-title: 24px;
+  --lh-display: 48px;
+  --tracking-micro: 0.08em;
+
+  /* space: 8 px rhythm (DESIGN.md §4) */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 16px;
+  --s-4: 24px;
+  --s-5: 32px;
+  --s-6: 48px;
+
+  /* depth: the modal is the only element with a shadow (DESIGN.md §4) */
+  --scrim: rgb(0 0 0 / 0.55);
+  --shadow-modal: 0 24px 64px rgb(0 0 0 / 0.5);
+
+  /* edges */
+  --radius-panel: 8px;
+  --radius-control: 4px;
+  --topbar-h: 48px;
+
+  /* motion (DESIGN.md §7) */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-1: 0ms;
+    --dur-2: 0ms;
+  }
+}

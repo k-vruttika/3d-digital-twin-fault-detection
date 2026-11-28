@@ -12,6 +12,7 @@ import { axisTitle } from "../format.ts";
 import { useStore } from "../state/store.ts";
 import { readingsToSeries, trimWindow } from "./series.ts";
 import { SensorChart } from "./SensorChart.tsx";
+import { useAlertMarkers } from "./useAlertMarkers.ts";
 
 const EPS_MS = 1;
 
@@ -27,6 +28,7 @@ function MachineLiveCharts({ id, line }: { id: string; line: LineResponse }) {
   const mode = useStore(model.modeStore);
   const cfg = model.cfg;
   const [readings, setReadings] = useState<Reading[]>([]);
+  const markers = useAlertMarkers(id);
   const pending = useRef<Reading[]>([]);
   const frame = useRef<number | null>(null);
 
@@ -92,7 +94,7 @@ function MachineLiveCharts({ id, line }: { id: string; line: LineResponse }) {
           <SensorChart
             key={s.sensor}
             testId={`live-chart-${s.sensor}`}
-            data={{ label: s.sensor, yTitle: axisTitle(s.sensor, line.sensors[s.sensor]), points: s.points, xMin: s.xMin, xMax: s.xMax }}
+            data={{ label: s.sensor, yTitle: axisTitle(s.sensor, line.sensors[s.sensor]), points: s.points, xMin: s.xMin, xMax: s.xMax, markers }}
           />
         ))}
       </div>

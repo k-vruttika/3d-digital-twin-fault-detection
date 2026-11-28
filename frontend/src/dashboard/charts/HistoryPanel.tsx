@@ -12,6 +12,7 @@ import { axisTitle, formatDateTime } from "../format.ts";
 import { useStore } from "../state/store.ts";
 import { BUCKET_S, bucketsToSeries, chooseResolution, readingsToSeries, type Resolution } from "./series.ts";
 import { SensorChart } from "./SensorChart.tsx";
+import { useAlertMarkers } from "./useAlertMarkers.ts";
 
 interface Range {
   from: number;
@@ -22,6 +23,7 @@ export function HistoryPanel() {
   const model = useModel();
   const rest = useRest();
   const id = useStore(model.selection);
+  const markers = useAlertMarkers(id);
   const line = useStore(model.line);
   const asOf = useStore(model.asOf);
   const mode = useStore(model.modeStore);
@@ -183,7 +185,7 @@ export function HistoryPanel() {
         <SensorChart
           testId="history-chart"
           height="fill"
-          data={{ ...chart, xMin: range.from, xMax: range.to }}
+          data={{ ...chart, xMin: range.from, xMax: range.to, markers }}
           onZoom={(from, to) => {
             setZoom({ from, to });
           }}

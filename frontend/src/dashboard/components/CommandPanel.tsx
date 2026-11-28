@@ -138,7 +138,7 @@ export function CommandPanel() {
   if (!operator) {
     return (
       <section className="panel" aria-label="Commands">
-        <h2>Commands</h2>
+        <h2 className="section-head">Commands</h2>
         <p className="muted small" data-testid="commands-need-operator">
           Commands need an operator API key.
         </p>
@@ -148,7 +148,7 @@ export function CommandPanel() {
   if (id === null) {
     return (
       <section className="panel" aria-label="Commands">
-        <h2>Commands</h2>
+        <h2 className="section-head">Commands</h2>
         <p className="muted small">Select a machine to send it a command.</p>
       </section>
     );
@@ -159,11 +159,11 @@ export function CommandPanel() {
   );
   return (
     <section className="panel commands" aria-label={`Commands for ${id}`} data-testid="command-panel">
-      <h2>
+      <h2 className="section-head">
         Commands <span className="muted">· {id}</span>
       </h2>
       {why !== null && <p className="small muted">Disabled: {why}.</p>}
-      <div className="form-row">
+      <div className="form-row command-row">
         <button
           type="button"
           className="danger"

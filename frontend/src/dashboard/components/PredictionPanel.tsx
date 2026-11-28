@@ -19,8 +19,8 @@ function ClassCell({ p, testId }: { p: Prediction | null; testId: string }) {
   const { cls, prob } = topClass(p);
   return (
     <td data-testid={testId}>
-      <span className={`badge tone-${classTone(cls)}`}>{cls}</span>{" "}
-      <span className="small">{prob.toFixed(2)}</span>
+      <span className={`badge pred tone-${classTone(cls)}`}>{cls}</span>{" "}
+      <span className="prob">{prob.toFixed(2)}</span>
     </td>
   );
 }
@@ -270,10 +270,10 @@ export function PredictionPanel() {
                     <td data-testid={`prediction-set-${m.id}`}>{confidenceText(pPrimary)}</td>
                     <td data-testid={`prediction-ttf-${m.id}`}>{ttfText(pPrimary, cap)}</td>
                     <td data-testid={`prediction-reliability-${m.id}`}>
-                      <span className={`badge ${pPrimary.reliability === "OK" ? "tone-ok" : "tone-warning"}`}>
+                      <span className={`badge ${pPrimary.reliability === "OK" ? "tone-ok" : "tone-degraded"}`}>
                         {pPrimary.reliability}
                       </span>
-                      {pPrimary.alarm === true && <span className="badge tone-warning">alarm</span>}
+                      {pPrimary.alarm === true && <span className="badge pred tone-warning">alarm</span>}
                     </td>
                   </>
                 ) : (
@@ -314,9 +314,10 @@ export function PredictionSummary({ id }: { id: string }) {
   const { cls } = topClass(p);
   return (
     <p className="small" data-testid="details-prediction">
-      <span className={`badge tone-${classTone(cls)}`}>{cls}</span>{" "}
-      +{String(primary)} s: {confidenceText(p)} · {p.reliability}
-      {p.alarm === true && <span className="badge tone-warning">alarm</span>}
+      <span className={`badge pred tone-${classTone(cls)}`}>{cls}</span>{" "}
+      +{String(primary)} s: {confidenceText(p)} ·{" "}
+      <span className={`badge ${p.reliability === "OK" ? "tone-ok" : "tone-degraded"}`}>{p.reliability}</span>
+      {p.alarm === true && <span className="badge pred tone-warning">alarm</span>}
       {p.anomalyFlag === true && <span className="badge kind-unusual">unusual</span>}
     </p>
   );

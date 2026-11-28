@@ -155,6 +155,7 @@ export function ScenarioPanel() {
           {!progressionOk && <p className="small error">Progression must be within the configured range.</p>}
           <button
             type="button"
+            className="primary"
             disabled={!canAct || fault === null || !progressionOk}
             title={why ?? undefined}
             onClick={inject}

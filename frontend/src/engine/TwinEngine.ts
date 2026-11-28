@@ -11,6 +11,7 @@
 import {
   Color,
   DirectionalLight,
+  Fog,
   GridHelper,
   Group,
   HemisphereLight,
@@ -19,6 +20,7 @@ import {
   MeshStandardMaterial,
   PCFShadowMap,
   PerspectiveCamera,
+  PMREMGenerator,
   Raycaster,
   Scene,
   Vector2,
@@ -27,8 +29,10 @@ import {
   WebGLRenderer,
   type Camera,
   type Object3D,
+  type Texture,
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 
 import type {
   Alert,
@@ -69,6 +73,14 @@ export interface EngineTheme {
   replayBackground: number;
   floor: number;
   grid: number;
+}
+
+/** Pixels of the canvas covered by host UI (a HUD), per edge. */
+export interface ViewInsets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
 }
 
 export interface SelectEvent {
@@ -122,6 +134,11 @@ export interface TwinEngineOptions {
   wallClock?: () => number;
   requestFrame?: (cb: (t: number) => void) => number;
   cancelFrame?: (id: number) => void;
+  /**
+   * Builds the reflection map for config.scene.environment (default: three's RoomEnvironment
+   * through PMREMGenerator, only on a real WebGLRenderer; null = no reflections).
+   */
+  createEnvironment?: (renderer: RendererLike) => Texture | null;
   /** Start the frame loop immediately (default true). */
   autoStart?: boolean;
   devicePixelRatio?: number;
@@ -174,7 +191,8 @@ export class TwinEngine {
   };
   private readonly cache: GeometryCache;
   private readonly beltTexture;
-  private readonly lights: { hemi: HemisphereLight; sun: DirectionalLight };
+  /** sun = the shadow-casting key light; extra = fill and rim of the optional rig (config.scene.lighting) */
+  private readonly lights: { hemi: HemisphereLight; sun: DirectionalLight; extra: DirectionalLight[] };
   private readonly raycaster = new Raycaster();
   private readonly tooltipView: TooltipView | null;
   private readonly fpsMeter: FpsMeter | null;
@@ -191,6 +209,10 @@ export class TwinEngine {
   private modeValue: EngineMode = "live";
   private labelModeValue: LabelMode = "auto";
   private theme: EngineTheme;
+  /** Canvas edges covered by host UI; null = none (the original full-canvas framing). */
+  private insets: ViewInsets | null = null;
+  /** Camera distance of the last framing (frame()); scales the optional fog. */
+  private framingDistance = 20;
   private connected = true;
   private selectedId: string | null = null;
   private hovered: PickTarget | null = null;
@@ -223,14 +245,40 @@ export class TwinEngine {
     const c = this.cfg.colors;
     this.theme = { background: c.background, replayBackground: c.replayBackground, floor: c.floor, grid: c.grid };
     this.scene.background = new Color(this.theme.background);
-    const hemi = new HemisphereLight(0xffffff, 0x404850, 1.6);
-    const sun = new DirectionalLight(0xffffff, 2.2);
+    const rig = this.cfg.scene?.lighting;
+    const hemi = rig === undefined ? new HemisphereLight(0xffffff, 0x404850, 1.6) : new HemisphereLight(rig.hemi.sky, rig.hemi.ground, rig.hemi.intensity);
+    const sun = rig === undefined ? new DirectionalLight(0xffffff, 2.2) : new DirectionalLight(rig.key.color, rig.key.intensity);
     sun.position.set(-8, 14, 10);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
+    const soft = this.cfg.scene?.softShadows;
+    if (soft !== undefined) {
+      // PCF with a blur radius (three removed PCFSoftShadowMap in r18x), lighter, without acne
+      sun.shadow.mapSize.set(soft.mapSize, soft.mapSize);
+      sun.shadow.radius = soft.radius;
+      sun.shadow.intensity = soft.intensity;
+      sun.shadow.bias = -0.0005;
+      sun.shadow.normalBias = 0.02;
+    }
     this.scene.add(hemi, sun, sun.target);
     this.shared.track(sun);
-    this.lights = { hemi, sun };
+    const extra: DirectionalLight[] = [];
+    for (const spec of rig === undefined ? [] : [rig.fill, rig.rim]) {
+      const light = new DirectionalLight(spec.color, spec.intensity);
+      this.scene.add(light, light.target);
+      this.shared.track(light);
+      extra.push(light);
+    }
+    this.lights = { hemi, sun, extra };
+    const env = this.cfg.scene?.environment;
+    if (env !== undefined) {
+      const texture = (opts.createEnvironment ?? roomEnvironment)(this.renderer);
+      if (texture !== null) {
+        this.shared.track(texture);
+        this.scene.environment = texture;
+        this.scene.environmentIntensity = env.intensity;
+      }
+    }
     this.scene.add(this.world);
 
     this.cache = new GeometryCache(this.shared);
@@ -442,6 +490,22 @@ export class TwinEngine {
   private applyBackground(): void {
     const bg = this.modeValue === "replay" ? this.theme.replayBackground : this.theme.background;
     (this.scene.background as Color).set(bg);
+    this.applyFog(bg);
+  }
+
+  /** config.scene.fog: fog in the background colour, so the floor fades out instead of ending. */
+  private applyFog(color: number): void {
+    const fog = this.cfg.scene?.fog;
+    if (fog === undefined) return;
+    const near = this.framingDistance * fog.near;
+    const far = this.framingDistance * fog.far;
+    if (this.scene.fog instanceof Fog) {
+      this.scene.fog.color.set(color);
+      this.scene.fog.near = near;
+      this.scene.fog.far = far;
+    } else {
+      this.scene.fog = new Fog(color, near, far);
+    }
   }
 
   /** The stream is up (true) or down (false: every machine shows "link lost"). */
@@ -476,7 +540,35 @@ export class TwinEngine {
     const h = Math.max(1, Math.floor(height ?? this.container.clientHeight));
     this.renderer.setSize(w, h, true);
     this.camera.aspect = w / h;
+    this.applyViewOffset(w, h);
     this.camera.updateProjectionMatrix();
+  }
+
+  /**
+   * Keep the line clear of host UI drawn over the canvas: the framing fits the line into the
+   * rectangle the insets leave free and centres it there (a view offset, so picking and labels
+   * stay exact). All zeros restores the full-canvas framing.
+   */
+  setViewInsets(insets: ViewInsets): void {
+    const clean = { top: Math.max(0, insets.top), right: Math.max(0, insets.right), bottom: Math.max(0, insets.bottom), left: Math.max(0, insets.left) };
+    const none = clean.top === 0 && clean.right === 0 && clean.bottom === 0 && clean.left === 0;
+    this.insets = none ? null : clean;
+    this.resize();
+    if (this.layout !== null) this.frame(this.layout);
+  }
+
+  private containerSize(): { w: number; h: number } {
+    return { w: Math.max(1, Math.floor(this.container.clientWidth)), h: Math.max(1, Math.floor(this.container.clientHeight)) };
+  }
+
+  private applyViewOffset(w: number, h: number): void {
+    const i = this.insets;
+    if (i === null) {
+      if (this.camera.view?.enabled === true) this.camera.clearViewOffset();
+      return;
+    }
+    // shift the full-size view so the frustum centre lands on the centre of the free rectangle
+    this.camera.setViewOffset(w, h, (i.right - i.left) / 2, (i.bottom - i.top) / 2, w, h);
   }
 
   start(): void {
@@ -523,6 +615,7 @@ export class TwinEngine {
     this.controls.dispose();
     this.clearScene();
     this.shared.disposeAll();
+    this.scene.environment = null;
     this.renderer.dispose();
     this.renderer.forceContextLoss?.();
     this.renderer.domElement.remove();
@@ -701,27 +794,90 @@ export class TwinEngine {
     const cz = (minZ + maxZ) / 2;
     const extent = Math.max(maxX - minX, maxZ - minZ, 4);
     // Distance that fits the footprint into both the vertical and the horizontal field of view.
-    const tanV = Math.tan((this.camera.fov * Math.PI) / 360);
-    const tanH = tanV * Math.max(this.camera.aspect, 0.1);
+    let tanV = Math.tan((this.camera.fov * Math.PI) / 360);
+    let tanH = tanV * Math.max(this.camera.aspect, 0.1);
+    if (this.insets !== null) {
+      // only the free rectangle counts: shrink both half-angles to its share of the canvas
+      const { w, h } = this.containerSize();
+      const fw = Math.max(0.1, (w - this.insets.left - this.insets.right) / w);
+      const fh = Math.max(0.1, (h - this.insets.top - this.insets.bottom) / h);
+      tanV *= fh;
+      tanH *= fw;
+    }
     const fit = Math.max((maxX - minX) / 2 / tanH, (maxZ - minZ) / 2 / tanV, 4);
     const d = fit * 1.15 + 2;
+    this.framingDistance = Math.hypot(d * 0.05, d * 0.5, d * 0.9);
     this.controls.target.set(cx, 0.8, cz);
     this.camera.position.set(cx - d * 0.05, d * 0.5, cz + d * 0.9);
     this.camera.far = Math.max(500, d * 10);
     this.camera.updateProjectionMatrix();
     this.camera.lookAt(this.controls.target);
     const sun = this.lights.sun;
-    sun.position.set(cx - extent * 0.4, extent * 0.9 + 8, cz + extent * 0.6);
-    sun.target.position.set(cx, 0, cz);
-    const half = extent / 2 + 3;
+    const rig = this.cfg.scene?.lighting;
+    if (rig === undefined) {
+      sun.position.set(cx - extent * 0.4, extent * 0.9 + 8, cz + extent * 0.6);
+      sun.target.position.set(cx, 0, cz);
+    } else {
+      // every rig light sits on its direction from the line centre, as far away as the original sun
+      const reach = Math.hypot(extent * 0.4, extent * 0.9 + 8, extent * 0.6);
+      const place = (light: DirectionalLight, dir: readonly [number, number, number]): void => {
+        const n = new Vector3(...dir).normalize().multiplyScalar(reach);
+        light.position.set(cx + n.x, n.y, cz + n.z);
+        light.target.position.set(cx, 0, cz);
+      };
+      place(sun, rig.key.direction);
+      const [fill, rim] = this.lights.extra;
+      if (fill !== undefined) place(fill, rig.fill.direction);
+      if (rim !== undefined) place(rim, rig.rim.direction);
+    }
     const cam = sun.shadow.camera;
-    cam.left = -half;
-    cam.right = half;
-    cam.top = half;
-    cam.bottom = -half;
-    cam.far = extent * 3 + 40;
+    if (this.cfg.scene?.softShadows === undefined) {
+      const half = extent / 2 + 3;
+      cam.left = -half;
+      cam.right = half;
+      cam.top = half;
+      cam.bottom = -half;
+      cam.far = extent * 3 + 40;
+    } else {
+      this.fitShadowCamera(layout);
+    }
     cam.updateProjectionMatrix();
+    this.applyBackground();
     this.controls.update();
+  }
+
+  /**
+   * Fit the key light's shadow camera to the line's box as the light sees it (plus 1 m), so the
+   * shadow map's resolution is spent on the machines rather than on empty floor.
+   */
+  private fitShadowCamera(layout: LineLayout): void {
+    const { minX, maxX, minZ, maxZ } = layout.bounds;
+    const sun = this.lights.sun;
+    const cam = sun.shadow.camera;
+    cam.position.copy(sun.position);
+    cam.lookAt(sun.target.position);
+    cam.updateMatrixWorld(true);
+    const inv = cam.matrixWorldInverse;
+    const margin = 1;
+    const top = 3; // tallest machine part (m), with headroom
+    let [l, r, b, t, n, f] = [Infinity, -Infinity, Infinity, -Infinity, Infinity, -Infinity];
+    for (const x of [minX - margin, maxX + margin])
+      for (const y of [0, top])
+        for (const z of [minZ - margin, maxZ + margin]) {
+          const p = new Vector3(x, y, z).applyMatrix4(inv);
+          l = Math.min(l, p.x);
+          r = Math.max(r, p.x);
+          b = Math.min(b, p.y);
+          t = Math.max(t, p.y);
+          n = Math.min(n, -p.z);
+          f = Math.max(f, -p.z);
+        }
+    cam.left = l;
+    cam.right = r;
+    cam.bottom = b;
+    cam.top = t;
+    cam.near = Math.max(0.1, n - 1);
+    cam.far = f + 1;
   }
 
   private clearScene(): void {
@@ -811,6 +967,17 @@ function emptyData(cfg: LineMachine): MachineData {
     rootCause: null,
     unusualHeld: false,
   };
+}
+
+/** Reflections for metal and glass: three's neutral studio room, prefiltered once (no file, no dependency). */
+function roomEnvironment(renderer: RendererLike): Texture | null {
+  if (!(renderer instanceof WebGLRenderer)) return null;
+  const pmrem = new PMREMGenerator(renderer);
+  const room = new RoomEnvironment();
+  const texture = pmrem.fromScene(room, 0.04).texture;
+  room.dispose();
+  pmrem.dispose();
+  return texture;
 }
 
 function defaultRenderer(): RendererLike {

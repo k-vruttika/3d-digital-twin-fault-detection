@@ -14,7 +14,7 @@ import { AlertTimesText } from "./AlertTimesText.tsx";
 
 const SEVERITIES: AlertSeverity[] = ["CRITICAL", "WARNING", "INFO"];
 
-/** An alert kind as text with its icon; inference kinds look distinct (ADR 0030). */
+/** An alert kind as text; inference kinds look distinct (ADR 0030, DESIGN.md §3.4). */
 export function AlertKindBadge({ kind, machineId }: { kind: string; machineId?: string }) {
   const model = useModel();
   const unusual = useStore(model.unusual);
@@ -24,8 +24,7 @@ export function AlertKindBadge({ kind, machineId }: { kind: string; machineId?: 
   }
   if (v.className === "") return <span>{kind}</span>;
   return (
-    <span className={`badge ${v.className}`} title={v.note ?? undefined} data-testid={`kind-${kind}`}>
-      {v.icon !== "" && <span aria-hidden="true">{v.icon} </span>}
+    <span className={`badge ${v.className} kind-${kind}`} title={v.note ?? undefined} data-testid={`kind-${kind}`}>
       {v.label}
       {kind === "unusual_behaviour" && <span className="small"> · cause unknown</span>}
     </span>
